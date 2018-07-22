@@ -1,0 +1,9 @@
+now:
+
+later:
+- make researches other than blink available
+- getClosestGas only works on the main
+- army only contains zealots and stalkers
+- many direct references to unit types which need to be handled in a generic way
+- refactor to encapsulate all the training of units (structure manager?)
+- refactor to encapsulate units (worker/army manager?)
