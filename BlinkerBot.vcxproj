@@ -136,12 +136,14 @@
     <ClCompile Include="BlinkerbotMain.cpp" />
     <ClCompile Include="ProductionManager.cpp" />
     <ClCompile Include="ProductionQueue.cpp" />
+    <ClCompile Include="UnitData.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ArmyManager.h" />
     <ClInclude Include="Blinkerbot.h" />
     <ClInclude Include="ProductionManager.h" />
     <ClInclude Include="ProductionQueue.h" />
+    <ClInclude Include="UnitData.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

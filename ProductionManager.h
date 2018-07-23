@@ -21,13 +21,21 @@ class ProductionManager
 	std::set<std::pair<const Unit *, std::set<const Unit *>>> gasWorkers;
 	std::set<const Unit *> structures;
 	std::set<const Unit *> availableGeysers;
+	std::set<const Unit *> pylons;
+	const Unit *forwardPylon;
+	Point2D rallyPoint;
+	Point2D forwardPylonPoint;
 
-	void buildStructure(AbilityID structureToBuild);
+	void buildStructure(AbilityID structureToBuild, Location location);
+	void buildStructure(AbilityID structureToBuild, Point2D target);
+	void buildStructure(const Unit *builder, AbilityID structureToBuild, Point2D target);
 	const Unit *getClosestGas(const Unit *unit);
 	const Unit *getClosestGas(Point3D point);
 	void findGeysers();
-	void produce(AbilityID nextBuildOrderItem);
+	void produce(BuildOrderItem nextBuildOrderItem);
 	void trainUnits();
+	void locateForwardPylonPoint();
+	const Unit *getClosestPylon(Point2D point);
 public:
 	ProductionManager(BlinkerBot & bot);
 	~ProductionManager();
@@ -44,5 +52,7 @@ public:
 	const Unit *getBuilder();
 	void addNewUnit(const Unit *unit);
 	void returnToMining(const Unit *unit);
+	void receiveAttackSignal(bool attack);
+	Point2D getRallyPoint();
 };
 

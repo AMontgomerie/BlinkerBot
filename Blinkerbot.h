@@ -7,6 +7,7 @@
 #include "ProductionManager.h"
 #include "ArmyManager.h"
 #include <iostream>
+#include "UnitData.h"
 
 using namespace sc2;
 

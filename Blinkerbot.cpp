@@ -24,19 +24,29 @@ void BlinkerBot::OnGameStart()
 	}
 }
 
-void BlinkerBot::OnStep() 
-{	
+void BlinkerBot::OnStep()
+{
 	productionManager.onStep();
 	armyManager.onStep();
+	productionManager.receiveAttackSignal(armyManager.sendAttackSignal());
+	armyManager.receiveRallyPoint(productionManager.getRallyPoint());
 }
 
 void BlinkerBot::OnUnitDestroyed(const sc2::Unit *unit)
 {
-	productionManager.onUnitDestroyed(unit);
+	if (UnitData::isOurs(unit))
+	{
+		productionManager.onUnitDestroyed(unit);
+		armyManager.removeUnit(unit);
+	}
+	else
+	{
+		armyManager.removeEnemyUnit(unit);
+	}
 }
 void BlinkerBot::OnUnitEnterVision(const sc2::Unit *unit)
 {
-
+	armyManager.addEnemyUnit(unit);
 }
 
 void BlinkerBot::OnBuildingConstructionComplete(const sc2::Unit* unit)

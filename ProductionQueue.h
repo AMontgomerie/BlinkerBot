@@ -7,16 +7,29 @@
 
 using namespace sc2;
 
+enum Location { Proxy, Main, Natural, Third , Nowhere };
+
+class BuildOrderItem
+{
+public:
+	sc2::AbilityID item;
+	Location location;
+
+	BuildOrderItem();
+	BuildOrderItem(sc2::AbilityID c_item, Location c_location);
+};
+
 class ProductionQueue
 {
-	std::vector<AbilityID> productionQueue;
+	std::vector<BuildOrderItem> productionQueue;
 
 public:
 	ProductionQueue();
 	~ProductionQueue();
 	void removeItem();
 	void initialiseQueue();
-	AbilityID getNextItem();
+	BuildOrderItem getNextItem();
 	void generateMoreItems();
+	void addItemHighPriority(AbilityID type, Location location);
+	void addItemLowPriority(AbilityID type, Location location);
 };
-
