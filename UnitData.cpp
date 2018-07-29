@@ -119,17 +119,23 @@ bool UnitData::isFightingUnit(const Unit *unit)
 
 bool UnitData::isTownHall(const Unit *unit)
 {
-	/* unimplemented
-	if ()
+
+	if (unit->unit_type == UNIT_TYPEID::TERRAN_COMMANDCENTER || 
+		unit->unit_type == UNIT_TYPEID::TERRAN_ORBITALCOMMAND ||
+		unit->unit_type == UNIT_TYPEID::TERRAN_COMMANDCENTERFLYING ||
+		unit->unit_type == UNIT_TYPEID::TERRAN_ORBITALCOMMANDFLYING ||
+		unit->unit_type == UNIT_TYPEID::TERRAN_PLANETARYFORTRESS ||
+		unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS|| 
+		unit->unit_type == UNIT_TYPEID::ZERG_HATCHERY || 
+		unit->unit_type == UNIT_TYPEID::ZERG_LAIR ||
+		unit->unit_type == UNIT_TYPEID::ZERG_HIVE)
 	{
-	return true;
+		return true;
 	}
 	else
 	{
-	return false;
+		return false;
 	}
-	*/
-	return false;
 }
 
 bool UnitData::isSupplyProvider(const Unit *unit)
@@ -149,8 +155,18 @@ bool UnitData::isSupplyProvider(const Unit *unit)
 
 bool UnitData::isMinerals(const Unit *unit)
 {
-	/* unimplemented
-	if ()
+	if ((unit->unit_type == UNIT_TYPEID::NEUTRAL_BATTLESTATIONMINERALFIELD) ||
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_BATTLESTATIONMINERALFIELD750) ||
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_LABMINERALFIELD) ||
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_LABMINERALFIELD750) || 
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_MINERALFIELD) || 
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_MINERALFIELD750) || 
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_PURIFIERMINERALFIELD) || 
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_PURIFIERMINERALFIELD750) || 
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_PURIFIERRICHMINERALFIELD) || 
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_PURIFIERRICHMINERALFIELD750) || 
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_RICHMINERALFIELD) || 
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_RICHMINERALFIELD750))
 	{
 	return true;
 	}
@@ -158,23 +174,23 @@ bool UnitData::isMinerals(const Unit *unit)
 	{
 	return false;
 	}
-	*/
-	return false;
 }
 
 bool UnitData::isVespeneGeyser(const Unit *unit)
 {
-	/* unimplemented
-	if ()
+	if ((unit->unit_type == UNIT_TYPEID::NEUTRAL_VESPENEGEYSER) ||
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_PROTOSSVESPENEGEYSER) ||
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_PURIFIERVESPENEGEYSER) ||
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_SHAKURASVESPENEGEYSER) ||
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_RICHVESPENEGEYSER) ||
+		(unit->unit_type == UNIT_TYPEID::NEUTRAL_SPACEPLATFORMGEYSER))
 	{
-	return true;
+		return true;
 	}
 	else
 	{
-	return false;
+		return false;
 	}
-	*/
-	return false;
 }
 
 bool UnitData::isOurs(const Unit *unit)

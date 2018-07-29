@@ -10,7 +10,7 @@ BlinkerBot::BlinkerBot(): productionManager(*this), armyManager(*this)
 
 void BlinkerBot::OnGameStart()
 {
-	productionManager.initialise();
+	
 	for (auto unit : Observation()->GetUnits())
 	{
 		if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
@@ -22,6 +22,7 @@ void BlinkerBot::OnGameStart()
 			productionManager.addStructure(unit);
 		}
 	}
+	productionManager.initialise();
 }
 
 void BlinkerBot::OnStep()
@@ -42,11 +43,19 @@ void BlinkerBot::OnUnitDestroyed(const sc2::Unit *unit)
 	else
 	{
 		armyManager.removeEnemyUnit(unit);
+		if (UnitData::isTownHall(unit))
+		{
+			productionManager.removeEnemyBase(unit);
+		}
 	}
 }
 void BlinkerBot::OnUnitEnterVision(const sc2::Unit *unit)
 {
 	armyManager.addEnemyUnit(unit);
+	if (UnitData::isTownHall(unit))
+	{
+		productionManager.addEnemyBase(unit);
+	}
 }
 
 void BlinkerBot::OnBuildingConstructionComplete(const sc2::Unit* unit)

@@ -7,7 +7,9 @@
 
 using namespace sc2;
 
-enum Location { Proxy, Main, Natural, Third , Nowhere };
+enum Location { Main, Natural, Third, Proxy, Nowhere };
+
+class BlinkerBot;
 
 class BuildOrderItem
 {
@@ -21,15 +23,17 @@ public:
 
 class ProductionQueue
 {
+	BlinkerBot & blinkerBot;
 	std::vector<BuildOrderItem> productionQueue;
 
+	void printDebug();
 public:
-	ProductionQueue();
+	ProductionQueue(BlinkerBot & bot);
 	~ProductionQueue();
 	void removeItem();
 	void initialiseQueue();
 	BuildOrderItem getNextItem();
-	void generateMoreItems();
+	void generateMoreItems(std::set<std::pair<AbilityID, int>> buildOrderGoal);
 	void addItemHighPriority(AbilityID type, Location location);
 	void addItemLowPriority(AbilityID type, Location location);
 };

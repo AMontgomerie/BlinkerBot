@@ -1,9 +1,19 @@
 now:
+- transfer probes
+- expand before mining out
+- occasional bug for building proxy pylon
+- there's still a bug in the expansion placement in some positions (horiztonl and maybe vertical)
+- bases might not be readded to available locations after a nexus destruction
+- some kind of infinite loop bug when i lost my natural?
 
 later:
-- make researches other than blink available
-- getClosestGas only works on the main
 - army only contains zealots and stalkers
-- many direct references to unit types which need to be handled in a generic way
-- refactor to encapsulate all the training of units (structure manager?)
-- refactor to encapsulate units (worker/army manager?)
+- make executing build order items be handled in a generic way (currently doesnt support most researches or any units)
+- improve building positioning (use pylons as central target locations rather than main base) & (use isPlacable in observation)
+- continue implementing UnitData
+- dont count broodlings or swarmhost boys as enemy army size
+- chronoboost
+- target micro
+- stutter step / kiting
+- build order generator
+- productionManager is getting too large: refactor into baseManager, workerManager, productionManager

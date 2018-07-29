@@ -5,6 +5,7 @@
 #include "sc2api/sc2_map_info.h"
 #include "sc2lib/sc2_lib.h"
 #include "UnitData.h"
+#include <sstream>
 
 using namespace sc2;
 
@@ -22,11 +23,19 @@ class ArmyManager
 	bool regroupComplete;
 	Point2D rallyPoint;
 
+	const Unit *underAttack();
 	bool regroup();
 	void attack();
+	void attack(Point2D target);
 	void retreat();
 	bool canAttack();
 	float calculateSupply(std::set<const Unit *> army);
+	void micro();
+	const Unit *getClosestEnemy(const Unit *ourUnit);
+	bool inRange(const Unit *attacker, const Unit *target);
+	bool shieldsCritical(const Unit *unit, const Unit *attacker);
+	void blink(const Unit *unit);
+	void printDebug();
 public:
 	ArmyManager(BlinkerBot & bot);
 	~ArmyManager();

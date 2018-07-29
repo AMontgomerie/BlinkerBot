@@ -6,6 +6,8 @@
 #include "sc2api/sc2_map_info.h"
 #include "sc2lib/sc2_lib.h"
 #include "ProductionQueue.h"
+#include "BaseManager.h"
+#include "UnitData.h"
 
 using namespace sc2;
 
@@ -15,13 +17,14 @@ class ProductionManager
 {
 	BlinkerBot & blinkerBot;
 	ProductionQueue productionQueue;
+	BaseManager baseManager;
 
 	std::set<const Unit *> workers;
 	std::set<const Unit *> availableWorkers;
 	std::set<std::pair<const Unit *, std::set<const Unit *>>> gasWorkers;
 	std::set<const Unit *> structures;
-	std::set<const Unit *> availableGeysers;
 	std::set<const Unit *> pylons;
+	std::set<const Unit *> enemyBases;
 	const Unit *forwardPylon;
 	Point2D rallyPoint;
 	Point2D forwardPylonPoint;
@@ -29,13 +32,13 @@ class ProductionManager
 	void buildStructure(AbilityID structureToBuild, Location location);
 	void buildStructure(AbilityID structureToBuild, Point2D target);
 	void buildStructure(const Unit *builder, AbilityID structureToBuild, Point2D target);
-	const Unit *getClosestGas(const Unit *unit);
-	const Unit *getClosestGas(Point3D point);
-	void findGeysers();
 	void produce(BuildOrderItem nextBuildOrderItem);
 	void trainUnits();
 	void locateForwardPylonPoint();
 	const Unit *getClosestPylon(Point2D point);
+	void checkSupply();
+	void expand();
+	std::set<std::pair<AbilityID, int>> generateBuildOrderGoal();
 public:
 	ProductionManager(BlinkerBot & bot);
 	~ProductionManager();
@@ -54,5 +57,7 @@ public:
 	void returnToMining(const Unit *unit);
 	void receiveAttackSignal(bool attack);
 	Point2D getRallyPoint();
+	void addEnemyBase(const Unit *unit);
+	void removeEnemyBase(const Unit *unit);
 };
 

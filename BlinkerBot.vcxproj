@@ -132,6 +132,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="ArmyManager.cpp" />
+    <ClCompile Include="BaseManager.cpp" />
     <ClCompile Include="Blinkerbot.cpp" />
     <ClCompile Include="BlinkerbotMain.cpp" />
     <ClCompile Include="ProductionManager.cpp" />
@@ -140,6 +141,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ArmyManager.h" />
+    <ClInclude Include="BaseManager.h" />
     <ClInclude Include="Blinkerbot.h" />
     <ClInclude Include="ProductionManager.h" />
     <ClInclude Include="ProductionQueue.h" />

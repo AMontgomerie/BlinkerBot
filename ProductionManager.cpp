@@ -1,7 +1,7 @@
 #include "ProductionManager.h"
 #include "Blinkerbot.h"
 
-ProductionManager::ProductionManager(BlinkerBot & bot): blinkerBot(bot), forwardPylon(NULL)
+ProductionManager::ProductionManager(BlinkerBot & bot): blinkerBot(bot), forwardPylon(NULL), baseManager(bot), productionQueue(bot)
 {
 	productionQueue.initialiseQueue();
 }
@@ -13,7 +13,7 @@ ProductionManager::~ProductionManager()
 
 void ProductionManager::initialise()
 {
-	findGeysers();
+	baseManager.initialise();
 	rallyPoint = blinkerBot.Observation()->GetStartLocation();
 	locateForwardPylonPoint();
 }
@@ -22,10 +22,15 @@ void ProductionManager::onStep()
 {
 	BuildOrderItem nextBuildOrderItem = productionQueue.getNextItem();
 	produce(nextBuildOrderItem);
-	if(blinkerBot.Observation()->GetFoodCap() - blinkerBot.Observation()->GetFoodUsed() < 5)
+	checkSupply();
+
+	/*
+	if(blinkerBot.Observation()->GetFoodCap() - blinkerBot.Observation()->GetFoodUsed() <= 3 && nextBuildOrderItem.item != ABILITY_ID::BUILD_PYLON)
 	{
-		productionQueue.generateMoreItems();
+		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON, Main);
 	}
+	*/
+
 	const Unit *pylon = getClosestPylon((*blinkerBot.Observation()->GetGameInfo().enemy_start_locations.begin()));
 	if (pylon)
 	{
@@ -65,7 +70,11 @@ void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 		}
 	}
 	//deal with structures
-	if ((blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUnitTypeData()[nextBuildOrderItem.item].mineral_cost)
+	if (nextBuildOrderItem.item == ABILITY_ID::BUILD_NEXUS)
+	{
+		expand();
+	}
+	else if ((blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUnitTypeData()[nextBuildOrderItem.item].mineral_cost)
 		&& (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUnitTypeData()[nextBuildOrderItem.item].vespene_cost))
 	{
 		buildStructure(nextBuildOrderItem.item, nextBuildOrderItem.location);
@@ -76,7 +85,7 @@ void ProductionManager::trainUnits()
 {
 	for (auto structure : structures)
 	{
-		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->orders.size() == 0 && getWorkerCount() < 23)
+		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->orders.size() == 0 && getWorkerCount() < 45)
 		{
 			blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_PROBE);
 		}
@@ -132,6 +141,10 @@ void ProductionManager::removeWorker(const Unit *unit)
 void ProductionManager::addStructure(const Unit *unit)
 {
 	structures.insert(unit);
+	if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
+	{
+		baseManager.addBase(unit);
+	}
 }
 
 size_t ProductionManager::getWorkerCount()
@@ -219,8 +232,7 @@ void ProductionManager::buildStructure(AbilityID structureToBuild, Location loca
 	const Unit *builder = getBuilder();
 	if (structureToBuild == ABILITY_ID::BUILD_ASSIMILATOR)
 	{
-		//currently only works in the main base
-		blinkerBot.Actions()->UnitCommand(builder, structureToBuild, getClosestGas(blinkerBot.Observation()->GetStartLocation()));
+		blinkerBot.Actions()->UnitCommand(builder, structureToBuild, baseManager.getNextAvailableGas());
 	}
 	else
 	{
@@ -237,6 +249,8 @@ void ProductionManager::buildStructure(AbilityID structureToBuild, Location loca
 			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
 			break;
 		case Nowhere:
+			productionQueue.removeItem();
+			productionQueue.generateMoreItems(generateBuildOrderGoal());
 			break;
 		case Natural:
 		case Third:
@@ -260,55 +274,6 @@ void ProductionManager::buildStructure(const Unit *builder, AbilityID structureT
 }
 
 
-const Unit *ProductionManager::getClosestGas(const Unit *unit)
-{
-	//std::cerr << "finding closest gas by unit" << std::endl;
-	const Unit *closestGas = nullptr;
-
-	//std::cerr << "searching among " << availableGeysers.size() << " gases" << std::endl;
-	for (auto gas : availableGeysers)
-	{
-		if (closestGas == nullptr)
-		{
-			closestGas = gas;
-		}
-		else if (Distance2D(unit->pos, gas->pos) <= Distance2D(unit->pos, closestGas->pos))
-		{
-			closestGas = gas;
-		}
-	}
-	if (closestGas == nullptr)
-	{
-		std::cerr << "no gas found" << std::endl;
-	}
-	return closestGas;
-}
-
-const Unit *ProductionManager::getClosestGas(Point3D point)
-{
-	//std::cerr << "finding closest gas by point" << std::endl;
-	const Unit *closestGas = nullptr;
-
-	//std::cerr << "searching among " << availableGeysers.size() << " gases" << std::endl;
-	for (auto gas : availableGeysers)
-	{
-		if (closestGas == nullptr)
-		{
-			closestGas = gas;
-		}
-		else if (Distance2D(point, gas->pos) <= Distance2D(point, closestGas->pos))
-		{
-			closestGas = gas;
-		}
-	}
-	if (closestGas == nullptr)
-	{
-		std::cerr << "no gas found" << std::endl;
-	}
-	return closestGas;
-}
-
-
 void ProductionManager::returnToMining(const Unit *unit)
 {
 	for (auto minerals : blinkerBot.Observation()->GetUnits())
@@ -324,36 +289,28 @@ void ProductionManager::returnToMining(const Unit *unit)
 void ProductionManager::addNewUnit(const Unit *unit)
 {
 	if (blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].ability_id == productionQueue.getNextItem().item)
-	{/*
-		if (unit->pos.x == forwardPylonPoint.x && unit->pos.y == forwardPylonPoint.y)
-		{
-			std::cerr << "forward pylon in production" << std::endl;
-			forwardPylon = unit;
-			//rallyPoint = forwardPylonPoint;
-		}*/
+	{
 		productionQueue.removeItem();
-		if (unit->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
-		{
-			for (std::set<const Unit *>::iterator geyser = availableGeysers.begin(); geyser != availableGeysers.end();)
-			{
-				if (((*geyser)->pos.x == unit->pos.x) && ((*geyser)->pos.y == unit->pos.y))
-				{
-					availableGeysers.erase(geyser++);
-				}
-				else
-				{
-					++geyser;
-				}
-			}
-		}
-		if (unit->unit_type == UNIT_TYPEID::PROTOSS_PYLON)
-		{
-			pylons.insert(unit);
-		}
+	}
+	if (UnitData::isStructure(unit))
+	{
+		addStructure(unit);
+	}
+	if (unit->unit_type == UNIT_TYPEID::PROTOSS_PYLON)
+	{
+		pylons.insert(unit);
 	}
 	if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
 	{
 		addWorker(unit);
+	}
+	if (unit->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
+	{
+		baseManager.addGas(unit);
+	}
+	if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && blinkerBot.Observation()->GetGameLoop() > 1)
+	{
+		baseManager.removeNextBaseLocation();
 	}
 }
 
@@ -370,6 +327,18 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 			if ((*structure) == unit)
 			{
 				structures.erase(*structure++);
+
+				//if we lost an expansion, make this point available to be expanded on again
+				if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
+				{
+					baseManager.removeBase(unit);
+					baseManager.addAvailableBaseLocation(unit);
+				}
+				//if it was a gas then we need to update baseManager too
+				else if (unit->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
+				{
+					baseManager.removeGas(unit);
+				}
 			}
 			else
 			{
@@ -390,22 +359,6 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 	}
 }
 
-void ProductionManager::findGeysers()
-{
-	for (auto unit : blinkerBot.Observation()->GetUnits())
-	{
-		if ((unit->unit_type == UNIT_TYPEID::NEUTRAL_VESPENEGEYSER) ||
-			(unit->unit_type == UNIT_TYPEID::NEUTRAL_PROTOSSVESPENEGEYSER) ||
-			(unit->unit_type == UNIT_TYPEID::NEUTRAL_PURIFIERVESPENEGEYSER) ||
-			(unit->unit_type == UNIT_TYPEID::NEUTRAL_SHAKURASVESPENEGEYSER) ||
-			(unit->unit_type == UNIT_TYPEID::NEUTRAL_RICHVESPENEGEYSER) ||
-			(unit->unit_type == UNIT_TYPEID::NEUTRAL_SPACEPLATFORMGEYSER))
-		{
-			availableGeysers.insert(unit);
-		}
-	}
-}
-
 void ProductionManager::receiveAttackSignal(bool attack)
 {
 	//if (attack && forwardPylon == NULL)
@@ -414,7 +367,7 @@ void ProductionManager::receiveAttackSignal(bool attack)
 	{
 		//std::cerr << "closest pylon is " << Distance2D(getClosestPylon(forwardPylonPoint)->pos, forwardPylonPoint) << " away" << std::endl;
 		//std::cerr << "adding proxy pylon to build queue" << std::endl;
-		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON, Proxy);
+productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON, Proxy);
 	}
 	else if (pylons.size() > 0 && Distance2D(getClosestPylon(forwardPylonPoint)->pos, forwardPylonPoint) < 50.0f)
 	{
@@ -452,4 +405,113 @@ const Unit *ProductionManager::getClosestPylon(Point2D point)
 Point2D ProductionManager::getRallyPoint()
 {
 	return rallyPoint;
+}
+
+void ProductionManager::checkSupply()
+{
+	float supplyCapacity = 0;
+	float supplyUsed = 0;
+	bool pylonAlreadyInProduction = false;
+
+	//calculate our current supply capacity
+	for (auto structure : structures)
+	{
+		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
+		{
+			supplyCapacity += 15;
+		}
+		if (structure->unit_type == UNIT_TYPEID::PROTOSS_PYLON)
+		{
+			supplyCapacity += 8;
+		}
+	}
+	//calculate how much supply we have
+	for (auto unit : blinkerBot.Observation()->GetUnits())
+	{
+		if (UnitData::isOurs(unit) && unit->is_alive)
+		{
+			supplyUsed += blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].food_required;
+		}
+	}
+	//check we don't already have a pylon in production
+	for (auto pylon : pylons)
+	{
+		if (pylon->build_progress < 1.0)
+		{
+			pylonAlreadyInProduction = true;
+		}
+	}
+	//if we're nearly blocked, the next item in the queue is not a pylon, and we don't have one already building, then make a new one
+	if (supplyCapacity - supplyUsed < 2 && productionQueue.getNextItem().item != ABILITY_ID::BUILD_PYLON && !pylonAlreadyInProduction)
+	{
+		std::cerr << "we're blocked so making a new pylon" << std::endl;
+		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON, Main);
+	}
+}
+
+
+
+
+
+void ProductionManager::expand()
+{
+
+	Point2D nextBase = baseManager.getNextBaseLocation();
+
+	if (blinkerBot.Query()->Placement(ABILITY_ID::BUILD_NEXUS, nextBase, getBuilder()))
+	{
+		buildStructure(ABILITY_ID::BUILD_NEXUS, nextBase);
+	}
+	else
+	{
+		buildStructure(ABILITY_ID::BUILD_NEXUS, Point2D(nextBase.x + GetRandomScalar(), nextBase.y + GetRandomScalar()));
+	}
+}
+
+void ProductionManager::addEnemyBase(const Unit *unit)
+{
+	enemyBases.insert(unit);
+}
+void ProductionManager::removeEnemyBase(const Unit *unit)
+{
+	for (std::set<const Unit *>::iterator base = enemyBases.begin(); base != enemyBases.end();)
+	{
+		if ((*base) == unit)
+		{
+			enemyBases.erase(base++);
+		}
+		else
+		{
+			++base;
+		}
+	}
+}
+
+std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
+{
+	std::set<std::pair<AbilityID, int>> buildOrderGoal;
+	int currentBases = int(baseManager.getOurBases().size());
+	int currentProductionFacilities = 0;
+
+	for (auto structure : structures)
+	{
+		if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY || structure->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE)
+		{
+			currentProductionFacilities++;
+		}
+	}
+
+	if (currentBases < enemyBases.size() || currentBases < 2)
+	{
+		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_NEXUS, 1));
+		currentBases++;	
+	}
+	int extraProductionFacilities = (currentBases * 3) - currentProductionFacilities;
+	buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_GATEWAY, extraProductionFacilities));
+
+	std::cerr << "current bases: " << currentBases << std::endl;
+	std::cerr << "current gateways: " << currentProductionFacilities << std::endl;
+	std::cerr << "to build: " << currentBases << std::endl;
+
+	return buildOrderGoal;
 }
