@@ -25,19 +25,14 @@ void ProductionManager::onStep()
 	checkSupply();
 	checkSaturation();
 
-	/*
-	if(blinkerBot.Observation()->GetFoodCap() - blinkerBot.Observation()->GetFoodUsed() <= 3 && nextBuildOrderItem.item != ABILITY_ID::BUILD_PYLON)
-	{
-		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON, Main);
-	}
-	*/
-
 	const Unit *pylon = getClosestPylon((*blinkerBot.Observation()->GetGameInfo().enemy_start_locations.begin()));
 	if (pylon)
 	{
 		rallyPoint = pylon->pos;
 	}
+
 	trainUnits();
+	chronoBoost();
 }
 
 void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
@@ -603,4 +598,56 @@ void ProductionManager::transferWorkers(int numOfWorkers, Base overSaturatedBase
 			}
 		}
 	}
+}
+
+//find our nexuses and use chronoboost if they have enough energy
+void ProductionManager::chronoBoost()
+{
+	for (auto structure : structures)
+	{
+		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->energy > 50)
+		{
+			//find a the most important thing in production to chronoboost
+			const Unit * target = getHighestPriorityInProduction(getCurrentlyInProduction());
+			if (target)
+			{
+				//std::cerr << UnitTypeToName(structure->unit_type) << " is boostin " << UnitTypeToName(target->unit_type) << std::endl;
+
+				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::EFFECT_CHRONOBOOST, target);
+				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::EFFECT_MASSRECALL, structure->pos);
+			}
+		}
+	}
+	/*
+	for (auto item : getCurrentlyInProduction())
+	{
+		std::cerr << AbilityTypeToName(item.first) << " at " << UnitTypeToName(item.second->unit_type) << std::endl;
+	}*/
+}
+
+//return a set of pairs representing all the things that are currently in production at our structures along with a pointer to the corresponding structure
+std::set<std::pair<AbilityID, const Unit *>> ProductionManager::getCurrentlyInProduction()
+{
+	std::set<std::pair<AbilityID, const Unit *>> inProduction;
+	
+	for (auto structure : structures)
+	{
+		for (auto order : structure->orders)
+		{
+			inProduction.insert(std::make_pair(order.ability_id, structure));
+		}
+	}
+	return inProduction;
+}
+
+//take the set of things that are currently in production, and return a pointer to the structure which is producing the most important one
+const Unit * ProductionManager::getHighestPriorityInProduction(std::set<std::pair<AbilityID, const Unit *>> inProduction)
+{
+	const Unit *highest = nullptr;
+	if (inProduction.size() > 0)
+	{
+		highest = (*inProduction.begin()).second;
+	}
+
+	return highest;
 }

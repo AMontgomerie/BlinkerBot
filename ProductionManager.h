@@ -41,6 +41,9 @@ class ProductionManager
 	std::set<std::pair<AbilityID, int>> generateBuildOrderGoal();
 	void checkSaturation();
 	void transferWorkers(int numOfWorkers, Base overSaturatedBase);
+	void chronoBoost();
+	std::set<std::pair<AbilityID, const Unit *>> getCurrentlyInProduction();
+	const Unit *getHighestPriorityInProduction(std::set<std::pair<AbilityID, const Unit *>> inProduction);
 public:
 	ProductionManager(BlinkerBot & bot);
 	~ProductionManager();
