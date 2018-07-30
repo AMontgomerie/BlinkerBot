@@ -44,6 +44,8 @@ class ProductionManager
 	void chronoBoost();
 	std::set<std::pair<AbilityID, const Unit *>> getCurrentlyInProduction();
 	const Unit *getHighestPriorityInProduction(std::set<std::pair<AbilityID, const Unit *>> inProduction);
+	int checkPriority(ABILITY_ID ability);
+	bool miningOut();
 public:
 	ProductionManager(BlinkerBot & bot);
 	~ProductionManager();

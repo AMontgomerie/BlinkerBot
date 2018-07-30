@@ -81,7 +81,8 @@ void ProductionManager::trainUnits()
 {
 	for (auto structure : structures)
 	{
-		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->orders.size() == 0 && getWorkerCount() < 45)
+		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->orders.size() == 0 
+			&& getWorkerCount() <= (baseManager.getOurBases().size() * 22))
 		{
 			blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_PROBE);
 		}
@@ -520,7 +521,7 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 	int extraProductionFacilities = (currentBases * 3) - currentProductionFacilities;
 	buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_GATEWAY, extraProductionFacilities));
 
-	if (currentBases <= enemyBases.size() && extraProductionFacilities == 0)
+	if (extraProductionFacilities == 0 || miningOut())
 	{
 		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_NEXUS, 1));
 	}
@@ -588,7 +589,6 @@ void ProductionManager::transferWorkers(int numOfWorkers, Base overSaturatedBase
 							//std::cerr << "transferring a worker" << std::endl;
 							
 							blinkerBot.Actions()->UnitCommand((*worker), ABILITY_ID::MOVE, base.getBuildLocation());
-							//blinkerBot.Actions()->UnitCommand((*worker), ABILITY_ID::SMART, (*base.getMinerals().begin()));
 							freeSpace--;
 							numOfWorkers--;
 						}
@@ -613,8 +613,8 @@ void ProductionManager::chronoBoost()
 			{
 				//std::cerr << UnitTypeToName(structure->unit_type) << " is boostin " << UnitTypeToName(target->unit_type) << std::endl;
 
-				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::EFFECT_CHRONOBOOST, target);
-				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::EFFECT_MASSRECALL, structure->pos);
+				//3755 = new chronoboost. EFFECT_CHRONOBOOST is the old pre-LOTV one.
+				blinkerBot.Actions()->UnitCommand(structure, AbilityID(3755), target);
 			}
 		}
 	}
@@ -643,11 +643,80 @@ std::set<std::pair<AbilityID, const Unit *>> ProductionManager::getCurrentlyInPr
 //take the set of things that are currently in production, and return a pointer to the structure which is producing the most important one
 const Unit * ProductionManager::getHighestPriorityInProduction(std::set<std::pair<AbilityID, const Unit *>> inProduction)
 {
-	const Unit *highest = nullptr;
+	std::pair<AbilityID, const Unit *> highest = std::make_pair(ABILITY_ID::INVALID, nullptr);
+
 	if (inProduction.size() > 0)
 	{
-		highest = (*inProduction.begin()).second;
+		//find the highest priority item
+		highest = *inProduction.begin();
+		for (auto item : inProduction)
+		{
+			if (checkPriority(item.first) < checkPriority(highest.first))
+			{
+				highest = item;
+			}
+		}
+	}
+	//if nothing is in production then just chrono a warpgate instead
+	else
+	{
+		for (auto structure : structures)
+		{
+			if (structure->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE)
+			{
+				return structure;
+			}
+		}
 	}
 
-	return highest;
+	return highest.second;
+}
+
+//return an int representing the priority of the ability (low value = high priority)
+int ProductionManager::checkPriority(ABILITY_ID ability)
+{
+	switch (ability)
+	{
+	case ABILITY_ID::INVALID:
+		return 100;
+		break;
+	case ABILITY_ID::RESEARCH_WARPGATE:
+		return 1;
+		break;
+	case ABILITY_ID::RESEARCH_BLINK:
+		return 2;
+		break;
+	case ABILITY_ID::TRAIN_STALKER:
+		return 3;
+		break;
+	case ABILITY_ID::TRAIN_ZEALOT:
+		return 4;
+		break;
+	default:
+		return 5;
+		break;
+	}
+}
+
+//check if any of our bases are starting to run out of resources
+bool ProductionManager::miningOut()
+{
+	for (auto base : baseManager.getOurBases())
+	{
+		int mineralNodeCount = 0;
+		for (auto unit : blinkerBot.Observation()->GetUnits())
+		{
+			//count how many mineral patches still have remaining minerals
+			if (unit->mineral_contents > 0)
+			{
+				mineralNodeCount++;
+			}
+		}
+		if (mineralNodeCount < 7)
+		{
+			std::cerr << "we're mining out!" << std::endl;
+			return true;
+		}
+	}
+	return false;
 }

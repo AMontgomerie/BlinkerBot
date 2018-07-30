@@ -10,10 +10,7 @@ ProductionQueue::ProductionQueue(BlinkerBot & bot): blinkerBot(bot)
 
 void ProductionQueue::initialiseQueue()
 {
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS, Natural));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS, Natural));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS, Natural));
-	/*
+
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY, Main));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR, Main));
@@ -27,7 +24,8 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK, Main));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS, Natural));*/
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS, Natural));
+
 }
 
 void ProductionQueue::removeItem()
@@ -69,6 +67,10 @@ void ProductionQueue::generateMoreItems(std::set<std::pair<AbilityID, int>> buil
 	{
 		for (int i = 0; i != item.second; i++)
 		{
+			if (i % 3 == 2)
+			{
+				productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
+			}
 			productionQueue.push_back(BuildOrderItem(item.first, Main));
 		}
 	}
