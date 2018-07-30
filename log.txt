@@ -1,10 +1,12 @@
 now:
+- assignedMineralWorkers is not being updated correctly
 - transfer probes
 - expand before mining out
 - occasional bug for building proxy pylon
 - there's still a bug in the expansion placement in some positions (horiztonl and maybe vertical)
 - bases might not be readded to available locations after a nexus destruction
 - some kind of infinite loop bug when i lost my natural?
+- something weird happens with our base count at some point
 
 later:
 - army only contains zealots and stalkers

@@ -184,7 +184,8 @@ void ArmyManager::removeEnemyUnit(const Unit *unit)
 
 bool ArmyManager::canAttack()
 {
-	if (calculateSupply(army) >= calculateSupply(enemyArmy) || blinkerBot.Observation()->GetFoodCap() <= blinkerBot.Observation()->GetFoodUsed())
+	if (calculateSupply(army) > 1 
+		&& (calculateSupply(army) >= calculateSupply(enemyArmy) || blinkerBot.Observation()->GetFoodCap() <= blinkerBot.Observation()->GetFoodUsed()))
 	{
 		return true;
 	}

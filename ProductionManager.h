@@ -39,6 +39,8 @@ class ProductionManager
 	void checkSupply();
 	void expand();
 	std::set<std::pair<AbilityID, int>> generateBuildOrderGoal();
+	void checkSaturation();
+	void transferWorkers(int numOfWorkers, Base overSaturatedBase);
 public:
 	ProductionManager(BlinkerBot & bot);
 	~ProductionManager();

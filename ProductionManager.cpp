@@ -23,6 +23,7 @@ void ProductionManager::onStep()
 	BuildOrderItem nextBuildOrderItem = productionQueue.getNextItem();
 	produce(nextBuildOrderItem);
 	checkSupply();
+	checkSaturation();
 
 	/*
 	if(blinkerBot.Observation()->GetFoodCap() - blinkerBot.Observation()->GetFoodUsed() <= 3 && nextBuildOrderItem.item != ABILITY_ID::BUILD_PYLON)
@@ -275,14 +276,34 @@ void ProductionManager::buildStructure(const Unit *builder, AbilityID structureT
 
 
 void ProductionManager::returnToMining(const Unit *unit)
-{
-	for (auto minerals : blinkerBot.Observation()->GetUnits())
+{	
+	//first let's check if there's any visible minerals nearby
+	bool nextToMineral = false;
+	for (auto mineral : blinkerBot.Observation()->GetUnits())
 	{
-		if (minerals->mineral_contents > 0)
+		//if we find some nearby visible minerals, let's right click 'em
+		if (mineral->mineral_contents > 0 && Distance2D(mineral->pos, unit->pos) < 10 && mineral->display_type == Unit::DisplayType::Visible)
 		{
-			addWorker(unit);
-			blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::SMART, minerals);
+			nextToMineral = true;
+			blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::SMART, mineral);
 		}
+	}
+	//if there's no visible minerals nearby, issue a move command towards the minerals at the closest base
+	//we issue move rather than smart here because smart can't right click on units with a display_type of snapshot (which might be the case here)
+	if (!nextToMineral)
+	{
+		//find the closest base
+		Base closestBase = *baseManager.getOurBases().begin();
+		for (auto base : baseManager.getOurBases())
+		{
+			if (Distance2D(unit->pos, base.getBuildLocation()) < Distance2D(unit->pos, closestBase.getBuildLocation()))
+			{
+				closestBase = base;
+			}
+		}
+		const Unit * mineral = *closestBase.getMinerals().begin();
+		//move towards the minerals
+		blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::MOVE, mineral);
 	}
 }
 
@@ -501,17 +522,85 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 		}
 	}
 
-	if (currentBases < enemyBases.size() || currentBases < 2)
-	{
-		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_NEXUS, 1));
-		currentBases++;	
-	}
 	int extraProductionFacilities = (currentBases * 3) - currentProductionFacilities;
 	buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_GATEWAY, extraProductionFacilities));
 
+	if (currentBases <= enemyBases.size() && extraProductionFacilities == 0)
+	{
+		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_NEXUS, 1));
+	}
+
 	std::cerr << "current bases: " << currentBases << std::endl;
 	std::cerr << "current gateways: " << currentProductionFacilities << std::endl;
-	std::cerr << "to build: " << currentBases << std::endl;
+	std::cerr << "goal state: " << currentBases << " bases and " << currentProductionFacilities + extraProductionFacilities << " gateways" << std::endl;
+	std::cerr << "adding to production queue:" << std::endl;
+	for (auto item : buildOrderGoal)
+	{
+		for (int i = 0; i != item.second; i++)
+		{
+			std::cerr << AbilityTypeToName(item.first) << std::endl;
+		}
+	}
+
+	if (buildOrderGoal.empty())
+	{
+		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_PYLON, 1));
+	}
 
 	return buildOrderGoal;
+}
+
+void ProductionManager::checkSaturation()
+{
+	for (auto base : baseManager.getOurBases())
+	{
+		for (auto structure : structures)
+		{
+			if (Distance2D(base.getBuildLocation(), structure->pos) < 4 && structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
+			{
+				if (structure->assigned_harvesters > structure->ideal_harvesters)
+				{
+					//std::cerr << "we've got too many workers at a base" << std::endl;
+					transferWorkers(structure->assigned_harvesters - structure->ideal_harvesters, base);
+				}
+			}
+		}
+	}
+}
+
+//takes an oversaturated base and the amount of workers we want to move and tries to find another place for them to go
+void ProductionManager::transferWorkers(int numOfWorkers, Base overSaturatedBase)
+{
+	for (auto base : baseManager.getOurBases())
+	{
+		//make sure we're looking at a different base location
+		if (base.getBuildLocation() != overSaturatedBase.getBuildLocation())
+		{
+			for (auto structure : structures)
+			{
+				//find the nexus for this base
+				if (Distance2D(base.getBuildLocation(), structure->pos) < 4 && structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
+				{
+					//std::cerr << "we found another nexus" << std::endl;
+					//calculate how many workers we can take on
+					int freeSpace = structure->ideal_harvesters - structure->assigned_harvesters;
+					std::set<const Unit *>::iterator worker = availableWorkers.begin();
+					while (freeSpace > 0 && numOfWorkers > 0 && worker != availableWorkers.end())
+					{
+						//std::cerr << "found an undersaturated nexus" << std::endl;
+						if (Distance2D((*worker)->pos, overSaturatedBase.getBuildLocation()) < 5)
+						{
+							//std::cerr << "transferring a worker" << std::endl;
+							
+							blinkerBot.Actions()->UnitCommand((*worker), ABILITY_ID::MOVE, base.getBuildLocation());
+							//blinkerBot.Actions()->UnitCommand((*worker), ABILITY_ID::SMART, (*base.getMinerals().begin()));
+							freeSpace--;
+							numOfWorkers--;
+						}
+						worker++;
+					}
+				}
+			}
+		}
+	}
 }
