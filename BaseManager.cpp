@@ -27,6 +27,15 @@ Base::Base(std::set<const Unit *> minerals, std::set<const Unit *> geysers, Poin
 
 }
 
+Base::Base(std::set<const Unit *> minerals, std::set<const Unit *> geysers, Point2D buildLocation, const Unit *townhall)
+{
+	this->minerals = minerals;
+	this->geysers = geysers;
+	this->buildLocation = buildLocation;
+	this->townhall = townhall;
+
+}
+
 void BaseManager::initialise()
 {
 	findBases();
@@ -503,4 +512,71 @@ void BaseManager::removeGas(const Unit *unit)
 std::vector<Base> BaseManager::getOurBases()
 {
 	return ourBases;
+}
+
+//we need to create a new base location when it's completed because initially stored base locations only store resources as snapshots
+void BaseManager::updateCompletedBase(const Unit *unit)
+{
+	//remove the base that was previously in the vector so we can replace it with a new one
+	removeBase(unit);
+
+	std::set<const Unit *> minerals;
+	std::set<const Unit *> geysers;
+
+	//search for the base's minerals
+	for (auto mineral : blinkerBot.Observation()->GetUnits())
+	{
+		//if we find a mineral patch
+		if (UnitData::isMinerals(mineral) && Distance2D(mineral->pos, unit->pos) < 15)
+		{
+			minerals.insert(mineral);
+		}
+	}
+	//search for the base's gas
+	for (auto gas : blinkerBot.Observation()->GetUnits())
+	{
+		//if we find a mineral patch
+		if (UnitData::isVespeneGeyser(gas) && Distance2D(gas->pos, unit->pos) < 15)
+		{
+			geysers.insert(gas);
+		}
+	}
+
+	/*
+	
+	std::cerr << "the new base has: " << std::endl;
+
+	int snapshot = 0;
+	int visible = 0;
+	for (auto mineral : minerals)
+	{
+		if (mineral->display_type == Unit::DisplayType::Snapshot)
+		{
+			snapshot++;
+		}
+		else
+		{
+			visible++;
+		}
+	}
+	std::cerr << snapshot << " snapshot minerals and " << visible << " visible minerals" << std::endl;
+
+	snapshot = 0;
+	visible = 0;
+	for (auto geyser : geysers)
+	{
+		if (geyser->display_type == Unit::DisplayType::Snapshot)
+		{
+			snapshot++;
+		}
+		else
+		{
+			visible++;
+		}
+	}
+	std::cerr << snapshot << " snapshot geysers and " << visible << " visible geysers" << std::endl;
+	*/
+
+	//std::cerr << "adding a completed base to vector" << std::endl;
+	ourBases.push_back(Base(minerals, geysers, unit->pos, unit));
 }

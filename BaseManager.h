@@ -19,6 +19,7 @@ class Base
 
 public:
 	Base(std::set<const Unit *> minerals, std::set<const Unit *> gas, Point2D buildLocation);
+	Base(std::set<const Unit *> minerals, std::set<const Unit *> geysers, Point2D buildLocation, const Unit *townhall);
 	Base();
 	~Base();
 	std::set<const Unit *> getMinerals();
@@ -53,6 +54,7 @@ public:
 	void removeNextBaseLocation();
 	void addAvailableBaseLocation(const Unit * unit);
 	void addBase(const Unit *unit);
+	void updateCompletedBase(const Unit *unit);
 	void removeBase(const Unit *unit);
 	void addGas(const Unit *unit);
 	void removeGas(const Unit *unit);

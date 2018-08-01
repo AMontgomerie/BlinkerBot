@@ -25,6 +25,7 @@ class ProductionManager
 	std::set<const Unit *> structures;
 	std::set<const Unit *> pylons;
 	std::set<const Unit *> enemyBases;
+	std::set<const Unit*> miningBases;
 	const Unit *forwardPylon;
 	Point2D rallyPoint;
 	Point2D forwardPylonPoint;
@@ -46,6 +47,7 @@ class ProductionManager
 	const Unit *getHighestPriorityInProduction(std::set<std::pair<AbilityID, const Unit *>> inProduction);
 	int checkPriority(ABILITY_ID ability);
 	bool miningOut();
+	int calculateMiningBases();
 public:
 	ProductionManager(BlinkerBot & bot);
 	~ProductionManager();
@@ -67,5 +69,6 @@ public:
 	void addEnemyBase(const Unit *unit);
 	void removeEnemyBase(const Unit *unit);
 	void receiveCloakSignal(bool signal);
+	void checkMineralVisibility();
 };
 

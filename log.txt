@@ -2,10 +2,12 @@ necessary for ladder:
 - improve building positioning (use pylons as central target locations rather than main base)
 - worker defence
 - there's still a bug in the expansion placement in some positions (horiztonl and maybe vertical)
-- detection
 - make production manager able to handle training units and researcing techs
 
 later:
+- observer control
+- search for enemy base when he hides it
+- trains too many probes (make max count dependant on mining bases)
 - remove production manager's weird building switch statement thing
 - army only contains zealots and stalkers
 - make executing build order items be handled in a generic way (currently doesnt support most researches or any units)
@@ -18,8 +20,7 @@ later:
 - bases might not be readded to available locations after a nexus destruction
 
 DONE FOR NEXT UPLOAD:
-- fixed basecount bug
-- improved attack targets by giving armymanager a set of enemy structures
-- changed proxy pylon to find a base
-- created a workaround for snapshot bug preventing more than 2 gases from being taken
-- army manager checks if we need cloak and production manager produces obs in response
+- updated basemanager to reenter bases with visible minerals and gas once theyre completed
+- production manager now calculates probe count based mining bases
+- fixed snapshot bug for minerals and gas
+- I think we fixed detection (check)

@@ -36,4 +36,5 @@ public:
 	void generateMoreItems(std::set<std::pair<AbilityID, int>> buildOrderGoal);
 	void addItemHighPriority(AbilityID type, Location location);
 	void addItemLowPriority(AbilityID type, Location location);
+	bool includes(AbilityID unit);
 };

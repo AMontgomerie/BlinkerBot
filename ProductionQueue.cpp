@@ -10,7 +10,8 @@ ProductionQueue::ProductionQueue(BlinkerBot & bot): blinkerBot(bot)
 
 void ProductionQueue::initialiseQueue()
 {
-
+	/*
+	//2 gate blink expand
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY, Main));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR, Main));
@@ -26,8 +27,21 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Natural));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS, Natural));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Natural));
-
-
+	*/
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS, Natural));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_CYBERNETICSCORE, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_WARPGATE, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TWILIGHTCOUNCIL, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK, Main));
 
 }
 
@@ -107,4 +121,17 @@ void ProductionQueue::printDebug()
 		blinkerBot.Debug()->DebugTextOut(AbilityTypeToName(item.item));
 	}
 	blinkerBot.Debug()->SendDebug();
+}
+
+//checks if there is a unit of the type specified in the current queue
+bool ProductionQueue::includes(AbilityID unit)
+{
+	for (auto item : productionQueue)
+	{
+		if (item.item == unit)
+		{
+			return true;
+		}
+	}
+	return false;
 }

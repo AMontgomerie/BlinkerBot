@@ -94,7 +94,7 @@ void ProductionManager::trainUnits()
 	for (auto structure : structures)
 	{
 		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->orders.size() == 0 
-			&& getWorkerCount() <= (baseManager.getOurBases().size() * 22))
+			&& getWorkerCount() <= (calculateMiningBases() * 22))
 		{
 			blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_PROBE);
 		}
@@ -821,11 +821,93 @@ void ProductionManager::receiveCloakSignal(bool signal)
 		//build or train if necessary
 		if (!detectionProducable && !alreadyConstructing)
 		{
-			productionQueue.addItemHighPriority(ABILITY_ID::BUILD_ROBOTICSFACILITY, Main);
+			if (!productionQueue.includes(ABILITY_ID::BUILD_ROBOTICSFACILITY))
+			{
+				productionQueue.addItemHighPriority(ABILITY_ID::BUILD_ROBOTICSFACILITY, Main);
+			}
 		}
 		else if (detectionProducable && !alreadyTraining)
 		{
-			productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_OBSERVER, Main);
+			if (!productionQueue.includes(ABILITY_ID::TRAIN_OBSERVER))
+			{
+				productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_OBSERVER, Main);
+			}
+		}
+	}
+}
+
+//see how many of our bases are still have sufficient available minerals
+int ProductionManager::calculateMiningBases()
+{
+	checkMineralVisibility();
+
+	int miningBases = 0;
+	for (auto base : baseManager.getOurBases())
+	{
+		int mineralCount = 0;
+		for (auto mineral : base.getMinerals())
+		{
+			if (mineral->display_type == Unit::DisplayType::Snapshot && blinkerBot.Observation()->GetGameLoop() % 30 == 0)
+			{
+				//std::cerr << "this mineral node is not visible" << std::endl;
+			}
+			if (mineral->mineral_contents > 200)
+			{
+				mineralCount++;
+			}
+		}
+		if (mineralCount > 5)
+		{
+			miningBases++;
+		}
+	}
+	return miningBases;
+}
+
+
+//checks if any of our bases have minerals or geysers stored as snapshots (fog of war), which will make them impossible to interact with
+void ProductionManager::checkMineralVisibility()
+{
+	for (auto base : baseManager.getOurBases())
+	{
+		//find if anything is stored as snapshot
+		bool snapshot = false;
+		for (auto mineral : base.getMinerals())
+		{
+			if (mineral->display_type == Unit::DisplayType::Snapshot)
+			{
+				snapshot = true;
+			}
+		}
+		for (auto geyser : base.getGeysers())
+		{
+			if (geyser->display_type == Unit::DisplayType::Snapshot)
+			{
+				snapshot = true;
+			}
+		}
+		bool visible = false;
+		for (auto unit : blinkerBot.Observation()->GetUnits())
+		{
+			if ((Distance2D(unit->pos, base.getBuildLocation()) < 15) 
+				&& UnitData::isMinerals(unit) || UnitData::isVespeneGeyser(unit)
+				&& unit->display_type == Unit::DisplayType::Visible)
+			{
+				visible = true;
+			}
+		}
+		//if we have nodes stores as snapshot, but they are currently visible, then find the base and update it in base manager
+		if (snapshot && visible)
+		{
+			for (auto unit : blinkerBot.Observation()->GetUnits())
+			{
+				if (UnitData::isOurs(unit)
+					&& Distance2D(unit->pos, base.getBuildLocation()) < 4
+					&& unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
+				{
+					baseManager.updateCompletedBase(unit);
+				}
+			}
 		}
 	}
 }
