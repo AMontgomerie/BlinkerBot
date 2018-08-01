@@ -204,3 +204,23 @@ bool UnitData::isOurs(const Unit *unit)
 		return false;
 	}
 }
+
+//returns true if the unit can cloak, also returns true for lurkers as they can attack while burrowed
+ bool UnitData::canCloak(const Unit *unit)
+{
+	 if ((unit->unit_type == UNIT_TYPEID::TERRAN_BANSHEE) ||
+		 (unit->unit_type == UNIT_TYPEID::TERRAN_GHOST) ||
+		 (unit->unit_type == UNIT_TYPEID::PROTOSS_DARKTEMPLAR) ||
+		 (unit->unit_type == UNIT_TYPEID::PROTOSS_MOTHERSHIP) ||
+		 (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER) ||
+		 (unit->unit_type == UNIT_TYPEID::ZERG_LURKERMP) ||
+		 (unit->unit_type == UNIT_TYPEID::ZERG_LURKERMPBURROWED) ||
+		 (unit->unit_type == UNIT_TYPEID::ZERG_LURKERMPEGG))
+	 {
+		 return true;
+	 }
+	 else
+	 {
+		 return false;
+	 }
+}

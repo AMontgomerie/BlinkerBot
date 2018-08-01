@@ -23,5 +23,6 @@ public:
 	static bool isSupplyProvider(const Unit *unit);
 	static bool isMinerals(const Unit *unit);
 	static bool isVespeneGeyser(const Unit *unit);
+	static bool canCloak(const Unit *unit);
 };
 

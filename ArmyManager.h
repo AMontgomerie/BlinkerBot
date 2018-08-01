@@ -20,6 +20,7 @@ class ArmyManager
 	ArmyStatus currentStatus;
 	std::set<const Unit *> army;
 	std::set<const Unit *> enemyArmy;
+	std::set<const Unit *> enemyStructures;
 	bool regroupComplete;
 	Point2D rallyPoint;
 
@@ -44,7 +45,10 @@ public:
 	void removeUnit(const Unit *unit);
 	void addEnemyUnit(const Unit *unit);
 	void removeEnemyUnit(const Unit *unit);
+	void addEnemyStructure(const Unit *structure);
+	void removeEnemyStructure(const Unit *structure);
 	bool sendAttackSignal();
 	void receiveRallyPoint(Point2D point);
+	bool detectionRequired();
 };
 

@@ -28,9 +28,10 @@ void BlinkerBot::OnGameStart()
 void BlinkerBot::OnStep()
 {
 	productionManager.onStep();
-	armyManager.onStep();
 	productionManager.receiveAttackSignal(armyManager.sendAttackSignal());
-	armyManager.receiveRallyPoint(productionManager.getRallyPoint());
+	productionManager.receiveCloakSignal(armyManager.detectionRequired());
+	armyManager.onStep();
+	armyManager.receiveRallyPoint(productionManager.getRallyPoint());	
 }
 
 void BlinkerBot::OnUnitDestroyed(const sc2::Unit *unit)
@@ -42,19 +43,33 @@ void BlinkerBot::OnUnitDestroyed(const sc2::Unit *unit)
 	}
 	else
 	{
-		armyManager.removeEnemyUnit(unit);
-		if (UnitData::isTownHall(unit))
+		if (UnitData::isStructure(unit))
 		{
-			productionManager.removeEnemyBase(unit);
+			armyManager.removeEnemyStructure(unit);
+			if (UnitData::isTownHall(unit))
+			{
+				productionManager.removeEnemyBase(unit);
+			}
+		}
+		else
+		{
+			armyManager.removeEnemyUnit(unit);
 		}
 	}
 }
 void BlinkerBot::OnUnitEnterVision(const sc2::Unit *unit)
 {
-	armyManager.addEnemyUnit(unit);
-	if (UnitData::isTownHall(unit))
+	if (UnitData::isStructure(unit))
 	{
-		productionManager.addEnemyBase(unit);
+		armyManager.addEnemyStructure(unit);
+		if (UnitData::isTownHall(unit))
+		{
+			productionManager.addEnemyBase(unit);
+		}
+	}
+	else
+	{
+		armyManager.addEnemyUnit(unit);
 	}
 }
 

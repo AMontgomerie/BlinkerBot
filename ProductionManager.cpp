@@ -43,7 +43,8 @@ void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 		{
 			//deal with researches (currently only warpgate and blink are available)
 			if ((structure->unit_type == UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL && nextBuildOrderItem.item == ABILITY_ID::RESEARCH_BLINK)
-				|| (structure->unit_type == UNIT_TYPEID::PROTOSS_CYBERNETICSCORE && nextBuildOrderItem.item == ABILITY_ID::RESEARCH_WARPGATE))
+				|| (structure->unit_type == UNIT_TYPEID::PROTOSS_CYBERNETICSCORE && nextBuildOrderItem.item == ABILITY_ID::RESEARCH_WARPGATE)
+				|| (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSBAY && nextBuildOrderItem.item == ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE))
 			{
 				//check if we already started it
 				bool researchStarted = false;
@@ -62,6 +63,17 @@ void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 				{
 					blinkerBot.Actions()->UnitCommand(structure, nextBuildOrderItem.item);
 				}
+			}
+		}
+	}
+	//trains observers
+	if (nextBuildOrderItem.item == ABILITY_ID::TRAIN_OBSERVER)
+	{
+		for (auto structure : structures)
+		{
+			if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY)
+			{
+				blinkerBot.Actions()->UnitCommand(structure, nextBuildOrderItem.item);
 			}
 		}
 	}
@@ -115,6 +127,10 @@ void ProductionManager::trainUnits()
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAINWARP_ZEALOT, location);
 			}
 		}
+		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY)
+		{
+			blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_COLOSSUS);
+		}
 		//make sure we have the right numbers of workers mining while we're here
 		if (structure->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
 		{
@@ -138,7 +154,7 @@ void ProductionManager::removeWorker(const Unit *unit)
 void ProductionManager::addStructure(const Unit *unit)
 {
 	structures.insert(unit);
-	if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
+	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
 	{
 		baseManager.addBase(unit);
 	}
@@ -229,6 +245,20 @@ void ProductionManager::buildStructure(AbilityID structureToBuild, Location loca
 	const Unit *builder = getBuilder();
 	if (structureToBuild == ABILITY_ID::BUILD_ASSIMILATOR)
 	{
+		//this is a workaround for the problem caused by baseManager storing unit pointers as snapshots which cannot be targeted with actions
+		if (baseManager.getNextAvailableGas()->display_type == Unit::DisplayType::Snapshot)
+		{
+			//if it's a snapshot pointer, then let's move to the location rather than issuing a build command
+			blinkerBot.Actions()->UnitCommand(builder, ABILITY_ID::MOVE, baseManager.getNextAvailableGas()->pos);
+			for (auto unit : blinkerBot.Observation()->GetUnits())
+			{
+				//if we find ourselves next to a geyser then build on it
+				if (UnitData::isVespeneGeyser(unit) && Distance2D(unit->pos, builder->pos) < 2)
+				{
+					blinkerBot.Actions()->UnitCommand(builder, structureToBuild, unit);
+				}
+			}
+		}
 		blinkerBot.Actions()->UnitCommand(builder, structureToBuild, baseManager.getNextAvailableGas());
 	}
 	else
@@ -241,6 +271,8 @@ void ProductionManager::buildStructure(AbilityID structureToBuild, Location loca
 			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
 			break;
 		case Main:
+		case Natural:
+		case Third:
 			buildLocation = Point2D(blinkerBot.Observation()->GetStartLocation().x + GetRandomScalar() * 15.0f,
 				blinkerBot.Observation()->GetStartLocation().y + GetRandomScalar() * 15.0f);
 			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
@@ -249,8 +281,6 @@ void ProductionManager::buildStructure(AbilityID structureToBuild, Location loca
 			productionQueue.removeItem();
 			productionQueue.generateMoreItems(generateBuildOrderGoal());
 			break;
-		case Natural:
-		case Third:
 		default:
 			buildLocation = Point2D(builder->pos.x + GetRandomScalar() * 15.0f, builder->pos.y + GetRandomScalar() * 15.0f);
 			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
@@ -309,19 +339,19 @@ void ProductionManager::addNewUnit(const Unit *unit)
 	{
 		productionQueue.removeItem();
 	}
-	if (UnitData::isStructure(unit))
+	if (UnitData::isOurs(unit) && UnitData::isStructure(unit))
 	{
 		addStructure(unit);
 	}
-	if (unit->unit_type == UNIT_TYPEID::PROTOSS_PYLON)
+	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_PYLON)
 	{
 		pylons.insert(unit);
 	}
-	if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
+	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
 	{
 		addWorker(unit);
 	}
-	if (unit->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
+	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
 	{
 		baseManager.addGas(unit);
 	}
@@ -394,9 +424,25 @@ productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON, Proxy);
 
 void ProductionManager::locateForwardPylonPoint()
 {
-	Point2D centre = Point2D(blinkerBot.Observation()->GetGameInfo().width / 2.0f, blinkerBot.Observation()->GetGameInfo().height / 2.0f);
-	forwardPylonPoint = Point2D(centre.x + GetRandomScalar() * 15.0f, centre.y + GetRandomScalar() * 15.0f);
-	//forwardPylonPoint = centre;
+	if (!baseManager.getAvailableBaseLocations().empty())
+	{
+		Base proxyBase = *baseManager.getAvailableBaseLocations().begin();
+		for (auto base : baseManager.getAvailableBaseLocations())
+		{
+			if (Distance2D(*blinkerBot.Observation()->GetGameInfo().enemy_start_locations.begin(), base.getBuildLocation()) > 40 &&
+				Distance2D(*blinkerBot.Observation()->GetGameInfo().enemy_start_locations.begin(), base.getBuildLocation()) <
+				Distance2D(*blinkerBot.Observation()->GetGameInfo().enemy_start_locations.begin(), proxyBase.getBuildLocation()))
+			{
+				proxyBase = base;
+			}
+		}
+		forwardPylonPoint = proxyBase.getBuildLocation();
+	}
+	else
+	{
+		Point2D centre = Point2D(blinkerBot.Observation()->GetGameInfo().width / 2.0f, blinkerBot.Observation()->GetGameInfo().height / 2.0f);
+		forwardPylonPoint = Point2D(centre.x + GetRandomScalar() * 15.0f, centre.y + GetRandomScalar() * 15.0f);
+	}
 }
 
 const Unit *ProductionManager::getClosestPylon(Point2D point)
@@ -509,12 +555,17 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 	std::set<std::pair<AbilityID, int>> buildOrderGoal;
 	int currentBases = int(baseManager.getOurBases().size());
 	int currentProductionFacilities = 0;
+	int currentGases = 0;
 
 	for (auto structure : structures)
 	{
 		if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY || structure->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE)
 		{
 			currentProductionFacilities++;
+		}
+		if (structure->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
+		{
+			currentGases++;
 		}
 	}
 
@@ -524,6 +575,21 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 	if (extraProductionFacilities == 0 || miningOut())
 	{
 		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_NEXUS, 1));
+	}
+
+	int readyToMineBases = 0;
+	for (auto base : baseManager.getOurBases())
+	{
+		if (base.getTownhall()->build_progress > 0.8)
+		{
+			readyToMineBases++;
+		}
+	}
+
+	int additionalGases = (readyToMineBases * 2) - currentGases;
+	if (additionalGases > 0)
+	{
+		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_ASSIMILATOR, additionalGases));
 	}
 
 	std::cerr << "current bases: " << currentBases << std::endl;
@@ -719,4 +785,47 @@ bool ProductionManager::miningOut()
 		}
 	}
 	return false;
+}
+
+//if army manager sends us a signal alerting us of undetected cloak, let's make some detection
+void ProductionManager::receiveCloakSignal(bool signal)
+{
+	if (signal)
+	{
+		//check if we have the ability to produce detectors
+		bool detectionProducable = false;
+		for (auto structure : structures)
+		{
+			if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY) //||
+				//structure->unit_type == UNIT_TYPEID::PROTOSS_FORGE)
+			{
+				detectionProducable = true;
+			}
+		}
+
+		//check if we already started producing
+		bool alreadyConstructing = false;
+		bool alreadyTraining = false;
+		for (auto item : getCurrentlyInProduction())
+		{
+			if (item.first == ABILITY_ID::TRAIN_OBSERVER)
+			{
+				alreadyTraining = true;
+			}
+			if (item.first == ABILITY_ID::BUILD_ROBOTICSFACILITY)
+			{
+				alreadyConstructing = true;
+			}
+		}
+
+		//build or train if necessary
+		if (!detectionProducable && !alreadyConstructing)
+		{
+			productionQueue.addItemHighPriority(ABILITY_ID::BUILD_ROBOTICSFACILITY, Main);
+		}
+		else if (detectionProducable && !alreadyTraining)
+		{
+			productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_OBSERVER, Main);
+		}
+	}
 }

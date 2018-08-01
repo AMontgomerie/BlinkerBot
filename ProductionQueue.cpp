@@ -23,8 +23,11 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TWILIGHTCOUNCIL, Main));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Natural));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS, Natural));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Natural));
+
+
 
 }
 
@@ -67,7 +70,7 @@ void ProductionQueue::generateMoreItems(std::set<std::pair<AbilityID, int>> buil
 	{
 		for (int i = 0; i != item.second; i++)
 		{
-			if (i % 3 == 2)
+			if (i % 3 == 0)
 			{
 				productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
 			}

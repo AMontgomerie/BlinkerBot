@@ -1,20 +1,25 @@
-now:
-- expand before mining out
-- occasional bug for building proxy pylon
+necessary for ladder:
+- improve building positioning (use pylons as central target locations rather than main base)
+- worker defence
 - there's still a bug in the expansion placement in some positions (horiztonl and maybe vertical)
-- bases might not be readded to available locations after a nexus destruction
-- some kind of infinite loop bug when i lost my natural?
-- something weird happens with our base count at some point
+- detection
+- make production manager able to handle training units and researcing techs
 
 later:
-- attack locations needs to be a set of enemy bases, not just their main
+- remove production manager's weird building switch statement thing
 - army only contains zealots and stalkers
 - make executing build order items be handled in a generic way (currently doesnt support most researches or any units)
-- improve building positioning (use pylons as central target locations rather than main base) & (use isPlacable in observation)
 - continue implementing UnitData
 - dont count broodlings or swarmhost boys as enemy army size
-- chronoboost
 - target micro
 - stutter step / kiting
+- expand before mining out may or may not work
+- occasional bug for building proxy pylon
+- bases might not be readded to available locations after a nexus destruction
 
-Hey, I'm having some trouble with 'ABILITY_ID::SMART'. I'm trying to get idle workers to be sent back to mining at the closest base, so I have 'bot.Actions()->UnitCommand(unit, ABILITY_ID::SMART, mineral);' where "mineral" is a pointer to the target mineral. It works fine for workers in the main base, but weirdly the command just doesn't do anything if the target minerals are outside my main. It works fine if I replace SMART with another command, e.g. a MOVE command to the target mineral instead. Is there something about SMART that I'm not understanding?
+DONE FOR NEXT UPLOAD:
+- fixed basecount bug
+- improved attack targets by giving armymanager a set of enemy structures
+- changed proxy pylon to find a base
+- created a workaround for snapshot bug preventing more than 2 gases from being taken
+- army manager checks if we need cloak and production manager produces obs in response

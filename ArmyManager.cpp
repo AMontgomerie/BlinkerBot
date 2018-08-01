@@ -106,9 +106,27 @@ bool ArmyManager::regroup()
 void ArmyManager::attack()
 {
 	micro();
+
 	for (auto unit : army)
 	{
-		blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, blinkerBot.Observation()->GetGameInfo().enemy_start_locations.front());
+		//if we haven't seen any enemy bases yet, let's just attack towards his start location
+		if (enemyStructures.empty())
+		{
+			blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, blinkerBot.Observation()->GetGameInfo().enemy_start_locations.front());
+		}
+		//otherwise let's find his closest base and go there
+		else
+		{
+			const Unit *closestStructure = *enemyStructures.begin();
+			for (auto structure : enemyStructures)
+			{
+				if (Distance2D(unit->pos, structure->pos) < Distance2D(unit->pos, closestStructure->pos))
+				{
+					closestStructure = structure;
+				}
+			}
+			blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, closestStructure->pos);
+		}
 	}
 }
 
@@ -316,4 +334,70 @@ void ArmyManager::printDebug()
 	theirArmy << "Known enemy army supply: " << calculateSupply(enemyArmy) << std::endl;
 	blinkerBot.Debug()->DebugTextOut(theirArmy.str(), Point2D(0.1f, 0.6f));
 	blinkerBot.Debug()->SendDebug();
+}
+
+void ArmyManager::addEnemyStructure(const Unit *structure)
+{
+	if (UnitData::isStructure(structure))
+	{
+		enemyStructures.insert(structure);
+	}
+}
+
+void ArmyManager::removeEnemyStructure(const Unit *structure)
+{
+	for (std::set<const Unit *>::iterator enemyStructure = enemyStructures.begin(); enemyStructure != enemyStructures.end();)
+	{
+		if ((*enemyStructure) == structure)
+		{
+			enemyStructures.erase(*enemyStructure++);
+		}
+		else
+		{
+			++enemyStructure;
+		}
+	}
+}
+
+bool ArmyManager::detectionRequired()
+{
+	bool canCloak = false;
+	//check if any enemy units we know about can potentially cloak
+	for (auto unit : enemyArmy)
+	{
+		if (UnitData::canCloak(unit))
+		{
+			canCloak = true;
+		}
+	}
+	//also check the enemy structures we know about to see if anything cloaked might be in production
+	for (auto structure : enemyStructures)
+	{
+		if ((structure->unit_type == UNIT_TYPEID::PROTOSS_DARKSHRINE) ||
+			(structure->unit_type == UNIT_TYPEID::TERRAN_GHOSTACADEMY) ||
+			(structure->unit_type == UNIT_TYPEID::TERRAN_STARPORTTECHLAB) ||
+			(structure->unit_type == UNIT_TYPEID::ZERG_INFESTATIONPIT) ||
+			(structure->unit_type == UNIT_TYPEID::ZERG_LURKERDENMP))
+		{
+			canCloak = true;
+		}
+	}
+
+	//check if we already have detection
+	bool detected = false;
+	for (auto unit : army)
+	{
+		if (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
+		{
+			detected = true;
+		}
+	}
+	if (!detected)
+	{
+		return canCloak;
+	}
+	else
+	{
+		return false;
+	}
 }

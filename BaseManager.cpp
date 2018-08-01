@@ -102,6 +102,13 @@ void BaseManager::printDebug()
 			<< " to " << base.getBuildLocation().x << ":" << base.getBuildLocation().y << std::endl;
 	}
 	*/
+	for (int i = 0; i != ourBases.size(); i++)
+	{
+		std::ostringstream ourBase;
+		ourBase << "base " << i + 1 << ": at " << ourBases[i].getBuildLocation().x << ":" << ourBases[i].getBuildLocation().y << std::endl;
+		blinkerBot.Debug()->DebugTextOut(ourBase.str());
+	}
+
 
 	int n = 0;
 	for (auto base : bases)
@@ -431,10 +438,22 @@ void BaseManager::addBase(const Unit *unit)
 	{
 		if (Distance2D(base.getBuildLocation(), unit->pos) < 5)
 		{
-			base.setTownhall(unit);
-			ourBases.push_back(base);
+			bool alreadyFound = false;
+			for (auto ourBase : ourBases)
+			{
+				if (Distance2D(base.getBuildLocation(), ourBase.getBuildLocation()) < 5)
+				{
+					alreadyFound = true;
+				}
+			}
+			if (!alreadyFound)
+			{
+				base.setTownhall(unit);
+				ourBases.push_back(base);
+			}
 		}
 	}
+	printDebug();
 }
 
 void BaseManager::removeBase(const Unit *unit)

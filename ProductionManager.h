@@ -66,5 +66,6 @@ public:
 	Point2D getRallyPoint();
 	void addEnemyBase(const Unit *unit);
 	void removeEnemyBase(const Unit *unit);
+	void receiveCloakSignal(bool signal);
 };
 
