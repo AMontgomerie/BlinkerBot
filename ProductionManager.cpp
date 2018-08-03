@@ -1,8 +1,8 @@
 #include "ProductionManager.h"
 #include "Blinkerbot.h"
 
-ProductionManager::ProductionManager(BlinkerBot & bot): blinkerBot(bot), forwardPylon(NULL), 
-baseManager(bot), productionQueue(bot), nextPylonLocation(Point2D(-1.0,-1.0))
+ProductionManager::ProductionManager(BlinkerBot & bot): blinkerBot(bot), forwardPylon(nullptr), 
+baseManager(bot), productionQueue(bot), nextPylonLocation(Point2D(-1.0,-1.0)), attacking(false)
 {
 	productionQueue.initialiseQueue();
 }
@@ -294,8 +294,8 @@ const Unit *ProductionManager::getLeastArtosisPylon()
 				powering++;
 			}
 		}
-		//if the number is lower than the previous lowest, record this one as lowest
-		if (powering < lowestPowering)
+		//if the number is lower than the previous lowest (and not a proxy pylon), record this one as lowest
+		if (powering < lowestPowering && Distance2D(pylon->pos, forwardPylonPoint) > 10)
 		{
 			leastArtosisPylon = pylon;
 			lowestPowering = powering;
@@ -311,6 +311,7 @@ void ProductionManager::setNextPylonLocation()
 	Point2D buildLocation = baseManager.getOurBases().back().getBuildLocation();
 
 	std::vector<Point2D> buildGrid = getBuildGrid(buildLocation);
+	/*
 	srand(blinkerBot.Observation()->GetGameLoop());
 	int i = 0;
 	if (buildGrid.size() > 1)
@@ -326,7 +327,17 @@ void ProductionManager::setNextPylonLocation()
 		return;
 	}
 	buildLocation = Point2D(int(buildGrid[i].x), int(buildGrid[i].y));
-	nextPylonLocation = buildLocation;
+	*/
+	buildLocation = GetRandomEntry(buildGrid);
+
+	if (forwardPylon == nullptr && attacking)
+	{
+		nextPylonLocation = forwardPylonPoint;
+	}
+	else
+	{
+		nextPylonLocation = buildLocation;
+	}
 }
 
 void ProductionManager::buildStructure(AbilityID structureToBuild, Point2D target)
@@ -386,6 +397,10 @@ void ProductionManager::addNewUnit(const Unit *unit)
 	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_PYLON)
 	{
 		pylons.insert(unit);
+		if (Distance2D(unit->pos, forwardPylonPoint) < 10)
+		{
+			forwardPylon = unit;
+		}
 		setNextPylonLocation();
 	}
 	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
@@ -449,6 +464,8 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 
 void ProductionManager::receiveAttackSignal(bool attack)
 {
+	attacking = attack;
+	/*
 	//if (attack && forwardPylon == NULL)
 	if (attack && pylons.size() > 0 && Distance2D(getClosestPylon(forwardPylonPoint)->pos, forwardPylonPoint) > 50.0f)
 	{
@@ -458,6 +475,7 @@ void ProductionManager::receiveAttackSignal(bool attack)
 	{
 		//std::cerr << "we've already got a forward pylon" << std::endl;
 	}
+	*/
 }
 
 void ProductionManager::locateForwardPylonPoint()

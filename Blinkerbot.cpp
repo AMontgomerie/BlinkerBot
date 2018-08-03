@@ -28,7 +28,7 @@ void BlinkerBot::OnGameStart()
 void BlinkerBot::OnStep()
 {
 	productionManager.onStep();
-	//productionManager.receiveAttackSignal(armyManager.sendAttackSignal());
+	productionManager.receiveAttackSignal(armyManager.sendAttackSignal());
 	productionManager.receiveCloakSignal(armyManager.detectionRequired());
 	armyManager.onStep();
 	armyManager.receiveRallyPoint(productionManager.getRallyPoint());	

@@ -30,6 +30,7 @@ class ProductionManager
 	const Unit *forwardPylon;
 	Point2D rallyPoint;
 	Point2D forwardPylonPoint;
+	bool attacking;
 
 	void buildStructure(AbilityID structureToBuild);
 	void buildStructure(AbilityID structureToBuild, Point2D target);

@@ -8,8 +8,6 @@ later:
 - sometimes gets stuck making gateway units as they are higher priority than build order progress
 - observer control
 - search for enemy base when he hides it
-- trains too many probes (make max count dependant on mining bases)
-- remove production manager's weird building switch statement thing
 - army only contains zealots and stalkers
 - make executing build order items be handled in a generic way (currently doesnt support most researches or any units)
 - continue implementing UnitData
@@ -21,5 +19,4 @@ later:
 - bases might not be readded to available locations after a nexus destruction
 
 DONE FOR NEXT UPLOAD:
-- removed references to location in build order queue (obsolete)
-- simplified and improved ProductionManager's handling of gas workers
+- fix random so it doesnt always go bottom left
