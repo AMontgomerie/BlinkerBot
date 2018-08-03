@@ -1,7 +1,8 @@
 #include "ProductionManager.h"
 #include "Blinkerbot.h"
 
-ProductionManager::ProductionManager(BlinkerBot & bot): blinkerBot(bot), forwardPylon(NULL), baseManager(bot), productionQueue(bot)
+ProductionManager::ProductionManager(BlinkerBot & bot): blinkerBot(bot), forwardPylon(NULL), 
+baseManager(bot), productionQueue(bot), nextPylonLocation(Point2D(-1.0,-1.0))
 {
 	productionQueue.initialiseQueue();
 }
@@ -20,6 +21,11 @@ void ProductionManager::initialise()
 
 void ProductionManager::onStep()
 {
+	if (nextPylonLocation == Point2D(-1, -1) && !baseManager.getOurBases().empty())
+	{
+		setNextPylonLocation();
+	}
+
 	BuildOrderItem nextBuildOrderItem = productionQueue.getNextItem();
 	produce(nextBuildOrderItem);
 	checkSupply();
@@ -37,7 +43,12 @@ void ProductionManager::onStep()
 
 void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 {
-	if (nextBuildOrderItem.item == ABILITY_ID::RESEARCH_BLINK || nextBuildOrderItem.item == ABILITY_ID::RESEARCH_WARPGATE)
+	//check if the queue is empty. If it is, then let's generate a new goal and queue up some items
+	if (nextBuildOrderItem.item == ABILITY_ID::INVALID)
+	{
+		productionQueue.generateMoreItems(generateBuildOrderGoal());
+	}
+	else if (nextBuildOrderItem.item == ABILITY_ID::RESEARCH_BLINK || nextBuildOrderItem.item == ABILITY_ID::RESEARCH_WARPGATE)
 	{
 		for (auto structure : structures)
 		{
@@ -67,7 +78,7 @@ void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 		}
 	}
 	//trains observers
-	if (nextBuildOrderItem.item == ABILITY_ID::TRAIN_OBSERVER)
+	else if (nextBuildOrderItem.item == ABILITY_ID::TRAIN_OBSERVER)
 	{
 		for (auto structure : structures)
 		{
@@ -78,14 +89,14 @@ void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 		}
 	}
 	//deal with structures
-	if (nextBuildOrderItem.item == ABILITY_ID::BUILD_NEXUS)
+	else if (nextBuildOrderItem.item == ABILITY_ID::BUILD_NEXUS)
 	{
 		expand();
 	}
 	else if ((blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUnitTypeData()[nextBuildOrderItem.item].mineral_cost)
 		&& (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUnitTypeData()[nextBuildOrderItem.item].vespene_cost))
 	{
-		buildStructure(nextBuildOrderItem.item, nextBuildOrderItem.location);
+		buildStructure(nextBuildOrderItem.item);
 	}
 }
 
@@ -165,52 +176,32 @@ size_t ProductionManager::getWorkerCount()
 	return workers.size();
 }
 
-std::set<std::pair<const Unit *, std::set<const Unit *>>> ProductionManager::getGasWorkers()
-{
-	return gasWorkers;
-}
-
-void ProductionManager::addGas(const Unit *gas)
-{
-	std::set<const Unit *> gasMiners;
-	gasMiners.clear();
-	int workersToAdd = 3;
-	std::set<const Unit *>::const_iterator workerIterator = availableWorkers.begin();
-	while (workersToAdd > 0)
-	{
-		gasMiners.insert(*workerIterator);
-		availableWorkers.erase(*workerIterator);
-		workerIterator = availableWorkers.begin();
-		workersToAdd--;
-	}
-	gasWorkers.insert(std::make_pair(gas, gasMiners));
-	checkGas(gas);
-}
-
 void ProductionManager::checkGas(const Unit *gas)
 {
-	for (auto pairs : gasWorkers)
+	//check how many workers are mining at the geyser
+	int toAdd = gas->ideal_harvesters - gas->assigned_harvesters;
+	std::set<const Unit *>::const_iterator worker = availableWorkers.begin();
+	//if we don't have enough, then put some more in
+	while (toAdd > 0 && worker != availableWorkers.end())
 	{
-		if (pairs.first == gas)
+		blinkerBot.Actions()->UnitCommand(*worker, ABILITY_ID::SMART, gas);
+		availableWorkers.erase(worker++);
+		toAdd--;
+	}
+	worker = workers.begin();
+	//if we have too many then take some out
+	while (toAdd < 0 && worker != workers.end())
+	{
+		for (auto order : (*worker)->orders)
 		{
-			for (auto worker : pairs.second)
+			if (order.target_pos == gas->pos || Distance2D((*worker)->pos, gas->pos) < 2)
 			{
-				if (worker->orders.empty())
-				{
-					blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::SMART, gas);
-				}
-				else
-				{
-					for (auto order : worker->orders)
-					{
-						if ((order.ability_id != ABILITY_ID::HARVEST_RETURN) && (order.target_pos != gas->pos))
-						{
-							blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::SMART, gas);
-						}
-					}
-				}
+				returnToMining(*worker);
+				availableWorkers.insert(*worker);
+				toAdd++;
 			}
 		}
+		worker++;
 	}
 }
 
@@ -219,18 +210,6 @@ const Unit *ProductionManager::getBuilder()
 	if (availableWorkers.size() > 0)
 	{
 		std::set<const Unit *>::const_iterator builder = availableWorkers.begin();
-		for (auto gas : gasWorkers)
-		{
-			for (auto worker : gas.second)
-			{
-				if (*builder == worker)
-				{
-					availableWorkers.erase(worker);
-					builder = availableWorkers.begin();
-
-				}
-			}
-		}
 		return *builder;
 	}
 	else
@@ -240,13 +219,24 @@ const Unit *ProductionManager::getBuilder()
 	}
 }
 
-void ProductionManager::buildStructure(AbilityID structureToBuild, Location location)
+void ProductionManager::buildStructure(AbilityID structureToBuild)
 {
 	const Unit *builder = getBuilder();
 	if (structureToBuild == ABILITY_ID::BUILD_ASSIMILATOR)
 	{
+		//make sure we have a base that can have a base built at it
+		if (!baseManager.getNextAvailableGas())
+		{
+			//if we don't then just remove this item from the queue
+			productionQueue.removeItem();
+			//we want to try adding it to the back of the queue again, but not if the queue is empty (because then we'll be right back here)
+			if (productionQueue.getNextItem().item != ABILITY_ID::INVALID)
+			{
+				productionQueue.addItemLowPriority(ABILITY_ID::BUILD_ASSIMILATOR);
+			}
+		}
 		//this is a workaround for the problem caused by baseManager storing unit pointers as snapshots which cannot be targeted with actions
-		if (baseManager.getNextAvailableGas()->display_type == Unit::DisplayType::Snapshot)
+		else if (baseManager.getNextAvailableGas()->display_type == Unit::DisplayType::Snapshot)
 		{
 			//if it's a snapshot pointer, then let's move to the location rather than issuing a build command
 			blinkerBot.Actions()->UnitCommand(builder, ABILITY_ID::MOVE, baseManager.getNextAvailableGas()->pos);
@@ -256,37 +246,87 @@ void ProductionManager::buildStructure(AbilityID structureToBuild, Location loca
 				if (UnitData::isVespeneGeyser(unit) && Distance2D(unit->pos, builder->pos) < 2)
 				{
 					blinkerBot.Actions()->UnitCommand(builder, structureToBuild, unit);
+					//we need to issue another command or the probe will wait for the gas to finish
+					blinkerBot.Actions()->UnitCommand(builder, ABILITY_ID::STOP, true);
 				}
 			}
 		}
 		blinkerBot.Actions()->UnitCommand(builder, structureToBuild, baseManager.getNextAvailableGas());
+		//we need to issue another command or the probe will wait for the gas to finish
+		blinkerBot.Actions()->UnitCommand(builder, ABILITY_ID::STOP, true);
+
 	}
 	else
 	{
-		Point2D buildLocation;
-		switch (location)
+		if (structureToBuild == ABILITY_ID::BUILD_PYLON)
 		{
-		case Proxy:
-			buildLocation = Point2D(forwardPylonPoint.x + GetRandomScalar() * 15.0f, forwardPylonPoint.y + GetRandomScalar() * 15.0f);
+			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, 
+				Point2D(nextPylonLocation.x + GetRandomScalar() * 2, nextPylonLocation.y + GetRandomScalar() * 2));
+		}
+		else
+		{
+
+			//find a pylon with some space and choose a random location within its power radius
+			Point2D buildLocation;
+			const Unit *targetPylon = getLeastArtosisPylon();
+			buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 6.5f, targetPylon->pos.y + GetRandomScalar() * 6.5f);
 			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
-			break;
-		case Main:
-		case Natural:
-		case Third:
-			buildLocation = Point2D(blinkerBot.Observation()->GetStartLocation().x + GetRandomScalar() * 15.0f,
-				blinkerBot.Observation()->GetStartLocation().y + GetRandomScalar() * 15.0f);
-			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
-			break;
-		case Nowhere:
-			productionQueue.removeItem();
-			productionQueue.generateMoreItems(generateBuildOrderGoal());
-			break;
-		default:
-			buildLocation = Point2D(builder->pos.x + GetRandomScalar() * 15.0f, builder->pos.y + GetRandomScalar() * 15.0f);
-			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
-			break;
 		}
 	}
+}
+
+//returns the pylon powering the least number of structures
+const Unit *ProductionManager::getLeastArtosisPylon()
+{
+	//set some default values
+	const Unit *leastArtosisPylon = *pylons.begin();
+	int lowestPowering = int(structures.size());
+
+	//check each pylon
+	for (auto pylon : pylons)
+	{
+		//count the number of non-pylon structures in range
+		int powering = 0;
+		for (auto structure : structures)
+		{
+			if (structure->unit_type != UNIT_TYPEID::PROTOSS_PYLON && Distance2D(pylon->pos, structure->pos) < 6.5)
+			{
+				powering++;
+			}
+		}
+		//if the number is lower than the previous lowest, record this one as lowest
+		if (powering < lowestPowering)
+		{
+			leastArtosisPylon = pylon;
+			lowestPowering = powering;
+		}
+	}
+
+	return leastArtosisPylon;
+}
+
+void ProductionManager::setNextPylonLocation()
+{
+	//find the location of our most recent base
+	Point2D buildLocation = baseManager.getOurBases().back().getBuildLocation();
+
+	std::vector<Point2D> buildGrid = getBuildGrid(buildLocation);
+	srand(blinkerBot.Observation()->GetGameLoop());
+	int i = 0;
+	if (buildGrid.size() > 1)
+	{
+		int i = rand() % (buildGrid.size() - 1);
+	}
+	else if (buildGrid.size() == 1)
+	{
+		i = 0;
+	}
+	else
+	{
+		return;
+	}
+	buildLocation = Point2D(int(buildGrid[i].x), int(buildGrid[i].y));
+	nextPylonLocation = buildLocation;
 }
 
 void ProductionManager::buildStructure(AbilityID structureToBuild, Point2D target)
@@ -346,6 +386,7 @@ void ProductionManager::addNewUnit(const Unit *unit)
 	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_PYLON)
 	{
 		pylons.insert(unit);
+		setNextPylonLocation();
 	}
 	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
 	{
@@ -409,12 +450,9 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 void ProductionManager::receiveAttackSignal(bool attack)
 {
 	//if (attack && forwardPylon == NULL)
-	if (attack && pylons.size() > 0 && Distance2D(getClosestPylon(forwardPylonPoint)->pos, forwardPylonPoint) > 50.0f 
-		&& productionQueue.getNextItem().location != Proxy)
+	if (attack && pylons.size() > 0 && Distance2D(getClosestPylon(forwardPylonPoint)->pos, forwardPylonPoint) > 50.0f)
 	{
-		//std::cerr << "closest pylon is " << Distance2D(getClosestPylon(forwardPylonPoint)->pos, forwardPylonPoint) << " away" << std::endl;
-		//std::cerr << "adding proxy pylon to build queue" << std::endl;
-productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON, Proxy);
+		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
 	}
 	else if (pylons.size() > 0 && Distance2D(getClosestPylon(forwardPylonPoint)->pos, forwardPylonPoint) < 50.0f)
 	{
@@ -508,7 +546,7 @@ void ProductionManager::checkSupply()
 	if (supplyCapacity - supplyUsed < 2 && productionQueue.getNextItem().item != ABILITY_ID::BUILD_PYLON && !pylonAlreadyInProduction)
 	{
 		std::cerr << "we're blocked so making a new pylon" << std::endl;
-		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON, Main);
+		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
 	}
 }
 
@@ -823,14 +861,14 @@ void ProductionManager::receiveCloakSignal(bool signal)
 		{
 			if (!productionQueue.includes(ABILITY_ID::BUILD_ROBOTICSFACILITY))
 			{
-				productionQueue.addItemHighPriority(ABILITY_ID::BUILD_ROBOTICSFACILITY, Main);
+				productionQueue.addItemHighPriority(ABILITY_ID::BUILD_ROBOTICSFACILITY);
 			}
 		}
 		else if (detectionProducable && !alreadyTraining)
 		{
 			if (!productionQueue.includes(ABILITY_ID::TRAIN_OBSERVER))
 			{
-				productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_OBSERVER, Main);
+				productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_OBSERVER);
 			}
 		}
 	}
@@ -910,4 +948,136 @@ void ProductionManager::checkMineralVisibility()
 			}
 		}
 	}
+}
+
+void ProductionManager::printDebug()
+{
+	for (int w = 0; w != int(blinkerBot.Observation()->GetGameInfo().width); w++)
+	{
+		for (int h = 0; h != int(blinkerBot.Observation()->GetGameInfo().height); h++)
+		{
+			if (blinkerBot.Query()->Placement(ABILITY_ID::BUILD_PYLON, Point2D(w, h)))
+			{
+				Point3D point = Point3D(w, h, blinkerBot.Observation()->GetStartLocation().z + 1);
+				blinkerBot.Debug()->DebugBoxOut(point, Point3D(point.x + 1, point.y + 1, point.z), Colors::Purple);
+			}
+		}
+	}
+	blinkerBot.Debug()->SendDebug();
+
+}
+
+std::vector<Point2D> ProductionManager::getBuildGrid(Point2D centre)
+{
+	std::vector<QueryInterface::PlacementQuery> queries;
+	std::vector<Point2D> buildGrid;
+
+	//first we set the minimum and maximum values for the search area
+	float minX = centre.x - 15;
+	float minY = centre.y - 15;
+	float maxX = centre.x + 15;
+	float maxY = centre.y + 15;
+
+	if (minX < 0)
+	{
+		minX = 0;
+	}
+	if (minY < 0)
+	{
+		minY = 0;
+	}
+	if (maxX > blinkerBot.Observation()->GetGameInfo().width)
+	{
+		maxX = float(blinkerBot.Observation()->GetGameInfo().width);
+	}
+	if (maxY > blinkerBot.Observation()->GetGameInfo().width)
+	{
+		maxY = float(blinkerBot.Observation()->GetGameInfo().width);
+	}
+
+	//load up the vector with a query for each point
+	for (float x = minX; x <= maxX; x++)
+	{
+		for (float y = minY; y <= maxY; y++)
+		{
+			queries.push_back(QueryInterface::PlacementQuery(ABILITY_ID::BUILD_PYLON, Point2D(x, y)));
+			//if (blinkerBot.Observation()->IsPlacable(Point2D(x, y)))
+			//{
+				buildGrid.push_back(Point2D(x, y));
+			//}
+		}
+	}
+	
+	//query each position
+	std::vector<bool> output = blinkerBot.Query()->Placement(queries);
+
+	if (!output.empty())
+	{
+		//if a point is unbuildable, set its location to 0:0 so we know it doesn't work
+		for (int i = 0; i != output.size() - 1; ++i)
+		{
+			//std::cerr << i << ": " << output[i] << std::endl;
+			if (output[i] == false)
+			{
+				buildGrid[i] = Point2D(0, 0);
+			}
+		}
+	}
+	//go through the vector and remove all the unbuildable (0:0) points
+	for (std::vector<Point2D>::iterator point = buildGrid.begin(); point != buildGrid.end();)
+	{
+		if (*point == Point2D(0, 0))
+		{
+			point = buildGrid.erase(point);
+		}
+		else
+		{
+			++point;
+		}
+	}
+	for (std::vector<Point2D>::iterator point = buildGrid.begin(); point != buildGrid.end();)
+	{
+		bool tooClose = false;
+
+		//let's make sure it's not too close to one of our buildings
+		for (auto structure : structures)
+		{
+			if (Distance2D(*point, structure->pos) < 4)
+			{
+				//std::cerr << "removing a location for being too close to a structure" << std::endl;
+				tooClose = true;
+			}
+		}
+
+		//let's make sure it's not too close to our resources (we don't wanna block any mineral or gas lines
+		for (auto resource : blinkerBot.Observation()->GetUnits())
+		{
+			if ((UnitData::isMinerals(resource) || UnitData::isVespeneGeyser(resource)) && Distance2D(*point, resource->pos) < 4)
+			{
+				//std::cerr << "removing a location for being too close to a mineral/gas" << std::endl;
+				tooClose = true;
+			}
+		}
+		if (tooClose)
+		{
+			point = buildGrid.erase(point);
+		}
+		else
+		{
+			++point;
+		}
+	}
+
+	//printBuildGrid(buildGrid);
+	return buildGrid;
+}
+
+void ProductionManager::printBuildGrid(std::vector<Point2D> buildGrid)
+{
+	for (auto point : buildGrid)
+	{
+		Point3D box = Point3D(point.x, point.y, blinkerBot.Observation()->GetStartLocation().z + 1);
+		blinkerBot.Debug()->DebugBoxOut(box, Point3D(box.x + 1, box.y + 1, box.z), Colors::Purple);
+	}
+	blinkerBot.Debug()->SendDebug();
 }

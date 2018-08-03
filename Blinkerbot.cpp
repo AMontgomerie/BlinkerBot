@@ -28,7 +28,7 @@ void BlinkerBot::OnGameStart()
 void BlinkerBot::OnStep()
 {
 	productionManager.onStep();
-	productionManager.receiveAttackSignal(armyManager.sendAttackSignal());
+	//productionManager.receiveAttackSignal(armyManager.sendAttackSignal());
 	productionManager.receiveCloakSignal(armyManager.detectionRequired());
 	armyManager.onStep();
 	armyManager.receiveRallyPoint(productionManager.getRallyPoint());	
@@ -76,10 +76,6 @@ void BlinkerBot::OnUnitEnterVision(const sc2::Unit *unit)
 void BlinkerBot::OnBuildingConstructionComplete(const sc2::Unit* unit)
 {
 	productionManager.addStructure(unit);
-	if (unit->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
-	{
-		productionManager.addGas(unit);
-	}
 }
 
 void BlinkerBot::OnUnitCreated(const sc2::Unit *unit)

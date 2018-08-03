@@ -39,7 +39,7 @@ Base::Base(std::set<const Unit *> minerals, std::set<const Unit *> geysers, Poin
 void BaseManager::initialise()
 {
 	findBases();
-	printDebug();
+	//printDebug();
 }
 
 //searches the map for minerals and groups them into mineral lines, the results are stored in mineralLines
@@ -111,13 +111,14 @@ void BaseManager::printDebug()
 			<< " to " << base.getBuildLocation().x << ":" << base.getBuildLocation().y << std::endl;
 	}
 	*/
+	/*
 	for (int i = 0; i != ourBases.size(); i++)
 	{
 		std::ostringstream ourBase;
 		ourBase << "base " << i + 1 << ": at " << ourBases[i].getBuildLocation().x << ":" << ourBases[i].getBuildLocation().y << std::endl;
 		blinkerBot.Debug()->DebugTextOut(ourBase.str());
 	}
-
+	*/
 
 	int n = 0;
 	for (auto base : bases)
@@ -462,7 +463,7 @@ void BaseManager::addBase(const Unit *unit)
 			}
 		}
 	}
-	printDebug();
+	//printDebug();
 }
 
 void BaseManager::removeBase(const Unit *unit)

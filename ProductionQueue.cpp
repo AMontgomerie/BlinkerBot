@@ -10,39 +10,40 @@ ProductionQueue::ProductionQueue(BlinkerBot & bot): blinkerBot(bot)
 
 void ProductionQueue::initialiseQueue()
 {
-	/*
 	//2 gate blink expand
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_CYBERNETICSCORE, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_WARPGATE, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TWILIGHTCOUNCIL, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Natural));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS, Natural));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Natural));
-	*/
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS, Natural));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_CYBERNETICSCORE, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_WARPGATE, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TWILIGHTCOUNCIL, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK, Main));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_CYBERNETICSCORE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_WARPGATE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TWILIGHTCOUNCIL));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 
+	//nexus first into 4gate blink
+	/*
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_CYBERNETICSCORE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_WARPGATE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TWILIGHTCOUNCIL));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK));
+	*/
 }
 
 void ProductionQueue::removeItem()
@@ -64,7 +65,7 @@ BuildOrderItem ProductionQueue::getNextItem()
 {
 	if (productionQueue.empty())
 	{
-		return BuildOrderItem(ABILITY_ID::BUILD_PYLON, Nowhere);
+		return BuildOrderItem(ABILITY_ID::INVALID);
 	}
 	else 
 	{
@@ -86,31 +87,31 @@ void ProductionQueue::generateMoreItems(std::set<std::pair<AbilityID, int>> buil
 		{
 			if (i % 3 == 0)
 			{
-				productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON, Main));
+				productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 			}
-			productionQueue.push_back(BuildOrderItem(item.first, Main));
+			productionQueue.push_back(BuildOrderItem(item.first));
 		}
 	}
 	printDebug();
 }
 
-void ProductionQueue::addItemHighPriority(AbilityID type, Location location)
+void ProductionQueue::addItemHighPriority(AbilityID type)
 {
-	productionQueue.insert(productionQueue.begin(), BuildOrderItem(type, location));
+	productionQueue.insert(productionQueue.begin(), BuildOrderItem(type));
 	printDebug();
 }
 
-void ProductionQueue::addItemLowPriority(AbilityID type, Location location)
+void ProductionQueue::addItemLowPriority(AbilityID type)
 {
-	productionQueue.push_back(BuildOrderItem(type, location));
+	productionQueue.push_back(BuildOrderItem(type));
 	printDebug();
 }
 
-BuildOrderItem::BuildOrderItem(): item(NULL), location(Main)
+BuildOrderItem::BuildOrderItem(): item(NULL)
 {
 }
 
-BuildOrderItem::BuildOrderItem(sc2::AbilityID c_item, Location c_location): item(c_item), location(c_location)
+BuildOrderItem::BuildOrderItem(sc2::AbilityID c_item): item(c_item)
 {
 }
 

@@ -21,16 +21,17 @@ class ProductionManager
 
 	std::set<const Unit *> workers;
 	std::set<const Unit *> availableWorkers;
-	std::set<std::pair<const Unit *, std::set<const Unit *>>> gasWorkers;
+	//std::set<std::pair<const Unit *, std::set<const Unit *>>> gasWorkers;
 	std::set<const Unit *> structures;
 	std::set<const Unit *> pylons;
 	std::set<const Unit *> enemyBases;
 	std::set<const Unit*> miningBases;
+	Point2D nextPylonLocation;
 	const Unit *forwardPylon;
 	Point2D rallyPoint;
 	Point2D forwardPylonPoint;
 
-	void buildStructure(AbilityID structureToBuild, Location location);
+	void buildStructure(AbilityID structureToBuild);
 	void buildStructure(AbilityID structureToBuild, Point2D target);
 	void buildStructure(const Unit *builder, AbilityID structureToBuild, Point2D target);
 	void produce(BuildOrderItem nextBuildOrderItem);
@@ -48,6 +49,11 @@ class ProductionManager
 	int checkPriority(ABILITY_ID ability);
 	bool miningOut();
 	int calculateMiningBases();
+	void setNextPylonLocation();
+	const Unit *getLeastArtosisPylon();
+	void printDebug();
+	std::vector<Point2D> getBuildGrid(Point2D centre);
+	void printBuildGrid(std::vector<Point2D> buildGrid);
 public:
 	ProductionManager(BlinkerBot & bot);
 	~ProductionManager();
@@ -58,8 +64,6 @@ public:
 	void removeWorker(const Unit *unit);
 	void addStructure(const Unit *unit);
 	size_t getWorkerCount();
-	std::set<std::pair<const Unit *, std::set<const Unit *>>> getGasWorkers();
-	void addGas(const Unit *gas);
 	void checkGas(const Unit *gas);
 	const Unit *getBuilder();
 	void addNewUnit(const Unit *unit);

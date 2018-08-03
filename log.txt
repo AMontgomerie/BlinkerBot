@@ -1,10 +1,11 @@
 necessary for ladder:
-- improve building positioning (use pylons as central target locations rather than main base)
+- need to come up with a new solution for proxy pylon
 - worker defence
 - there's still a bug in the expansion placement in some positions (horiztonl and maybe vertical)
 - make production manager able to handle training units and researcing techs
 
 later:
+- sometimes gets stuck making gateway units as they are higher priority than build order progress
 - observer control
 - search for enemy base when he hides it
 - trains too many probes (make max count dependant on mining bases)
@@ -20,7 +21,5 @@ later:
 - bases might not be readded to available locations after a nexus destruction
 
 DONE FOR NEXT UPLOAD:
-- updated basemanager to reenter bases with visible minerals and gas once theyre completed
-- production manager now calculates probe count based mining bases
-- fixed snapshot bug for minerals and gas
-- I think we fixed detection (check)
+- removed references to location in build order queue (obsolete)
+- simplified and improved ProductionManager's handling of gas workers
