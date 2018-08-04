@@ -10,6 +10,11 @@ ProductionQueue::ProductionQueue(BlinkerBot & bot): blinkerBot(bot)
 
 void ProductionQueue::initialiseQueue()
 {
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::TRAIN_COLOSSUS));
+	/*
 	//2 gate blink expand
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
@@ -26,9 +31,9 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
-
-	//nexus first into 4gate blink
+	*/
 	/*
+	//nexus first into 4gate blink	
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
@@ -42,8 +47,12 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TWILIGHTCOUNCIL));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK));
-	*/
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));*/
+
 }
 
 void ProductionQueue::removeItem()

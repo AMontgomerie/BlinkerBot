@@ -55,6 +55,9 @@ class ProductionManager
 	void printDebug();
 	std::vector<Point2D> getBuildGrid(Point2D centre);
 	void printBuildGrid(std::vector<Point2D> buildGrid);
+	void research(BuildOrderItem item);
+	void train(BuildOrderItem item);
+	void build(BuildOrderItem item);
 public:
 	ProductionManager(BlinkerBot & bot);
 	~ProductionManager();

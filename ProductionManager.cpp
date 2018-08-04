@@ -48,58 +48,29 @@ void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 	{
 		productionQueue.generateMoreItems(generateBuildOrderGoal());
 	}
-	else if (nextBuildOrderItem.item == ABILITY_ID::RESEARCH_BLINK || nextBuildOrderItem.item == ABILITY_ID::RESEARCH_WARPGATE)
+	//deal with units
+	else if (UnitData::isTrainableUnitType(nextBuildOrderItem.item))
 	{
-		for (auto structure : structures)
-		{
-			//deal with researches (currently only warpgate and blink are available)
-			if ((structure->unit_type == UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL && nextBuildOrderItem.item == ABILITY_ID::RESEARCH_BLINK)
-				|| (structure->unit_type == UNIT_TYPEID::PROTOSS_CYBERNETICSCORE && nextBuildOrderItem.item == ABILITY_ID::RESEARCH_WARPGATE)
-				|| (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSBAY && nextBuildOrderItem.item == ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE))
-			{
-				//check if we already started it
-				bool researchStarted = false;
-				for (auto order : structure->orders)
-				{
-					if (order.ability_id == nextBuildOrderItem.item)
-					{
-						//if we've already started it then remove it from the to do list
-						productionQueue.removeItem();
-						researchStarted = true;
-					}
-				}
-				//if we didn't start it then issue a command
-				if (!researchStarted && (blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUnitTypeData()[nextBuildOrderItem.item].mineral_cost)
-					&& (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUnitTypeData()[nextBuildOrderItem.item].vespene_cost))
-				{
-					blinkerBot.Actions()->UnitCommand(structure, nextBuildOrderItem.item);
-				}
-			}
-		}
+		train(nextBuildOrderItem);
 	}
-	//trains observers
-	else if (nextBuildOrderItem.item == ABILITY_ID::TRAIN_OBSERVER)
+	//deal with researches
+	else if (UnitData::isResearch(nextBuildOrderItem.item))
 	{
-		for (auto structure : structures)
-		{
-			if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY)
-			{
-				blinkerBot.Actions()->UnitCommand(structure, nextBuildOrderItem.item);
-			}
-		}
+		research(nextBuildOrderItem);
 	}
-	//deal with structures
+	//deal with expansions
 	else if (nextBuildOrderItem.item == ABILITY_ID::BUILD_NEXUS)
 	{
 		expand();
 	}
-	else if ((blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUnitTypeData()[nextBuildOrderItem.item].mineral_cost)
-		&& (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUnitTypeData()[nextBuildOrderItem.item].vespene_cost))
+	//deal with structures
+	else
 	{
-		buildStructure(nextBuildOrderItem.item);
+		build(nextBuildOrderItem);
 	}
 }
 
+//trains units automatically (independent of productionQueue)
 void ProductionManager::trainUnits()
 {
 	for (auto structure : structures)
@@ -147,6 +118,134 @@ void ProductionManager::trainUnits()
 		{
 			checkGas(structure);
 		}
+	}
+}
+
+void ProductionManager::build(BuildOrderItem item)
+{
+	//first let's check if we have the necessary tech to build this structure
+	UnitTypeID requiredStructure = blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].tech_requirement;
+	bool isBuildable = false;
+	if (requiredStructure == UNIT_TYPEID::INVALID)
+	{
+		isBuildable = true;
+	}
+	else
+	{
+		for (auto structure : structures)
+		{
+			if (structure->unit_type == requiredStructure)
+			{
+				isBuildable = true;
+			}
+		}
+	}
+	//if we don't then add what we need to the queue
+	if (!isBuildable)
+	{
+		productionQueue.addItemHighPriority(blinkerBot.Observation()->GetUnitTypeData()[requiredStructure].ability_id);
+	}
+	else
+	{
+		//if we have the tech, then let's check if we have the necessary resources
+		if ((blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].mineral_cost)
+			&& (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].vespene_cost))
+		{
+			buildStructure(item.item);
+		}
+	}
+}
+
+//trains a unit from the production queue, or adds extra items to the queue in the event that we don't have the necessary tech
+void ProductionManager::train(BuildOrderItem item)
+{
+	bool isStarted = false;
+	bool isTrainable = false;
+	const Unit *productionFacility = nullptr;
+	UnitTypeID requiredStructure = blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].tech_requirement;
+
+
+	//search our buildings
+	for (auto structure : structures)
+	{
+		//check if we started the production facility
+		for (auto order : structure->orders)
+		{
+			if (order.ability_id == item.item)
+			{
+				//if we've already started it then remove it from the to do list
+				productionQueue.removeItem();
+				isStarted = true;
+			}
+		}
+		//check if we have the necessary structure
+		if (structure->unit_type == requiredStructure || requiredStructure == UNIT_TYPEID::INVALID)
+		{
+			productionFacility = structure;
+			isTrainable = true;
+		}
+	}
+	//if we don't have what we need, place what we need at the front of the production queue
+	if (!isTrainable)
+	{
+		//std::cerr << UnitTypeToName(requiredStructure) << std::endl;
+		productionQueue.addItemHighPriority(blinkerBot.Observation()->GetUnitTypeData()[requiredStructure].ability_id);
+	}
+	
+	//if we haven't started it yet, then let's try
+	else if (!isStarted)
+	{
+		//check if we have the necessary resources
+		if ((blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].mineral_cost)
+			&& (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].vespene_cost))
+		{
+			blinkerBot.Actions()->UnitCommand(productionFacility, item.item);
+		}
+	}
+}
+
+//researches a tech, or adds an item to the production queue if we don't have the necessary structure
+void ProductionManager::research(BuildOrderItem item)
+{
+	bool isStarted = false;
+	bool isResearchable = false;
+	const Unit *researchStructure = nullptr;
+	UnitTypeID requiredStructure = UnitData::requiredStructure(item.item);
+
+	//search our buildings
+	for (auto structure : structures)
+	{
+		//check if we started the research already
+		for (auto order : structure->orders)
+		{
+			if (order.ability_id == item.item)
+			{
+				//if we've already started it then remove it from the to do list
+				productionQueue.removeItem();
+				isStarted = true;
+			}
+		}
+		//check if we have the necessary structure
+		if (structure->unit_type == requiredStructure)
+		{
+			researchStructure = structure;
+			isResearchable = true;
+		}
+	}
+	//if we don't have what we need, place what we need at the front of the production queue
+	if (!isResearchable)
+	{
+		productionQueue.addItemHighPriority(blinkerBot.Observation()->GetUnitTypeData()[requiredStructure].ability_id);
+	}
+	//if we haven't started it yet, then let's try
+	else if (!isStarted)
+	{
+		//check if we have the necessary resources (these techs don't seem to be in upgrade data)
+		//if ((blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUpgradeData()[item.item].mineral_cost)
+		//	&& (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUpgradeData()[item.item].vespene_cost))
+		//{
+			blinkerBot.Actions()->UnitCommand(researchStructure, item.item);
+		//}
 	}
 }
 
@@ -307,35 +406,23 @@ const Unit *ProductionManager::getLeastArtosisPylon()
 
 void ProductionManager::setNextPylonLocation()
 {
-	//find the location of our most recent base
-	Point2D buildLocation = baseManager.getOurBases().back().getBuildLocation();
-
-	std::vector<Point2D> buildGrid = getBuildGrid(buildLocation);
-	/*
-	srand(blinkerBot.Observation()->GetGameLoop());
-	int i = 0;
-	if (buildGrid.size() > 1)
-	{
-		int i = rand() % (buildGrid.size() - 1);
-	}
-	else if (buildGrid.size() == 1)
-	{
-		i = 0;
-	}
-	else
-	{
-		return;
-	}
-	buildLocation = Point2D(int(buildGrid[i].x), int(buildGrid[i].y));
-	*/
-	buildLocation = GetRandomEntry(buildGrid);
-
+	//if we need a forward pylon then build the pylon there
 	if (forwardPylon == nullptr && attacking)
 	{
 		nextPylonLocation = forwardPylonPoint;
 	}
+	//otherwise find an appropriate location
 	else
 	{
+		//find the location of our most recent base
+		Point2D buildLocation = baseManager.getOurBases().back().getBuildLocation();
+
+		//get the grid of buildable locations for the area around that base
+		std::vector<Point2D> buildGrid = getBuildGrid(buildLocation);
+
+		//select a random location from the available ones
+		buildLocation = GetRandomEntry(buildGrid);
+
 		nextPylonLocation = buildLocation;
 	}
 }
@@ -565,6 +652,7 @@ void ProductionManager::checkSupply()
 	{
 		std::cerr << "we're blocked so making a new pylon" << std::endl;
 		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
+		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON); //fuck it let's make two
 	}
 }
 
@@ -1090,6 +1178,7 @@ std::vector<Point2D> ProductionManager::getBuildGrid(Point2D centre)
 	return buildGrid;
 }
 
+//prints out a set of squares representing buildable points
 void ProductionManager::printBuildGrid(std::vector<Point2D> buildGrid)
 {
 	for (auto point : buildGrid)

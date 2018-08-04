@@ -24,5 +24,9 @@ public:
 	static bool isMinerals(const Unit *unit);
 	static bool isVespeneGeyser(const Unit *unit);
 	static bool canCloak(const Unit *unit);
+	static bool isTrainableUnitType(AbilityID ability);
+	static UnitTypeID getUnitTypeID(AbilityID ability);
+	static bool isResearch(AbilityID ability);
+	static UnitTypeID requiredStructure(AbilityID ability);
 };
 

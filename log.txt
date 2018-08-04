@@ -1,10 +1,11 @@
 necessary for ladder:
-- need to come up with a new solution for proxy pylon
 - worker defence
 - there's still a bug in the expansion placement in some positions (horiztonl and maybe vertical)
 - make production manager able to handle training units and researcing techs
+- make tech tree recoverable if something goes wrong (if we wanna make stalkers but have no cybercore and none in production)
 
 later:
+- unable to train observers currently
 - sometimes gets stuck making gateway units as they are higher priority than build order progress
 - observer control
 - search for enemy base when he hides it
@@ -17,6 +18,6 @@ later:
 - expand before mining out may or may not work
 - occasional bug for building proxy pylon
 - bases might not be readded to available locations after a nexus destruction
+- might be able to replace pylons in ProductionManager with observation()->getPowerSources()
 
 DONE FOR NEXT UPLOAD:
-- fix random so it doesnt always go bottom left
