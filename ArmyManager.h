@@ -23,6 +23,7 @@ class ArmyManager
 	std::set<const Unit *> enemyArmy;
 	std::set<const Unit *> enemyStructures;
 	bool regroupComplete;
+	bool enemyBaseExplored;
 	Point2D rallyPoint;
 
 	const Unit *underAttack();
@@ -42,6 +43,7 @@ class ArmyManager
 	void addKitingUnit(const Unit *unit);
 	void removeKitingUnit(const Unit *unit);
 	Point2D getRetreatPoint(const Unit *unit);
+	void workerDefence();
 public:
 	ArmyManager(BlinkerBot & bot);
 	~ArmyManager();

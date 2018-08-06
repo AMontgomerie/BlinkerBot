@@ -21,7 +21,6 @@ class ProductionManager
 
 	std::set<const Unit *> workers;
 	std::set<const Unit *> availableWorkers;
-	//std::set<std::pair<const Unit *, std::set<const Unit *>>> gasWorkers;
 	std::set<const Unit *> structures;
 	std::set<const Unit *> pylons;
 	std::set<const Unit *> enemyBases;
@@ -31,6 +30,8 @@ class ProductionManager
 	Point2D rallyPoint;
 	Point2D forwardPylonPoint;
 	bool attacking;
+	bool enemyHasCloak;
+	int currentUpgradeLevel;
 
 	void buildStructure(AbilityID structureToBuild);
 	void buildStructure(AbilityID structureToBuild, Point2D target);
@@ -78,5 +79,6 @@ public:
 	void removeEnemyBase(const Unit *unit);
 	void receiveCloakSignal(bool signal);
 	void checkMineralVisibility();
+	void onUpgradeComplete(UpgradeID upgrade);
 };
 

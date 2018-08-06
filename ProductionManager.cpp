@@ -2,7 +2,7 @@
 #include "Blinkerbot.h"
 
 ProductionManager::ProductionManager(BlinkerBot & bot): blinkerBot(bot), forwardPylon(nullptr), 
-baseManager(bot), productionQueue(bot), nextPylonLocation(Point2D(-1.0,-1.0)), attacking(false)
+baseManager(bot), productionQueue(bot), nextPylonLocation(Point2D(-1.0,-1.0)), attacking(false), enemyHasCloak(false), currentUpgradeLevel(0)
 {
 	productionQueue.initialiseQueue();
 }
@@ -321,6 +321,7 @@ const Unit *ProductionManager::getBuilder()
 void ProductionManager::buildStructure(AbilityID structureToBuild)
 {
 	const Unit *builder = getBuilder();
+
 	if (structureToBuild == ABILITY_ID::BUILD_ASSIMILATOR)
 	{
 		//make sure we have a base that can have a base built at it
@@ -361,6 +362,41 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 		{
 			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, 
 				Point2D(nextPylonLocation.x + GetRandomScalar() * 2, nextPylonLocation.y + GetRandomScalar() * 2));
+		}
+
+		//we want to make sure we have a cannon at each base for detection purposes
+		else if (structureToBuild == ABILITY_ID::BUILD_PHOTONCANNON)
+		{
+			Point2D buildLocation;
+			
+			if (baseManager.getOurBases().empty())
+			{
+				buildLocation = Point2D(getLeastArtosisPylon()->pos.x + GetRandomScalar() * 6.5f, getLeastArtosisPylon()->pos.y + GetRandomScalar() * 6.5f);
+			}
+			else
+			{
+				for (auto base : baseManager.getOurBases())
+				{
+					//check each base to see if a base has a cannon
+					bool hasCannon = false;
+					for (auto structure : structures)
+					{
+						if (Distance2D(base.getBuildLocation(), structure->pos) < 10 && structure->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
+						{
+							hasCannon = true;
+						}
+					}
+					//if we find a base with no cannon, let's get that location
+					if (!hasCannon)
+					{
+						buildLocation = base.getBuildLocation();
+					}
+				}
+				//find the closest pylon to that base, and build the cannon there
+				const Unit *targetPylon = getClosestPylon(buildLocation);
+				buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 6.5f, targetPylon->pos.y + GetRandomScalar() * 6.5f);
+			}
+			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
 		}
 		else
 		{
@@ -700,30 +736,51 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 	int currentBases = int(baseManager.getOurBases().size());
 	int currentProductionFacilities = 0;
 	int currentGases = 0;
+	int currentCannons = 0;
 
+	//first let's count the number of things we currently have
 	for (auto structure : structures)
 	{
-		if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY || structure->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE)
+		if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY || 
+			structure->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE ||
+			structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY)
 		{
 			currentProductionFacilities++;
 		}
-		if (structure->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
+		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
 		{
 			currentGases++;
 		}
+		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
+		{
+			currentCannons++;
+		}
 	}
 
+	//if the enemy has cloaked units, we want to make sure we have cannons at each base
+	if (enemyHasCloak)
+	{
+		int extraCannons = int(baseManager.getOurBases().size()) - currentCannons + 1;
+		if (extraCannons > 0)
+		{
+			buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_PHOTONCANNON, extraCannons));
+		}
+	}
+
+	//add extra gateways at a 3:1 gateway to base ratio as our economy improves
 	int extraProductionFacilities = (currentBases * 3) - currentProductionFacilities;
 	if (extraProductionFacilities > 0)
 	{
 		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_GATEWAY, extraProductionFacilities));
 	}
 
+	//if we've alreadygot plenty of production facilities then we want to think about expanding
 	if (extraProductionFacilities < 1 || miningOut())
 	{
 		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_NEXUS, 1));
 	}
 
+	//count bases excluding those that only recently started being produced (we don't wanna take gas too early)
 	int readyToMineBases = 0;
 	for (auto base : baseManager.getOurBases())
 	{
@@ -733,12 +790,25 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 		}
 	}
 
+	//calculate any additional gases we want to take
 	int additionalGases = (readyToMineBases * 2) - currentGases;
 	if (additionalGases > 0)
 	{
 		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_ASSIMILATOR, additionalGases));
 	}
 
+	//if we're already on 2 or more bases and have some gas coming in, let's start upgrading
+	if (currentBases > 1 && currentGases > 3)
+	{
+		buildOrderGoal.insert(std::make_pair(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONS, 1));
+	}
+
+	if (currentBases > 2 && currentUpgradeLevel < 3)
+	{
+		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_ROBOTICSBAY, 1));
+	}
+
+	/*
 	std::cerr << "current bases: " << currentBases << std::endl;
 	std::cerr << "current gateways: " << currentProductionFacilities << std::endl;
 	std::cerr << "goal state: " << currentBases << " bases and " << currentProductionFacilities + extraProductionFacilities << " gateways" << std::endl;
@@ -750,6 +820,7 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 			std::cerr << AbilityTypeToName(item.first) << std::endl;
 		}
 	}
+	*/
 
 	if (buildOrderGoal.empty())
 	{
@@ -757,6 +828,16 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 	}
 
 	return buildOrderGoal;
+}
+
+void ProductionManager::onUpgradeComplete(UpgradeID upgrade)
+{
+	if (upgrade == UPGRADE_ID::PROTOSSGROUNDWEAPONSLEVEL1 ||
+		upgrade == UPGRADE_ID::PROTOSSGROUNDWEAPONSLEVEL2 ||
+		upgrade == UPGRADE_ID::PROTOSSGROUNDWEAPONSLEVEL3)
+	{
+		currentUpgradeLevel++;
+	}
 }
 
 void ProductionManager::checkSaturation()
@@ -897,16 +978,15 @@ int ProductionManager::checkPriority(ABILITY_ID ability)
 		return 1;
 		break;
 	case ABILITY_ID::RESEARCH_BLINK:
+	case ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE:
+	case ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONS:
 		return 2;
 		break;
 	case ABILITY_ID::TRAIN_STALKER:
 		return 3;
 		break;
-	case ABILITY_ID::TRAIN_ZEALOT:
-		return 4;
-		break;
 	default:
-		return 5;
+		return 4;
 		break;
 	}
 }
@@ -939,6 +1019,7 @@ void ProductionManager::receiveCloakSignal(bool signal)
 {
 	if (signal)
 	{
+		enemyHasCloak = true;
 		//check if we have the ability to produce detectors
 		bool detectionProducable = false;
 		for (auto structure : structures)
@@ -1065,10 +1146,10 @@ void ProductionManager::printDebug()
 	{
 		for (int h = 0; h != int(blinkerBot.Observation()->GetGameInfo().height); h++)
 		{
-			if (blinkerBot.Query()->Placement(ABILITY_ID::BUILD_PYLON, Point2D(w, h)))
+			if (blinkerBot.Query()->Placement(ABILITY_ID::BUILD_PYLON, Point2D(float(w), float(h))))
 			{
-				Point3D point = Point3D(w, h, blinkerBot.Observation()->GetStartLocation().z + 1);
-				blinkerBot.Debug()->DebugBoxOut(point, Point3D(point.x + 1, point.y + 1, point.z), Colors::Purple);
+				Point3D point = Point3D(float(w), float(h), blinkerBot.Observation()->GetStartLocation().z + 1);
+				blinkerBot.Debug()->DebugBoxOut(point, Point3D(float(point.x + 1), float(point.y + 1), point.z), Colors::Purple);
 			}
 		}
 	}

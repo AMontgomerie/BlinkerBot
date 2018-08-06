@@ -103,3 +103,8 @@ void BlinkerBot::OnUnitIdle(const sc2::Unit *unit)
 	}
 }
 
+void BlinkerBot::OnUpgradeCompleted(UpgradeID upgrade)
+{
+	productionManager.onUpgradeComplete(upgrade);
+}
+

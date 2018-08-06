@@ -10,6 +10,8 @@ ProductionQueue::ProductionQueue(BlinkerBot & bot): blinkerBot(bot)
 
 void ProductionQueue::initialiseQueue()
 {
+	/*
+	//4gate blink
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
@@ -24,6 +26,7 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	*/
 
 	/*
 	//3 gate
@@ -40,7 +43,6 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
 	*/
 
-	/*
 	//2 gate blink expand
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
@@ -57,7 +59,7 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
-	*/
+
 
 	/*
 	//nexus first into 4gate blink	

@@ -26,6 +26,6 @@ public:
     virtual void OnUnitCreated(const Unit *unit) override;
     virtual void OnUnitEnterVision(const Unit *unit) override;
 	virtual void OnBuildingConstructionComplete(const Unit *unit) override;
-
+	virtual void OnUpgradeCompleted(UpgradeID upgrade) override;
 };
 

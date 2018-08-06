@@ -1,7 +1,7 @@
 #include "ArmyManager.h"
 #include "Blinkerbot.h"
 
-ArmyManager::ArmyManager(BlinkerBot & bot) : blinkerBot(bot), currentStatus(Defend), regroupComplete(true)
+ArmyManager::ArmyManager(BlinkerBot & bot) : blinkerBot(bot), currentStatus(Defend), regroupComplete(true), enemyBaseExplored(false)
 {
 }
 
@@ -16,7 +16,15 @@ void ArmyManager::onStep()
 	//{
 		if (underAttack())
 		{
-			attack(underAttack()->pos);
+			//if their army is much bigger than ours (or we don't have one) then pull some workers to help
+			if (calculateSupply(enemyArmy) > calculateSupply(army) * 1.5)
+			{
+				workerDefence();
+			}
+			else
+			{
+				attack(underAttack()->pos);
+			}
 		}
 		else if (canAttack() && regroupComplete)
 		{
@@ -38,17 +46,18 @@ void ArmyManager::onStep()
 			break;
 		case Retreat:
 			//std::cerr << "retreat!" << std::endl;
-			retreat();
-			break;
+retreat();
+break;
 		case Defend:
 			//std::cerr << "defend!" << std::endl;
 			//not yet implemented
 			break;
 		}
-	//}
-	//printDebug();
+		//}
+		//printDebug();
 }
 
+//checks if any enemy units are near our bases and returns a unit pointer to the base that is under threat
 const Unit *ArmyManager::underAttack()
 {
 	for (auto enemy : enemyArmy)
@@ -63,6 +72,33 @@ const Unit *ArmyManager::underAttack()
 		}
 	}
 	return nullptr;
+}
+
+void ArmyManager::workerDefence()
+{
+	int threatLevel = 2 * int(calculateSupply(enemyArmy));
+	std::set<const Unit *> workers;
+
+	//find our nearby workers
+	if (underAttack())
+	{
+		for (auto unit : blinkerBot.Observation()->GetUnits())
+		{
+			if (UnitData::isOurs(unit) && UnitData::isWorker(unit) && Distance2D(unit->pos, underAttack()->pos) < 20)
+			{
+				workers.insert(unit);
+			}
+		}
+	}
+
+	//send over a number of workers proportional to the threat level
+	std::set<const Unit *>::iterator worker = workers.begin();
+	while (threatLevel > 0 && worker != workers.end())
+	{
+		blinkerBot.Actions()->UnitCommand(*worker, ABILITY_ID::ATTACK, getClosestEnemy(*worker)->pos);
+		worker++;
+		threatLevel--;
+	}
 }
 
 bool ArmyManager::regroup()
@@ -109,10 +145,24 @@ void ArmyManager::attack()
 	{
 		Point2D target;
 
-		//if we haven't seen any enemy bases yet, let's just attack towards his start location
+		//confirms that we have visited the enemy base
+		if (Distance2D(unit->pos, blinkerBot.Observation()->GetGameInfo().enemy_start_locations.front()) < 8)
+		{
+			enemyBaseExplored = true;
+		}
+
 		if (enemyStructures.empty())
 		{
-			target = blinkerBot.Observation()->GetGameInfo().enemy_start_locations.front();
+			//if we've been to the enemy main but don't know the location of any enemy bases, set a random location
+			if (enemyBaseExplored)
+			{
+				target = Point2D(float(GetRandomInteger(0, blinkerBot.Observation()->GetGameInfo().width)), float(GetRandomInteger(0, blinkerBot.Observation()->GetGameInfo().height)));
+			}
+			//if we haven't seen any enemy bases yet, let's just attack towards his start location
+			else
+			{
+				target = blinkerBot.Observation()->GetGameInfo().enemy_start_locations.front();
+			}
 		}
 		//otherwise let's find his closest base and go there
 		else
@@ -128,29 +178,45 @@ void ArmyManager::attack()
 			target = closestStructure->pos;
 		}
 
-		//if any nearby units are trying to kite, let's run back too so we don't get in their way
-		for (auto kitingUnit : kitingUnits)
+		//if we don't know where the enemy base is, let's search randomly with our idle units
+		if (enemyStructures.empty() && enemyBaseExplored)
 		{
-			if (Distance2D(unit->pos, kitingUnit->pos) < 8 && unit->weapon_cooldown > 0)
+			if (unit->orders.empty())
 			{
-				blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::MOVE, getRetreatPoint(unit));
-			}
-		}
-
-		if (unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
-		{
-			if (!blink(unit) && !kite(unit))
-			{
-				removeKitingUnit(unit);
 				blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, target);
 			}
 		}
 		else
 		{
-			if (!kite(unit))
+			//if any nearby units are trying to kite, let's run back too so we don't get in their way
+			for (auto kitingUnit : kitingUnits)
 			{
-				removeKitingUnit(unit);
-				blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, target);
+				if (Distance2D(unit->pos, kitingUnit->pos) < 8 && unit->weapon_cooldown > 0)
+				{
+					blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::MOVE, getRetreatPoint(unit));
+				}
+			}
+
+			//we don't want to attack-move observers, so let's tell them to follow one of our units instead
+			if (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
+			{
+				blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::SMART, *army.begin());
+			}
+			else if (unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
+			{
+				if (!blink(unit) && !kite(unit))
+				{
+					removeKitingUnit(unit);
+					blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, target);
+				}
+			}
+			else
+			{
+				if (!kite(unit))
+				{
+					removeKitingUnit(unit);
+					blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, target);
+				}
 			}
 		}
 	}
@@ -160,8 +226,13 @@ void ArmyManager::attack()
 void ArmyManager::attack(Point2D target)
 {
 	for (auto unit : army)
-	{	
-		if (unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
+	{
+		//we don't want to attack-move observers, so let's tell them to follow one of our units instead
+		if (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
+		{
+			blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::SMART, *army.begin());
+		}
+		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
 		{
 			if (!blink(unit) && !kite(unit))
 			{
@@ -374,7 +445,7 @@ const Unit *ArmyManager::getClosestEnemy(const Unit *ourUnit)
 	}
 	else
 	{
-		return NULL;
+		return nullptr;
 	}
 }
 
@@ -510,7 +581,7 @@ Point2D ArmyManager::getRetreatPoint(const Unit *unit)
 	const Unit *closestEnemy = getClosestEnemy(unit);
 
 	//if enemies are closer to our rally point than us, then let's run away from the enemy rather than to the rally point
-	if (Distance2D(closestEnemy->pos, rallyPoint) < Distance2D(unit->pos, rallyPoint))
+	if (closestEnemy && Distance2D(closestEnemy->pos, rallyPoint) < Distance2D(unit->pos, rallyPoint))
 	{
 		if (closestEnemy->pos.x > unit->pos.x)
 		{
