@@ -82,7 +82,9 @@ void BlinkerBot::OnUnitCreated(const sc2::Unit *unit)
 {
 	if ((unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT) 
 		|| (unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER) 
-		|| (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER))
+		|| (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
+		|| (unit->unit_type == UNIT_TYPEID::PROTOSS_COLOSSUS)
+		|| (unit->unit_type == UNIT_TYPEID::PROTOSS_IMMORTAL))
 	{
 		armyManager.addUnit(unit);
 	}

@@ -19,6 +19,7 @@ class ArmyManager
 
 	ArmyStatus currentStatus;
 	std::set<const Unit *> army;
+	std::set<const Unit *> kitingUnits;
 	std::set<const Unit *> enemyArmy;
 	std::set<const Unit *> enemyStructures;
 	bool regroupComplete;
@@ -31,12 +32,16 @@ class ArmyManager
 	void retreat();
 	bool canAttack();
 	float calculateSupply(std::set<const Unit *> army);
-	void micro();
 	const Unit *getClosestEnemy(const Unit *ourUnit);
 	bool inRange(const Unit *attacker, const Unit *target);
 	bool shieldsCritical(const Unit *unit, const Unit *attacker);
-	void blink(const Unit *unit);
+	bool blink(const Unit *unit);
 	void printDebug();
+	bool kite(const Unit *unit);
+	bool outranges(const Unit *attacker, const Unit *target);
+	void addKitingUnit(const Unit *unit);
+	void removeKitingUnit(const Unit *unit);
+	Point2D getRetreatPoint(const Unit *unit);
 public:
 	ArmyManager(BlinkerBot & bot);
 	~ArmyManager();

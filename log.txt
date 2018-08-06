@@ -1,22 +1,17 @@
 necessary for ladder:
 - worker defence
 - there's still a bug in the expansion placement in some positions (horiztonl and maybe vertical)
-- make production manager able to handle training units and researcing techs
-- make tech tree recoverable if something goes wrong (if we wanna make stalkers but have no cybercore and none in production)
 
 later:
-- unable to train observers currently
 - sometimes gets stuck making gateway units as they are higher priority than build order progress
 - observer control
 - search for enemy base when he hides it
-- army only contains zealots and stalkers
-- make executing build order items be handled in a generic way (currently doesnt support most researches or any units)
+- army only contains zealots and stalkers (and maybe colossus)
 - continue implementing UnitData
 - dont count broodlings or swarmhost boys as enemy army size
 - target micro
 - stutter step / kiting
-- expand before mining out may or may not work
-- occasional bug for building proxy pylon
+- expand before mining out may or may not work (possibly working too fast and cutting our max worker count too)
 - bases might not be readded to available locations after a nexus destruction
 - might be able to replace pylons in ProductionManager with observation()->getPowerSources()
 

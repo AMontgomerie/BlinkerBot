@@ -12,8 +12,8 @@ ArmyManager::~ArmyManager()
 
 void ArmyManager::onStep()
 {
-	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
-	{
+	//if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
+	//{
 		if (underAttack())
 		{
 			attack(underAttack()->pos);
@@ -45,7 +45,7 @@ void ArmyManager::onStep()
 			//not yet implemented
 			break;
 		}
-	}
+	//}
 	//printDebug();
 }
 
@@ -102,17 +102,17 @@ bool ArmyManager::regroup()
 	}
 }
 
-//tell all our units to attack move towards the enemy main
+//tell all our units to attack move towards the enemy
 void ArmyManager::attack()
 {
-	micro();
-
 	for (auto unit : army)
 	{
+		Point2D target;
+
 		//if we haven't seen any enemy bases yet, let's just attack towards his start location
 		if (enemyStructures.empty())
 		{
-			blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, blinkerBot.Observation()->GetGameInfo().enemy_start_locations.front());
+			target = blinkerBot.Observation()->GetGameInfo().enemy_start_locations.front();
 		}
 		//otherwise let's find his closest base and go there
 		else
@@ -125,7 +125,33 @@ void ArmyManager::attack()
 					closestStructure = structure;
 				}
 			}
-			blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, closestStructure->pos);
+			target = closestStructure->pos;
+		}
+
+		//if any nearby units are trying to kite, let's run back too so we don't get in their way
+		for (auto kitingUnit : kitingUnits)
+		{
+			if (Distance2D(unit->pos, kitingUnit->pos) < 8 && unit->weapon_cooldown > 0)
+			{
+				blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::MOVE, getRetreatPoint(unit));
+			}
+		}
+
+		if (unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
+		{
+			if (!blink(unit) && !kite(unit))
+			{
+				removeKitingUnit(unit);
+				blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, target);
+			}
+		}
+		else
+		{
+			if (!kite(unit))
+			{
+				removeKitingUnit(unit);
+				blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, target);
+			}
 		}
 	}
 }
@@ -133,10 +159,22 @@ void ArmyManager::attack()
 //tell all our units to attack move towards a specific point on the map
 void ArmyManager::attack(Point2D target)
 {
-	micro();
 	for (auto unit : army)
-	{
-		blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, target);
+	{	
+		if (unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
+		{
+			if (!blink(unit) && !kite(unit))
+			{
+				blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, target);
+			}
+		}
+		else
+		{
+			if (!kite(unit))
+			{
+				blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, target);
+			}
+		}
 	}
 }
 
@@ -155,6 +193,8 @@ void ArmyManager::addUnit(const Unit *unit)
 
 void ArmyManager::removeUnit(const Unit *unit)
 {
+	removeKitingUnit(unit);
+
 	for (std::set<const Unit *>::iterator armyUnit = army.begin(); armyUnit != army.end();)
 	{
 		if ((*armyUnit) == unit)
@@ -164,6 +204,26 @@ void ArmyManager::removeUnit(const Unit *unit)
 		else
 		{
 			++armyUnit;
+		}
+	}
+}
+
+void ArmyManager::addKitingUnit(const Unit *unit)
+{
+	kitingUnits.insert(unit);
+}
+
+void ArmyManager::removeKitingUnit(const Unit *unit)
+{
+	for (std::set<const Unit *>::iterator kitingUnit = kitingUnits.begin(); kitingUnit != kitingUnits.end();)
+	{
+		if ((*kitingUnit) == unit)
+		{
+			kitingUnits.erase(*kitingUnit++);
+		}
+		else
+		{
+			++kitingUnit;
 		}
 	}
 }
@@ -240,16 +300,46 @@ void ArmyManager::receiveRallyPoint(Point2D point)
 	rallyPoint = point;
 }
 
-void ArmyManager::micro()
+bool ArmyManager::kite(const Unit *unit)
 {
-	for (auto unit : army)
+	//check if we are in range and if we outrange the enemy
+	bool canKite = false;
+	for (auto enemy : enemyArmy)
 	{
-		blink(unit);
-		//kite(unit);
+		if (inRange(unit, enemy) && outranges(unit, enemy))
+		{
+			canKite = true;
+		}
+	}
+	//if the enemy is kitable and we are on cooldown, run away
+	if (canKite && unit->weapon_cooldown > 0)
+	{
+		addKitingUnit(unit);
+		blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::MOVE, getRetreatPoint(unit));
+		return true;
+	}
+	return false;
+}
+
+bool ArmyManager::outranges(const Unit *attacker, const Unit *target)
+{
+	if (!attacker || !target || blinkerBot.Observation()->GetUnitTypeData()[attacker->unit_type].weapons.size() == 0 
+		|| blinkerBot.Observation()->GetUnitTypeData()[target->unit_type].weapons.size() == 0)
+	{
+		return false;
+	}
+	else if ((*blinkerBot.Observation()->GetUnitTypeData()[attacker->unit_type].weapons.begin()).range >
+		(*blinkerBot.Observation()->GetUnitTypeData()[target->unit_type].weapons.begin()).range)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
 	}
 }
 
-void ArmyManager::blink(const Unit *unit)
+bool ArmyManager::blink(const Unit *unit)
 {
 	//check if any enemies are in range of our unit and if they can take out our shields
 	bool threat = false;
@@ -262,8 +352,10 @@ void ArmyManager::blink(const Unit *unit)
 	}
 	if (threat && unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
 	{
-		blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::EFFECT_BLINK_STALKER, rallyPoint);
+		blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::EFFECT_BLINK_STALKER, getRetreatPoint(unit));
+		return true;
 	}
+	return false;
 }
 
 const Unit *ArmyManager::getClosestEnemy(const Unit *ourUnit)
@@ -286,6 +378,7 @@ const Unit *ArmyManager::getClosestEnemy(const Unit *ourUnit)
 	}
 }
 
+//returns true when attacker is in range of target
 bool ArmyManager::inRange(const Unit *attacker, const Unit *target)
 {
 	//make sure we have an attacker and a target
@@ -296,10 +389,18 @@ bool ArmyManager::inRange(const Unit *attacker, const Unit *target)
 	//check if the attacker is in range with their main weapon
 	else if (blinkerBot.Observation()->GetUnitTypeData()[attacker->unit_type].weapons.front().range >= Distance2D(attacker->pos, target->pos))
 	{
+		if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
+		{
+		//	std::cerr << UnitTypeToName(attacker->unit_type) << " range " << blinkerBot.Observation()->GetUnitTypeData()[attacker->unit_type].weapons.front().range << std::endl;
+		}
 		return true;
 	}
 	else
 	{
+		if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
+		{
+		//	std::cerr << UnitTypeToName(attacker->unit_type) << " range " << blinkerBot.Observation()->GetUnitTypeData()[attacker->unit_type].weapons.front().range << std::endl;
+		}
 		return false;
 	}
 }
@@ -400,4 +501,39 @@ bool ArmyManager::detectionRequired()
 	{
 		return false;
 	}
+}
+
+Point2D ArmyManager::getRetreatPoint(const Unit *unit)
+{
+	const int RETREATDIST = 30;
+	Point2D retreatPoint = unit->pos;
+	const Unit *closestEnemy = getClosestEnemy(unit);
+
+	//if enemies are closer to our rally point than us, then let's run away from the enemy rather than to the rally point
+	if (Distance2D(closestEnemy->pos, rallyPoint) < Distance2D(unit->pos, rallyPoint))
+	{
+		if (closestEnemy->pos.x > unit->pos.x)
+		{
+			retreatPoint = Point2D(unit->pos.x - RETREATDIST, unit->pos.y);
+		}
+		else if (closestEnemy->pos.x < unit->pos.x)
+		{
+			retreatPoint = Point2D(unit->pos.x + RETREATDIST, unit->pos.y);
+		}
+		if (closestEnemy->pos.y > unit->pos.y)
+		{
+			retreatPoint = Point2D(unit->pos.x, unit->pos.y - RETREATDIST);
+		}
+		else if (closestEnemy->pos.y < unit->pos.y)
+		{
+			retreatPoint = Point2D(unit->pos.x, unit->pos.y + RETREATDIST);
+		}
+	}
+	//otherwise let's just retreat back to our rally point
+	else
+	{
+		retreatPoint = rallyPoint;
+	}
+
+	return retreatPoint;
 }

@@ -714,9 +714,12 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 	}
 
 	int extraProductionFacilities = (currentBases * 3) - currentProductionFacilities;
-	buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_GATEWAY, extraProductionFacilities));
+	if (extraProductionFacilities > 0)
+	{
+		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_GATEWAY, extraProductionFacilities));
+	}
 
-	if (extraProductionFacilities == 0 || miningOut())
+	if (extraProductionFacilities < 1 || miningOut())
 	{
 		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_NEXUS, 1));
 	}
@@ -1000,7 +1003,7 @@ int ProductionManager::calculateMiningBases()
 				mineralCount++;
 			}
 		}
-		if (mineralCount > 5)
+		if (mineralCount > 4)
 		{
 			miningBases++;
 		}
