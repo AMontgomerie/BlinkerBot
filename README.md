@@ -1,5 +1,5 @@
 # BlinkerBot
-A Protoss bot for SC2 in C++ using [SC2API] (https://github.com/Blizzard/s2client-api). Includes blink micro and kiting, and simple dynamic build order generation after completing a scripted opening.
+A Protoss bot for SC2 in C++ using [SC2API](https://github.com/Blizzard/s2client-api). Includes blink micro and kiting, and simple dynamic build order generation after completing a scripted opening.
 
 Features:
 - Builds a forward pylon and warps in units to play aggressively.
