@@ -1,10 +1,10 @@
 necessary for ladder:
 - kiting seems to cause lag
-- there's still a bug in the expansion placement in some positions (horiztonl and maybe vertical)
+- there's still a bug in the expansion placement in some positions (horiztonl and maybe vertical also both gas on the same side of minerals
 - handle fighting vs static defence
+- improve scouting for 4 player maps
 
 later:
-- might get stuck when we have +3
 - improve handling defend - doesn't always get triggered
 - probably cant handle cannon rush
 - reduce kite blocking by checking stalkers that are closer to retreat point and moving those out of the way (maybe if they are out of range)
@@ -16,6 +16,3 @@ later:
 - might be able to replace pylons in ProductionManager with observation()->getPowerSources()
 
 DONE FOR NEXT UPLOAD:
-- worker defence
-- observers now follow units instead of attack moving
-- now builds cannons at each base in response to cloak

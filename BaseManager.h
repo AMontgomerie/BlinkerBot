@@ -44,6 +44,8 @@ class BaseManager
 	std::vector<Base> sortBaseLocations(std::vector<Base> baseLocations);
 	void printDebug();
 	Color getDebugColor(int num);
+	void printBuildGrid(std::vector<Point2D> buildGrid);
+	std::vector<Point2D> getBuildGrid(Point2D centre);
 public:
 	BaseManager(BlinkerBot & bot);
 	~BaseManager();

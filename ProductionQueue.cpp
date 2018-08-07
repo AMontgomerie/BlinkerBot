@@ -60,7 +60,6 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 
-
 	/*
 	//nexus first into 4gate blink	
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));

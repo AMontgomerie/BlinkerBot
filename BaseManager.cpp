@@ -120,6 +120,7 @@ void BaseManager::printDebug()
 	}
 	*/
 
+	/*
 	int n = 0;
 	for (auto base : bases)
 	{
@@ -136,9 +137,115 @@ void BaseManager::printDebug()
 				Point3D(gas->pos.x + 2, gas->pos.y + 2, blinkerBot.Observation()->GetStartLocation().z - 3), getDebugColor(n));
 		}
 		n++;
-	}
+	}*/
 
 	//blinkerBot.Debug()->DebugShowMap();
+	//blinkerBot.Debug()->SendDebug();
+}
+
+std::vector<Point2D> BaseManager::getBuildGrid(Point2D centre)
+{
+	std::vector<QueryInterface::PlacementQuery> queries;
+	std::vector<Point2D> buildGrid;
+
+	//first we set the minimum and maximum values for the search area
+	float minX = centre.x - 15;
+	float minY = centre.y - 15;
+	float maxX = centre.x + 15;
+	float maxY = centre.y + 15;
+
+	if (minX < 0)
+	{
+		minX = 0;
+	}
+	if (minY < 0)
+	{
+		minY = 0;
+	}
+	if (maxX > blinkerBot.Observation()->GetGameInfo().width)
+	{
+		maxX = float(blinkerBot.Observation()->GetGameInfo().width);
+	}
+	if (maxY > blinkerBot.Observation()->GetGameInfo().width)
+	{
+		maxY = float(blinkerBot.Observation()->GetGameInfo().width);
+	}
+
+	//load up the vector with a query for each point
+	for (float x = minX; x <= maxX; x++)
+	{
+		for (float y = minY; y <= maxY; y++)
+		{
+			queries.push_back(QueryInterface::PlacementQuery(ABILITY_ID::BUILD_NEXUS, Point2D(x, y)));
+			//if (blinkerBot.Observation()->IsPlacable(Point2D(x, y)))
+			//{
+			buildGrid.push_back(Point2D(x, y));
+			//}
+		}
+	}
+
+	//query each position
+	std::vector<bool> output = blinkerBot.Query()->Placement(queries);
+
+	if (!output.empty())
+	{
+		//if a point is unbuildable, set its location to 0:0 so we know it doesn't work
+		for (int i = 0; i != output.size() - 1; ++i)
+		{
+			//std::cerr << i << ": " << output[i] << std::endl;
+			if (output[i] == false)
+			{
+				buildGrid[i] = Point2D(0, 0);
+			}
+		}
+	}
+	//go through the vector and remove all the unbuildable (0:0) points
+	for (std::vector<Point2D>::iterator point = buildGrid.begin(); point != buildGrid.end();)
+	{
+		if (*point == Point2D(0, 0))
+		{
+			point = buildGrid.erase(point);
+		}
+		else
+		{
+			++point;
+		}
+	}
+
+	for (std::vector<Point2D>::iterator point = buildGrid.begin(); point != buildGrid.end();)
+	{
+		bool tooClose = false;
+		//let's make sure it's not too close to our resources (we don't wanna block any mineral or gas lines
+		for (auto resource : blinkerBot.Observation()->GetUnits())
+		{
+			if ((UnitData::isMinerals(resource) || UnitData::isVespeneGeyser(resource)) && Distance2D(*point, resource->pos) < 4)
+			{
+				//std::cerr << "removing a location for being too close to a mineral/gas" << std::endl;
+				tooClose = true;
+			}
+		}
+		if (tooClose)
+		{
+			point = buildGrid.erase(point);
+		}
+		else
+		{
+			++point;
+		}
+	}
+
+	//printBuildGrid(buildGrid);
+	return buildGrid;
+}
+
+//prints out a set of squares representing buildable points
+void BaseManager::printBuildGrid(std::vector<Point2D> buildGrid)
+{
+	for (auto point : buildGrid)
+	{
+		Point3D box = Point3D(point.x, point.y, blinkerBot.Observation()->GetStartLocation().z + 1);
+		blinkerBot.Debug()->DebugBoxOut(box, Point3D(box.x + 1, box.y + 1, box.z), Colors::Purple);
+	}
 	blinkerBot.Debug()->SendDebug();
 }
 
@@ -194,7 +301,7 @@ std::vector<Base> BaseManager::sortBaseLocations(std::vector<Base> baseLocations
 {
 	std::vector<Base> sorted;
 	size_t size = baseLocations.size();
-	std::cerr << size << " base locations found" << std::endl;
+	//std::cerr << size << " base locations found" << std::endl;
 	//for each base location
 	for (int i = 0; i != size; i++)
 	{
@@ -239,7 +346,7 @@ std::set<const Unit *> BaseManager::findGeysers()
 			geysers.insert(unit);
 		}
 	}
-	std::cerr << geysers.size() << " geysers found" << std::endl;
+	//std::cerr << geysers.size() << " geysers found" << std::endl;
 	return geysers;
 }
 
@@ -329,21 +436,22 @@ void BaseManager::findBases()
 		std::set<const Unit *> mineralLine;
 		std::set<const Unit *> geysers;
 
-		float averageX = 0;
-		float averageY = 0;
+		//float averageX = 0;
+		//float averageY = 0;
 
 		//first we locate the geysers associated with the base and calculate an average point between them
 		for (auto geyser : allGeysers)
 		{
 			if (Distance2D(geyser->pos, (*line.begin())->pos) < 15)
 			{
-				averageX += geyser->pos.x;
-				averageY += geyser->pos.y;
+				//averageX += geyser->pos.x;
+				//averageY += geyser->pos.y;
 
 				//put this in the set of geysers we're going to construct the base with
 				geysers.insert(geyser);
 			}
 		}
+		/*
 		averageX = averageX / 2;
 		averageY = averageY / 2;
 
@@ -354,14 +462,47 @@ void BaseManager::findBases()
 		averageY = 0;
 
 		//next we calculate an average point between the mineral lines
+		*/
 		for (auto mineral : line)
 		{
-			averageX += mineral->pos.x;
-			averageY += mineral->pos.y;
+
+			//averageX += mineral->pos.x;
+			//averageY += mineral->pos.y;
 
 			//add the mineral to the set of minerals we're going to construct the base with
 			mineralLine.insert(mineral);
 		}
+
+		std::vector<Point2D> buildGrid = getBuildGrid((*mineralLine.begin())->pos);
+		Point2D closest = *buildGrid.begin();
+		for (auto point : buildGrid)
+		{
+			if (Distance2D(point, (*mineralLine.begin())->pos) < Distance2D(closest, (*mineralLine.begin())->pos))
+			{
+				bool invalid = false;
+				for (auto mineral : mineralLine)
+				{
+					if (Distance2D(mineral->pos, point) < 3 || Distance2D(mineral->pos, point) > 10)
+					{
+						invalid = true;
+					}
+				}
+				for (auto geyser : geysers)
+				{
+					if (Distance2D(geyser->pos, point) < 3 || Distance2D(geyser->pos, point) > 10)
+					{
+						invalid = true;
+					}
+				}
+				if (!invalid)
+				{
+					closest = point;
+				}
+			}	
+		}
+		baseLocation = closest;
+
+		/*
 		averageX = averageX / line.size();
 		averageY = averageY / line.size();
 
@@ -406,8 +547,17 @@ void BaseManager::findBases()
 		{
 			baseLocation = Point2D(baseLocation.x - MOVEDIST, baseLocation.y - MOVEDIST);
 		}
-
-		bases.push_back(Base(mineralLine, geysers, baseLocation));
+		*/
+		
+		//the placement will be messed up for our main base since there's already a nexus there, so let's just add the start location instead
+		if (Distance2D((*mineralLine.begin())->pos, blinkerBot.Observation()->GetStartLocation()) < 15)
+		{
+			bases.push_back(Base(mineralLine, geysers, blinkerBot.Observation()->GetStartLocation()));
+		}
+		else
+		{
+			bases.push_back(Base(mineralLine, geysers, baseLocation));
+		}
 	}
 
 	/*now we've found all the bases, let's use them to make a vector sorted in order of distance from our main so that
@@ -416,7 +566,7 @@ void BaseManager::findBases()
 	for (auto base : bases)
 	{
 		//when we find our main base, set the unit pointer rather than adding it to the available bases
-		if (Distance2D(base.getBuildLocation(), blinkerBot.Observation()->GetStartLocation()) < 4)
+		if (Distance2D(base.getBuildLocation(), blinkerBot.Observation()->GetStartLocation()) < 20)
 		{
 			for (auto unit : blinkerBot.Observation()->GetUnits())
 			{
@@ -463,7 +613,7 @@ void BaseManager::addBase(const Unit *unit)
 			}
 		}
 	}
-	//printDebug();
+	printDebug();
 }
 
 void BaseManager::removeBase(const Unit *unit)

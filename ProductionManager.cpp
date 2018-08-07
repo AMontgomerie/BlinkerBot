@@ -21,7 +21,7 @@ void ProductionManager::initialise()
 
 void ProductionManager::onStep()
 {
-	if (nextPylonLocation == Point2D(-1, -1) && !baseManager.getOurBases().empty())
+	if (nextPylonLocation == Point2D(-1, -1)) //&& !baseManager.getOurBases().empty())
 	{
 		setNextPylonLocation();
 	}
@@ -450,8 +450,16 @@ void ProductionManager::setNextPylonLocation()
 	//otherwise find an appropriate location
 	else
 	{
+		Point2D buildLocation;
 		//find the location of our most recent base
-		Point2D buildLocation = baseManager.getOurBases().back().getBuildLocation();
+		if (baseManager.getOurBases().empty())
+		{
+			buildLocation = blinkerBot.Observation()->GetStartLocation();
+		}
+		else
+		{
+			buildLocation = baseManager.getOurBases().back().getBuildLocation();
+		}
 
 		//get the grid of buildable locations for the area around that base
 		std::vector<Point2D> buildGrid = getBuildGrid(buildLocation);
@@ -461,6 +469,12 @@ void ProductionManager::setNextPylonLocation()
 
 		nextPylonLocation = buildLocation;
 	}
+	/*
+	Point3D point = Point3D(nextPylonLocation.x, nextPylonLocation.y, blinkerBot.Observation()->GetStartLocation().z + 1);
+	blinkerBot.Debug()->DebugBoxOut(point, Point3D(point.x + 1, point.y + 1, point.z));
+	blinkerBot.Debug()->SendDebug();
+	std::cerr << nextPylonLocation.x << ":" << nextPylonLocation.y << std::endl;
+	*/
 }
 
 void ProductionManager::buildStructure(AbilityID structureToBuild, Point2D target)

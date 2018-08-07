@@ -26,7 +26,7 @@ int main(int argc, char* argv[])
 	});
 	// Start the game.
 	coordinator.LaunchStarcraft();
-	coordinator.StartGame("C:/Program Files (x86)/StarCraft II/Maps/InterloperLE.SC2Map");
+	coordinator.StartGame("C:/Program Files (x86)/StarCraft II/Maps/BelshirVestigeLE.SC2Map");
 	//coordinator.StartGame("Interloper LE");
 
 
