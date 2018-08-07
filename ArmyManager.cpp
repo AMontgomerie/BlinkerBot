@@ -10,6 +10,42 @@ ArmyManager::~ArmyManager()
 {
 }
 
+void ArmyManager::initialise()
+{
+	scout();
+}
+
+/*
+finds a worker and sends it to each potential enemy start location
+*/
+void ArmyManager::scout()
+{
+	const Unit *worker = *blinkerBot.Observation()->GetUnits().begin();
+	const Unit *mineral = nullptr;
+
+	for (auto unit : blinkerBot.Observation()->GetUnits())
+	{
+		//find one of our workers
+		if (UnitData::isWorker(unit))
+		{
+			worker = unit;
+		}
+		//find a mineral node in our main
+		if (UnitData::isMinerals(unit) && unit->display_type == Unit::DisplayType::Visible 
+			&& Distance2D(unit->pos, blinkerBot.Observation()->GetStartLocation()) < 15)
+		{
+			mineral = unit;
+		}
+	}
+	//queue commands to move to each potential enemy start location
+	for (auto location : blinkerBot.Observation()->GetGameInfo().enemy_start_locations)
+	{
+		blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::MOVE, location, true);
+	}
+	//queue a command to return to mining after scouting
+	blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::SMART, mineral->pos, true);
+}
+
 void ArmyManager::onStep()
 {
 	//if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)

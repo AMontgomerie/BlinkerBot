@@ -1,18 +1,17 @@
 necessary for ladder:
 - kiting seems to cause lag
-- there's still a bug in the expansion placement in some positions (horiztonl and maybe vertical also both gas on the same side of minerals
 - handle fighting vs static defence
-- improve scouting for 4 player maps
 
 later:
+- some weird behaviour around tanks and ramps
 - improve handling defend - doesn't always get triggered
 - probably cant handle cannon rush
 - reduce kite blocking by checking stalkers that are closer to retreat point and moving those out of the way (maybe if they are out of range)
-- sometimes gets stuck making gateway units as they are higher priority than build order progress
-- search for enemy base when he hides it
 - continue implementing UnitData
 - expand before mining out may or may not work (possibly working too fast and cutting our max worker count too)
 - bases might not be readded to available locations after a nexus destruction
 - might be able to replace pylons in ProductionManager with observation()->getPowerSources()
 
 DONE FOR NEXT UPLOAD:
+- added a probe scout for more than 2p maps
+- adjusted proxy pylons for more than 2p maps

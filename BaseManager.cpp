@@ -149,10 +149,10 @@ std::vector<Point2D> BaseManager::getBuildGrid(Point2D centre)
 	std::vector<Point2D> buildGrid;
 
 	//first we set the minimum and maximum values for the search area
-	float minX = centre.x - 15;
-	float minY = centre.y - 15;
-	float maxX = centre.x + 15;
-	float maxY = centre.y + 15;
+	float minX = centre.x - 10;
+	float minY = centre.y - 10;
+	float maxX = centre.x + 10;
+	float maxY = centre.y + 10;
 
 	if (minX < 0)
 	{
@@ -381,7 +381,57 @@ std::vector<Base> BaseManager::getAvailableBaseLocations()
 
 Point2D BaseManager::getNextBaseLocation()
 {
+	Base nextBase = *availableBases.begin();
+
+	//if we haven't calculated the base location yet, we need to do it before we pass it to production manager
+	if (nextBase.getBuildLocation() == (*nextBase.getMinerals().begin())->pos)
+	{
+		//make a new base with the same minerals and gas and an accurate location
+		Base accurateBase = Base(nextBase.getMinerals(), nextBase.getGeysers(), calculateBuildLocation(nextBase));
+		//throw away the old version
+		removeNextBaseLocation();
+		//put the new base at the front
+		availableBases.insert(availableBases.begin(), accurateBase);
+	}
 	return (*availableBases.begin()).getBuildLocation();
+}
+
+/*
+takes a set of minerals and gas and returns an acceptable expansion location
+*/
+Point2D BaseManager::calculateBuildLocation(Base base)
+{
+	//first we get a vector of nearby buildable locations (EXPENSIVE)
+	std::vector<Point2D> buildGrid = getBuildGrid(base.getBuildLocation());
+
+	//search through the locations we receive and try to find the closest point that isn't too close
+	Point2D closest = *buildGrid.begin();
+	for (auto point : buildGrid)
+	{
+		if (Distance2D(point, (*base.getMinerals().begin())->pos) < Distance2D(closest, (*base.getMinerals().begin())->pos))
+		{
+			bool invalid = false;
+			for (auto mineral : base.getMinerals())
+			{
+				if (Distance2D(mineral->pos, point) < 3 || Distance2D(mineral->pos, point) > 10)
+				{
+					invalid = true;
+				}
+			}
+			for (auto geyser : base.getGeysers())
+			{
+				if (Distance2D(geyser->pos, point) < 3 || Distance2D(geyser->pos, point) > 10)
+				{
+					invalid = true;
+				}
+			}
+			if (!invalid)
+			{
+				closest = point;
+			}
+		}
+	}
+	return closest;
 }
 
 //called when we start a new base so we can remove it from the group of available locations
@@ -423,12 +473,13 @@ const Unit *Base::getTownhall()
 	return townhall;
 }
 
+/*
+find all of the Bases on the map and updates the bases vector with them
+*/
 void BaseManager::findBases()
 {
 	std::vector<std::vector<const Unit *>> allMineralLines = findMineralLines();
 	std::set<const Unit *> allGeysers = findGeysers();
-
-	const int MOVEDIST = 2;
 
 	for (auto line : allMineralLines)
 	{
@@ -436,44 +487,30 @@ void BaseManager::findBases()
 		std::set<const Unit *> mineralLine;
 		std::set<const Unit *> geysers;
 
-		//float averageX = 0;
-		//float averageY = 0;
-
-		//first we locate the geysers associated with the base and calculate an average point between them
+		//find the geysers
 		for (auto geyser : allGeysers)
 		{
 			if (Distance2D(geyser->pos, (*line.begin())->pos) < 15)
 			{
-				//averageX += geyser->pos.x;
-				//averageY += geyser->pos.y;
-
-				//put this in the set of geysers we're going to construct the base with
 				geysers.insert(geyser);
 			}
 		}
-		/*
-		averageX = averageX / 2;
-		averageY = averageY / 2;
 
-		Point2D gasAverage = Point2D(averageX, averageY);
-		baseLocation = gasAverage;
-
-		averageX = 0;
-		averageY = 0;
-
-		//next we calculate an average point between the mineral lines
-		*/
+		//find the minerals
 		for (auto mineral : line)
 		{
-
-			//averageX += mineral->pos.x;
-			//averageY += mineral->pos.y;
-
-			//add the mineral to the set of minerals we're going to construct the base with
 			mineralLine.insert(mineral);
 		}
 
-		std::vector<Point2D> buildGrid = getBuildGrid((*mineralLine.begin())->pos);
+		//find the build location
+		baseLocation = (*mineralLine.begin())->pos;
+
+		/*
+		//first we get a vector of nearby buildable locations
+		//std::vector<Point2D> buildGrid = getBuildGrid((*mineralLine.begin())->pos);
+		//std::vector<Point2D> buildGrid = getPreliminaryBuildGrid((*mineralLine.begin())->pos);
+
+		//search through the locations we receive and try to find the closest point that isn't too close
 		Point2D closest = *buildGrid.begin();
 		for (auto point : buildGrid)
 		{
@@ -501,54 +538,8 @@ void BaseManager::findBases()
 			}	
 		}
 		baseLocation = closest;
-
-		/*
-		averageX = averageX / line.size();
-		averageY = averageY / line.size();
-
-		Point2D mineralAverage = Point2D(averageX, averageY);
-
-		//depending on the relationship between the average mineral point and average gas point, we adjust the build location 
-		if (gasAverage.x == mineralAverage.x) //horizontal base
-		{
-			if (gasAverage.y > mineralAverage.y) //this means that the minerals above
-			{
-				baseLocation = Point2D(baseLocation.x, baseLocation.y + MOVEDIST);
-			}
-			else if (gasAverage.y < mineralAverage.y) // the gas is above
-			{
-				baseLocation = Point2D(baseLocation.x, baseLocation.y - MOVEDIST);
-			}
-		}
-		else if (gasAverage.y == mineralAverage.y) //vertical base
-		{
-			if (gasAverage.x > mineralAverage.x) //this means that the minerals are to the left
-			{
-				baseLocation = Point2D(baseLocation.x + MOVEDIST, baseLocation.y);
-			}
-			if (gasAverage.x < mineralAverage.x) // the gas is to the left
-			{
-				baseLocation = Point2D(baseLocation.x - MOVEDIST, baseLocation.y);
-			}
-		}
-		else if ((gasAverage.x > mineralAverage.x) && (gasAverage.y > mineralAverage.y)) //top left
-		{
-			baseLocation = Point2D(baseLocation.x + MOVEDIST, baseLocation.y + MOVEDIST);
-		}
-		else if ((gasAverage.x > mineralAverage.x) && (gasAverage.y < mineralAverage.y)) //bottom left
-		{
-			baseLocation = Point2D(baseLocation.x + MOVEDIST, baseLocation.y - MOVEDIST);
-		}
-		else if ((gasAverage.x < mineralAverage.x) && (gasAverage.y > mineralAverage.y)) //top right
-		{
-			baseLocation = Point2D(baseLocation.x - MOVEDIST, baseLocation.y + MOVEDIST);
-		}
-		else if ((gasAverage.x < mineralAverage.x) && (gasAverage.y < mineralAverage.y)) //bottom right
-		{
-			baseLocation = Point2D(baseLocation.x - MOVEDIST, baseLocation.y - MOVEDIST);
-		}
 		*/
-		
+
 		//the placement will be messed up for our main base since there's already a nexus there, so let's just add the start location instead
 		if (Distance2D((*mineralLine.begin())->pos, blinkerBot.Observation()->GetStartLocation()) < 15)
 		{

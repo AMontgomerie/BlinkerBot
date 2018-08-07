@@ -615,26 +615,34 @@ void ProductionManager::receiveAttackSignal(bool attack)
 	*/
 }
 
+/*
+Determines an appropriate location to build a forward pylon for warping in
+*/
 void ProductionManager::locateForwardPylonPoint()
 {
-	if (!baseManager.getAvailableBaseLocations().empty())
+	//if we know where  the enemy base is, then let's build the pylon at a nearby base
+	if (!baseManager.getAvailableBaseLocations().empty() && !enemyBases.empty())
 	{
+		std::cerr << "we in here 1" << std::endl;
+		Point2D enemyBase = (*enemyBases.begin())->pos;
 		Base proxyBase = *baseManager.getAvailableBaseLocations().begin();
 		for (auto base : baseManager.getAvailableBaseLocations())
 		{
-			if (Distance2D(*blinkerBot.Observation()->GetGameInfo().enemy_start_locations.begin(), base.getBuildLocation()) > 40 &&
-				Distance2D(*blinkerBot.Observation()->GetGameInfo().enemy_start_locations.begin(), base.getBuildLocation()) <
-				Distance2D(*blinkerBot.Observation()->GetGameInfo().enemy_start_locations.begin(), proxyBase.getBuildLocation()))
+			//find the closest base that isn't TOO close
+			if (Distance2D(enemyBase, base.getBuildLocation()) > 40 &&
+				Distance2D(enemyBase, base.getBuildLocation()) < Distance2D(enemyBase, proxyBase.getBuildLocation()))
 			{
 				proxyBase = base;
 			}
 		}
 		forwardPylonPoint = proxyBase.getBuildLocation();
 	}
+	//if we don't know where the bases on the map are, or we don't know where the enemy base is, just put the pylon somewhere near the middle
 	else
 	{
+		std::cerr << "we in here 2" << std::endl;
 		Point2D centre = Point2D(blinkerBot.Observation()->GetGameInfo().width / 2.0f, blinkerBot.Observation()->GetGameInfo().height / 2.0f);
-		forwardPylonPoint = Point2D(centre.x + GetRandomScalar() * 15.0f, centre.y + GetRandomScalar() * 15.0f);
+		forwardPylonPoint = Point2D(centre.x + GetRandomScalar() * 25.0f, centre.y + GetRandomScalar() * 25.0f);
 	}
 }
 

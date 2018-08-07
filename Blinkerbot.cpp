@@ -23,6 +23,7 @@ void BlinkerBot::OnGameStart()
 		}
 	}
 	productionManager.initialise();
+	armyManager.initialise();
 }
 
 void BlinkerBot::OnStep()

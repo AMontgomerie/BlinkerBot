@@ -44,6 +44,7 @@ class ArmyManager
 	void removeKitingUnit(const Unit *unit);
 	Point2D getRetreatPoint(const Unit *unit);
 	void workerDefence();
+	void scout();
 public:
 	ArmyManager(BlinkerBot & bot);
 	~ArmyManager();
@@ -57,5 +58,6 @@ public:
 	bool sendAttackSignal();
 	void receiveRallyPoint(Point2D point);
 	bool detectionRequired();
+	void initialise();
 };
 

@@ -46,6 +46,8 @@ class BaseManager
 	Color getDebugColor(int num);
 	void printBuildGrid(std::vector<Point2D> buildGrid);
 	std::vector<Point2D> getBuildGrid(Point2D centre);
+	//std::vector<Point2D> getPreliminaryBuildGrid(Point2D centre);
+	Point2D calculateBuildLocation(Base base);
 public:
 	BaseManager(BlinkerBot & bot);
 	~BaseManager();
