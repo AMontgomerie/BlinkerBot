@@ -8,6 +8,7 @@
 #include "ArmyManager.h"
 #include <iostream>
 #include "UnitData.h"
+#include <ctime>
 
 using namespace sc2;
 

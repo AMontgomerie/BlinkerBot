@@ -14,6 +14,7 @@ UnitData::~UnitData()
 bool UnitData::isWorker(const Unit *unit)
 {
 	if ((unit->unit_type == UNIT_TYPEID::TERRAN_SCV) ||
+		(unit->unit_type == UNIT_TYPEID::TERRAN_MULE) ||
 		(unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE) ||
 		(unit->unit_type == UNIT_TYPEID::ZERG_DRONE))
 	{

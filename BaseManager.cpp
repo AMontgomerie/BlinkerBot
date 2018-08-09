@@ -587,12 +587,12 @@ void BaseManager::addBase(const Unit *unit)
 {
 	for (auto base : bases)
 	{
-		if (Distance2D(base.getBuildLocation(), unit->pos) < 5)
+		if (Distance2D((*base.getMinerals().begin())->pos, unit->pos) < 15)
 		{
 			bool alreadyFound = false;
 			for (auto ourBase : ourBases)
 			{
-				if (Distance2D(base.getBuildLocation(), ourBase.getBuildLocation()) < 5)
+				if (Distance2D(base.getBuildLocation(), ourBase.getBuildLocation()) < 15)
 				{
 					alreadyFound = true;
 				}
@@ -659,6 +659,7 @@ std::vector<Base> BaseManager::getOurBases()
 //we need to create a new base location when it's completed because initially stored base locations only store resources as snapshots
 void BaseManager::updateCompletedBase(const Unit *unit)
 {
+
 	//remove the base that was previously in the vector so we can replace it with a new one
 	removeBase(unit);
 

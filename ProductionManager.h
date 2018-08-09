@@ -59,6 +59,8 @@ class ProductionManager
 	void research(BuildOrderItem item);
 	void train(BuildOrderItem item);
 	void build(BuildOrderItem item);
+	const Unit *getClosestEnemyBase(Point2D point);
+	void setRallyPoint();
 public:
 	ProductionManager(BlinkerBot & bot);
 	~ProductionManager();

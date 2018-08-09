@@ -15,11 +15,18 @@ class ArmyManager
 {
 	BlinkerBot & blinkerBot;
 
-	enum ArmyStatus {Defend, Attack, Retreat, Regroup};
+	enum ArmyStatus { Defend, Attack, Retreat, Regroup };
+
+	struct ArmyUnit
+	{
+		const Unit *unit;
+		ArmyStatus status;
+		ArmyUnit(const Unit *armyUnit, ArmyStatus unitStatus): unit(armyUnit), status(unitStatus){};
+	};
 
 	ArmyStatus currentStatus;
-	std::set<const Unit *> army;
-	std::set<const Unit *> kitingUnits;
+	std::vector<ArmyUnit> army;
+	std::set<const Unit *> pulledWorkers;
 	std::set<const Unit *> enemyArmy;
 	std::set<const Unit *> enemyStructures;
 	bool regroupComplete;
@@ -33,15 +40,14 @@ class ArmyManager
 	void retreat();
 	bool canAttack();
 	float calculateSupply(std::set<const Unit *> army);
+	float calculateSupply(std::vector<ArmyUnit> army);
 	const Unit *getClosestEnemy(const Unit *ourUnit);
 	bool inRange(const Unit *attacker, const Unit *target);
 	bool shieldsCritical(const Unit *unit, const Unit *attacker);
 	bool blink(const Unit *unit);
 	void printDebug();
-	bool kite(const Unit *unit);
+	bool kite(ArmyUnit armyUnit);
 	bool outranges(const Unit *attacker, const Unit *target);
-	void addKitingUnit(const Unit *unit);
-	void removeKitingUnit(const Unit *unit);
 	Point2D getRetreatPoint(const Unit *unit);
 	void workerDefence();
 	void scout();

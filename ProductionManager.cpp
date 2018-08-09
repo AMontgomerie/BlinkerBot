@@ -21,24 +21,63 @@ void ProductionManager::initialise()
 
 void ProductionManager::onStep()
 {
-	if (nextPylonLocation == Point2D(-1, -1)) //&& !baseManager.getOurBases().empty())
+	//timer stuff
+	std::clock_t start;
+	double duration;
+	start = std::clock();
+	//timer stuff
+
+	//if the first pylon location hasn't been set yet, then let's set it
+	if (nextPylonLocation == Point2D(-1, -1))
 	{
 		setNextPylonLocation();
 	}
 
-	BuildOrderItem nextBuildOrderItem = productionQueue.getNextItem();
-	produce(nextBuildOrderItem);
+	//make sure that we aren't supply blocked
 	checkSupply();
-	checkSaturation();
-
-	const Unit *pylon = getClosestPylon((*blinkerBot.Observation()->GetGameInfo().enemy_start_locations.begin()));
-	if (pylon)
+	//deal with the next item in the production queue
+	produce(productionQueue.getNextItem());
+	//the following don't need to be called so frequently
+	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
 	{
-		rallyPoint = pylon->pos;
+		trainUnits();
+		setRallyPoint();
+		checkSaturation();
+		chronoBoost();
 	}
 
-	trainUnits();
-	chronoBoost();
+	//timer stuff
+	duration = (std::clock() - start) / (double)CLOCKS_PER_SEC * 1000;
+	if (duration > 20)
+	{
+		std::cout << "ProductionManager duration: " << duration << '\n';
+	}
+	//timer stuff
+}
+
+/*
+determines an appropriate rally point
+*/
+void ProductionManager::setRallyPoint()
+{
+	//first we want to make sure we have a base so we can compare distances
+	if (!baseManager.getOurBases().empty())
+	{
+		//if we have a base, then we want to find the closest enemy base to that
+		const Unit *closestEnemyBase = getClosestEnemyBase(baseManager.getOurBases().back().getBuildLocation());
+		const Unit *rallyPylon = nullptr;
+
+		//if we've found an enemy base then find the closest one of our pylons to that
+		if (closestEnemyBase)
+		{
+			rallyPylon = getClosestPylon(closestEnemyBase->pos);
+		}
+		//if we've got a pylon, then that's our rally point
+		if (rallyPylon)
+		{
+			rallyPoint = rallyPylon->pos;
+		}
+	}
 }
 
 void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
@@ -73,6 +112,14 @@ void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 //trains units automatically (independent of productionQueue)
 void ProductionManager::trainUnits()
 {
+	bool haveCyberneticscore = false;
+	for (auto structure : structures)
+	{
+		if (structure->unit_type == UNIT_TYPEID::PROTOSS_CYBERNETICSCORE && structure->build_progress == 1.0)
+		{
+			haveCyberneticscore = true;
+		}
+	}
 	for (auto structure : structures)
 	{
 		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->orders.size() == 0 
@@ -88,7 +135,8 @@ void ProductionManager::trainUnits()
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::MORPH_WARPGATE);
 			}
 			//otherwise train some units
-			if (blinkerBot.Observation()->GetVespene() > blinkerBot.Observation()->GetUnitTypeData()[UnitTypeID(UNIT_TYPEID::PROTOSS_STALKER)].vespene_cost)
+			if (haveCyberneticscore &&
+				blinkerBot.Observation()->GetVespene() > blinkerBot.Observation()->GetUnitTypeData()[UnitTypeID(UNIT_TYPEID::PROTOSS_STALKER)].vespene_cost)
 			{
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_STALKER);
 			}
@@ -100,7 +148,8 @@ void ProductionManager::trainUnits()
 		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE)
 		{
 			Point2D location = Point2D(rallyPoint.x + GetRandomScalar() * 15.0f, rallyPoint.y + GetRandomScalar() * 15.0f);
-			if (blinkerBot.Observation()->GetVespene() > blinkerBot.Observation()->GetUnitTypeData()[UnitTypeID(UNIT_TYPEID::PROTOSS_STALKER)].vespene_cost)
+			if (haveCyberneticscore &&
+				blinkerBot.Observation()->GetVespene() > blinkerBot.Observation()->GetUnitTypeData()[UnitTypeID(UNIT_TYPEID::PROTOSS_STALKER)].vespene_cost)
 			{
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAINWARP_STALKER, location);
 			}
@@ -283,9 +332,16 @@ void ProductionManager::checkGas(const Unit *gas)
 	//if we don't have enough, then put some more in
 	while (toAdd > 0 && worker != availableWorkers.end())
 	{
-		blinkerBot.Actions()->UnitCommand(*worker, ABILITY_ID::SMART, gas);
-		availableWorkers.erase(worker++);
-		toAdd--;
+		if ((*worker)->orders.empty() || (*(*worker)->orders.begin()).ability_id != productionQueue.getNextItem().item)
+		{
+			blinkerBot.Actions()->UnitCommand(*worker, ABILITY_ID::SMART, gas);
+			availableWorkers.erase(worker++);
+			toAdd--;
+		}
+		else
+		{
+			worker++;
+		}
 	}
 	worker = workers.begin();
 	//if we have too many then take some out
@@ -534,7 +590,7 @@ void ProductionManager::addNewUnit(const Unit *unit)
 	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_PYLON)
 	{
 		pylons.insert(unit);
-		if (Distance2D(unit->pos, forwardPylonPoint) < 10)
+		if (Distance2D(unit->pos, forwardPylonPoint) < 30)
 		{
 			forwardPylon = unit;
 		}
@@ -623,7 +679,6 @@ void ProductionManager::locateForwardPylonPoint()
 	//if we know where  the enemy base is, then let's build the pylon at a nearby base
 	if (!baseManager.getAvailableBaseLocations().empty() && !enemyBases.empty())
 	{
-		std::cerr << "we in here 1" << std::endl;
 		Point2D enemyBase = (*enemyBases.begin())->pos;
 		Base proxyBase = *baseManager.getAvailableBaseLocations().begin();
 		for (auto base : baseManager.getAvailableBaseLocations())
@@ -640,7 +695,6 @@ void ProductionManager::locateForwardPylonPoint()
 	//if we don't know where the bases on the map are, or we don't know where the enemy base is, just put the pylon somewhere near the middle
 	else
 	{
-		std::cerr << "we in here 2" << std::endl;
 		Point2D centre = Point2D(blinkerBot.Observation()->GetGameInfo().width / 2.0f, blinkerBot.Observation()->GetGameInfo().height / 2.0f);
 		forwardPylonPoint = Point2D(centre.x + GetRandomScalar() * 25.0f, centre.y + GetRandomScalar() * 25.0f);
 	}
@@ -706,11 +760,14 @@ void ProductionManager::checkSupply()
 		}
 	}
 	//if we're nearly blocked, the next item in the queue is not a pylon, and we don't have one already building, then make a new one
-	if (supplyCapacity - supplyUsed < 2 && productionQueue.getNextItem().item != ABILITY_ID::BUILD_PYLON && !pylonAlreadyInProduction)
+	if (supplyCapacity - supplyUsed < 4 && productionQueue.getNextItem().item != ABILITY_ID::BUILD_PYLON && !pylonAlreadyInProduction)
 	{
-		std::cerr << "we're blocked so making a new pylon" << std::endl;
 		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
-		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON); //fuck it let's make two
+		//add an extra pylon for each base we have
+		for (auto base : baseManager.getOurBases())
+		{
+			productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
+		}
 	}
 }
 
@@ -820,12 +877,12 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 	}
 
 	//if we're already on 2 or more bases and have some gas coming in, let's start upgrading
-	if (currentBases > 1 && currentGases > 3)
+	if (currentBases > 1 && currentGases > 1 && currentUpgradeLevel < 3)
 	{
 		buildOrderGoal.insert(std::make_pair(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONS, 1));
 	}
 
-	if (currentBases > 2 && currentUpgradeLevel < 3)
+	if (currentBases > 2)
 	{
 		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_ROBOTICSBAY, 1));
 	}
@@ -1101,12 +1158,12 @@ int ProductionManager::calculateMiningBases()
 			{
 				//std::cerr << "this mineral node is not visible" << std::endl;
 			}
-			if (mineral->mineral_contents > 200)
+			if (mineral->mineral_contents > 100)
 			{
 				mineralCount++;
 			}
 		}
-		if (mineralCount > 4)
+		if (mineralCount > 3)
 		{
 			miningBases++;
 		}
@@ -1152,7 +1209,7 @@ void ProductionManager::checkMineralVisibility()
 			for (auto unit : blinkerBot.Observation()->GetUnits())
 			{
 				if (UnitData::isOurs(unit)
-					&& Distance2D(unit->pos, base.getBuildLocation()) < 4
+					&& Distance2D(unit->pos, base.getBuildLocation()) < 15
 					&& unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
 				{
 					baseManager.updateCompletedBase(unit);
@@ -1293,4 +1350,27 @@ void ProductionManager::printBuildGrid(std::vector<Point2D> buildGrid)
 		blinkerBot.Debug()->DebugBoxOut(box, Point3D(box.x + 1, box.y + 1, box.z), Colors::Purple);
 	}
 	blinkerBot.Debug()->SendDebug();
+}
+
+/*
+returns the closest enemy base to a given point
+*/
+const Unit *ProductionManager::getClosestEnemyBase(Point2D point)
+{
+	if (enemyBases.empty())
+	{
+		return nullptr;
+	}
+	else
+	{
+		const Unit *closestBase = *enemyBases.begin();
+		for (auto base : enemyBases)
+		{
+			if (Distance2D(base->pos, point) < Distance2D(closestBase->pos, point))
+			{
+				closestBase = base;
+			}
+		}
+		return closestBase;
+	}
 }

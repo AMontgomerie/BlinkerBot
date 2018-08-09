@@ -1,8 +1,12 @@
 necessary for ladder:
-- kiting seems to cause lag
+- workers getting stuck on move command sometimes
 - handle fighting vs static defence
+- building pylons causes high latency frames
+- production manager causing lag when a nexus is building? (4th base)
+
 
 later:
+- make a vector of key researches that generate build order goal can use
 - some weird behaviour around tanks and ramps
 - improve handling defend - doesn't always get triggered
 - probably cant handle cannon rush
@@ -13,5 +17,6 @@ later:
 - might be able to replace pylons in ProductionManager with observation()->getPowerSources()
 
 DONE FOR NEXT UPLOAD:
-- added a probe scout for more than 2p maps
-- adjusted proxy pylons for more than 2p maps
+- fixed framerate lag from worker defence
+- improved performance of kiting
+- reduced the frequency  of some calls in production and army to reduce lag
