@@ -42,6 +42,7 @@ class ArmyManager
 	float calculateSupply(std::set<const Unit *> army);
 	float calculateSupply(std::vector<ArmyUnit> army);
 	const Unit *getClosestEnemy(const Unit *ourUnit);
+	const Unit *getClosestEnemyBase(const Unit *ourUnit);
 	bool inRange(const Unit *attacker, const Unit *target);
 	bool shieldsCritical(const Unit *unit, const Unit *attacker);
 	bool blink(const Unit *unit);
@@ -51,6 +52,8 @@ class ArmyManager
 	Point2D getRetreatPoint(const Unit *unit);
 	void workerDefence();
 	void scout();
+	int calculateEnemyStaticDefence();
+	float averageUnitDistanceToEnemyBase();
 public:
 	ArmyManager(BlinkerBot & bot);
 	~ArmyManager();

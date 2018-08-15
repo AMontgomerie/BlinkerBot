@@ -1,11 +1,9 @@
 necessary for ladder:
-- workers getting stuck on move command sometimes
-- handle fighting vs static defence
+- workers getting stuck on move command at minerals sometimes (possibly returnToMining but not sure)
 - building pylons causes high latency frames
-- production manager causing lag when a nexus is building? (4th base)
-
 
 later:
+- probes carrying gas get stuck unable to return to mining sometimes
 - make a vector of key researches that generate build order goal can use
 - some weird behaviour around tanks and ramps
 - improve handling defend - doesn't always get triggered
@@ -17,6 +15,8 @@ later:
 - might be able to replace pylons in ProductionManager with observation()->getPowerSources()
 
 DONE FOR NEXT UPLOAD:
-- fixed framerate lag from worker defence
-- improved performance of kiting
-- reduced the frequency  of some calls in production and army to reduce lag
+- factored in static defence to canAttack()
+- prevented conga line suicides
+- production manager tries to break deadlocks
+- reduced some unnecessary spamming of actions by checking current unit orders before issuing another command
+- fixed bugs preventing workers from being pulled

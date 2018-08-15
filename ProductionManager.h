@@ -32,6 +32,7 @@ class ProductionManager
 	bool attacking;
 	bool enemyHasCloak;
 	int currentUpgradeLevel;
+	int lastProductionFrame;
 
 	void buildStructure(AbilityID structureToBuild);
 	void buildStructure(AbilityID structureToBuild, Point2D target);
@@ -61,6 +62,7 @@ class ProductionManager
 	void build(BuildOrderItem item);
 	const Unit *getClosestEnemyBase(Point2D point);
 	void setRallyPoint();
+	void breakDeadlock();
 public:
 	ProductionManager(BlinkerBot & bot);
 	~ProductionManager();

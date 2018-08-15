@@ -28,11 +28,13 @@ void BlinkerBot::OnGameStart()
 
 void BlinkerBot::OnStep()
 {
+	/*
 	//timer stuff
 	std::clock_t start;
 	double duration;
 	start = std::clock();
 	//timer stuff
+	*/
 
 	productionManager.onStep();
 	productionManager.receiveAttackSignal(armyManager.sendAttackSignal());
@@ -40,6 +42,7 @@ void BlinkerBot::OnStep()
 	armyManager.onStep();
 	armyManager.receiveRallyPoint(productionManager.getRallyPoint());	
 
+	/*
 	//timer stuff
 	duration = (std::clock() - start) / (double)CLOCKS_PER_SEC * 1000;
 	if (duration > 20)
@@ -47,6 +50,7 @@ void BlinkerBot::OnStep()
 		std::cout << "frame duration: " << duration << '\n';
 	}
 	//timer stuff
+	*/
 }
 
 void BlinkerBot::OnUnitDestroyed(const sc2::Unit *unit)

@@ -2,7 +2,8 @@
 #include "Blinkerbot.h"
 
 ProductionManager::ProductionManager(BlinkerBot & bot): blinkerBot(bot), forwardPylon(nullptr), 
-baseManager(bot), productionQueue(bot), nextPylonLocation(Point2D(-1.0,-1.0)), attacking(false), enemyHasCloak(false), currentUpgradeLevel(0)
+baseManager(bot), productionQueue(bot), nextPylonLocation(Point2D(-1.0,-1.0)), attacking(false), 
+enemyHasCloak(false), currentUpgradeLevel(0), lastProductionFrame(0)
 {
 	productionQueue.initialiseQueue();
 }
@@ -21,11 +22,20 @@ void ProductionManager::initialise()
 
 void ProductionManager::onStep()
 {
+	/*
 	//timer stuff
 	std::clock_t start;
 	double duration;
 	start = std::clock();
 	//timer stuff
+	*/
+
+	if (blinkerBot.Observation()->GetGameLoop() - lastProductionFrame > 1000
+		&& blinkerBot.Observation()->GetMinerals() > 1000)
+	{
+		std::cerr << "attempting to break production deadlock" << std::endl;
+		breakDeadlock();
+	}
 
 	//if the first pylon location hasn't been set yet, then let's set it
 	if (nextPylonLocation == Point2D(-1, -1))
@@ -46,6 +56,7 @@ void ProductionManager::onStep()
 		chronoBoost();
 	}
 
+	/*
 	//timer stuff
 	duration = (std::clock() - start) / (double)CLOCKS_PER_SEC * 1000;
 	if (duration > 20)
@@ -53,6 +64,7 @@ void ProductionManager::onStep()
 		std::cout << "ProductionManager duration: " << duration << '\n';
 	}
 	//timer stuff
+	*/
 }
 
 /*
@@ -224,6 +236,7 @@ void ProductionManager::train(BuildOrderItem item)
 			{
 				//if we've already started it then remove it from the to do list
 				productionQueue.removeItem();
+				lastProductionFrame = blinkerBot.Observation()->GetGameLoop();
 				isStarted = true;
 			}
 		}
@@ -271,6 +284,7 @@ void ProductionManager::research(BuildOrderItem item)
 			{
 				//if we've already started it then remove it from the to do list
 				productionQueue.removeItem();
+				lastProductionFrame = blinkerBot.Observation()->GetGameLoop();
 				isStarted = true;
 			}
 		}
@@ -533,18 +547,26 @@ void ProductionManager::setNextPylonLocation()
 	*/
 }
 
+/*
+build a structure at a specified point on the map
+*/
 void ProductionManager::buildStructure(AbilityID structureToBuild, Point2D target)
 {
 	const Unit *builder = getBuilder();
 	blinkerBot.Actions()->UnitCommand(builder, structureToBuild, target);
 }
 
+/*
+build a structure at a specified point on the map using the supplied unit
+*/
 void ProductionManager::buildStructure(const Unit *builder, AbilityID structureToBuild, Point2D target)
 {
 	blinkerBot.Actions()->UnitCommand(builder, structureToBuild, target);
 }
 
-
+/*
+takes a unit and issues a command to mine minerals
+*/
 void ProductionManager::returnToMining(const Unit *unit)
 {	
 	//first let's check if there's any visible minerals nearby
@@ -577,11 +599,15 @@ void ProductionManager::returnToMining(const Unit *unit)
 	}
 }
 
+/*
+updates the relevant sets and vectors when a new unit is created
+*/
 void ProductionManager::addNewUnit(const Unit *unit)
 {
 	if (blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].ability_id == productionQueue.getNextItem().item)
 	{
 		productionQueue.removeItem();
+		lastProductionFrame = blinkerBot.Observation()->GetGameLoop();
 	}
 	if (UnitData::isOurs(unit) && UnitData::isStructure(unit))
 	{
@@ -610,6 +636,9 @@ void ProductionManager::addNewUnit(const Unit *unit)
 	}
 }
 
+/*
+updates the relevant sets and vectors when a unit dies
+*/
 void ProductionManager::onUnitDestroyed(const Unit *unit)
 {
 	if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
@@ -623,6 +652,10 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 			if ((*structure) == unit)
 			{
 				structures.erase(*structure++);
+
+				//if we lost something important, then we should recalculate our production queue
+				productionQueue.clearQueue();
+				productionQueue.generateMoreItems(generateBuildOrderGoal());
 
 				//if we lost an expansion, make this point available to be expanded on again
 				if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
@@ -655,6 +688,9 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 	}
 }
 
+/*
+lets the production manager know whether we are attacking or not. The value is supplied by the army manager.
+*/
 void ProductionManager::receiveAttackSignal(bool attack)
 {
 	attacking = attack;
@@ -700,6 +736,9 @@ void ProductionManager::locateForwardPylonPoint()
 	}
 }
 
+/*
+returns our closest pylon to a given point
+*/
 const Unit *ProductionManager::getClosestPylon(Point2D point)
 {
 	if (!pylons.empty())
@@ -720,11 +759,17 @@ const Unit *ProductionManager::getClosestPylon(Point2D point)
 	}
 }
 
+/*
+sets the rally point for our units to move to, retreat to, and warp in at
+*/
 Point2D ProductionManager::getRallyPoint()
 {
 	return rallyPoint;
 }
 
+/*
+checks our current supply status and queues up extra pylons if necessary
+*/
 void ProductionManager::checkSupply()
 {
 	float supplyCapacity = 0;
@@ -771,10 +816,9 @@ void ProductionManager::checkSupply()
 	}
 }
 
-
-
-
-
+/*
+expand to the next closest base location
+*/
 void ProductionManager::expand()
 {
 
@@ -790,10 +834,17 @@ void ProductionManager::expand()
 	}
 }
 
+/*
+called when we find a new enemy base
+*/
 void ProductionManager::addEnemyBase(const Unit *unit)
 {
 	enemyBases.insert(unit);
 }
+
+/*
+called when we destroy an enemy base
+*/
 void ProductionManager::removeEnemyBase(const Unit *unit)
 {
 	for (std::set<const Unit *>::iterator base = enemyBases.begin(); base != enemyBases.end();)
@@ -809,6 +860,9 @@ void ProductionManager::removeEnemyBase(const Unit *unit)
 	}
 }
 
+/*
+returns a set of AbilityID and int pairs representing things we want to produce and the quantity of each thing we want
+*/
 std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 {
 	std::set<std::pair<AbilityID, int>> buildOrderGoal;
@@ -850,7 +904,15 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 	int extraProductionFacilities = (currentBases * 3) - currentProductionFacilities;
 	if (extraProductionFacilities > 0)
 	{
-		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_GATEWAY, extraProductionFacilities));
+		//we don't wanna add too many extra production facilities at one time as this will slow down our production
+		if (extraProductionFacilities > 2)
+		{
+			buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_GATEWAY, 2));
+		}
+		else
+		{
+			buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_GATEWAY, extraProductionFacilities));
+		}
 	}
 
 	//if we've alreadygot plenty of production facilities then we want to think about expanding
@@ -909,6 +971,9 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 	return buildOrderGoal;
 }
 
+/*
+keeps track of our weapons upgrades
+*/
 void ProductionManager::onUpgradeComplete(UpgradeID upgrade)
 {
 	if (upgrade == UPGRADE_ID::PROTOSSGROUNDWEAPONSLEVEL1 ||
@@ -919,6 +984,9 @@ void ProductionManager::onUpgradeComplete(UpgradeID upgrade)
 	}
 }
 
+/*
+checks our mineral saturation at each nexus, and calls transferWorkers if we are over-saturated
+*/
 void ProductionManager::checkSaturation()
 {
 	for (auto base : baseManager.getOurBases())
@@ -937,7 +1005,9 @@ void ProductionManager::checkSaturation()
 	}
 }
 
-//takes an oversaturated base and the amount of workers we want to move and tries to find another place for them to go
+/*
+takes an oversaturated base and the amount of workers we want to move and tries to find another place for them to go
+*/
 void ProductionManager::transferWorkers(int numOfWorkers, Base overSaturatedBase)
 {
 	for (auto base : baseManager.getOurBases())
@@ -973,7 +1043,9 @@ void ProductionManager::transferWorkers(int numOfWorkers, Base overSaturatedBase
 	}
 }
 
-//find our nexuses and use chronoboost if they have enough energy
+/*
+find our nexuses and use chronoboost if they have enough energy
+*/
 void ProductionManager::chronoBoost()
 {
 	for (auto structure : structures)
@@ -998,7 +1070,9 @@ void ProductionManager::chronoBoost()
 	}*/
 }
 
-//return a set of pairs representing all the things that are currently in production at our structures along with a pointer to the corresponding structure
+/*
+return a set of pairs representing all the things that are currently in production at our structures along with a pointer to the corresponding structure
+*/
 std::set<std::pair<AbilityID, const Unit *>> ProductionManager::getCurrentlyInProduction()
 {
 	std::set<std::pair<AbilityID, const Unit *>> inProduction;
@@ -1013,7 +1087,9 @@ std::set<std::pair<AbilityID, const Unit *>> ProductionManager::getCurrentlyInPr
 	return inProduction;
 }
 
-//take the set of things that are currently in production, and return a pointer to the structure which is producing the most important one
+/*
+take the set of things that are currently in production, and return a pointer to the structure which is producing the most important one
+*/
 const Unit * ProductionManager::getHighestPriorityInProduction(std::set<std::pair<AbilityID, const Unit *>> inProduction)
 {
 	std::pair<AbilityID, const Unit *> highest = std::make_pair(ABILITY_ID::INVALID, nullptr);
@@ -1045,7 +1121,9 @@ const Unit * ProductionManager::getHighestPriorityInProduction(std::set<std::pai
 	return highest.second;
 }
 
-//return an int representing the priority of the ability (low value = high priority)
+/*
+return an int representing the priority of the ability (low value = high priority)
+*/
 int ProductionManager::checkPriority(ABILITY_ID ability)
 {
 	switch (ability)
@@ -1070,7 +1148,9 @@ int ProductionManager::checkPriority(ABILITY_ID ability)
 	}
 }
 
-//check if any of our bases are starting to run out of resources
+/*
+check if any of our bases are starting to run out of resources
+*/
 bool ProductionManager::miningOut()
 {
 	for (auto base : baseManager.getOurBases())
@@ -1086,14 +1166,16 @@ bool ProductionManager::miningOut()
 		}
 		if (mineralNodeCount < 7)
 		{
-			std::cerr << "we're mining out!" << std::endl;
+			//std::cerr << "we're mining out!" << std::endl;
 			return true;
 		}
 	}
 	return false;
 }
 
-//if army manager sends us a signal alerting us of undetected cloak, let's make some detection
+/*
+if army manager sends us a signal alerting us of undetected cloak, let's make some detection
+*/
 void ProductionManager::receiveCloakSignal(bool signal)
 {
 	if (signal)
@@ -1143,7 +1225,9 @@ void ProductionManager::receiveCloakSignal(bool signal)
 	}
 }
 
-//see how many of our bases are still have sufficient available minerals
+/*
+see how many of our bases are still have sufficient available minerals
+*/
 int ProductionManager::calculateMiningBases()
 {
 	checkMineralVisibility();
@@ -1171,8 +1255,9 @@ int ProductionManager::calculateMiningBases()
 	return miningBases;
 }
 
-
-//checks if any of our bases have minerals or geysers stored as snapshots (fog of war), which will make them impossible to interact with
+/*
+checks if any of our bases have minerals or geysers stored as snapshots (fog of war), which will make them impossible to interact with
+*/
 void ProductionManager::checkMineralVisibility()
 {
 	for (auto base : baseManager.getOurBases())
@@ -1219,6 +1304,9 @@ void ProductionManager::checkMineralVisibility()
 	}
 }
 
+/*
+prints a build grid of the whole map (causes extreme FPS drop)
+*/
 void ProductionManager::printDebug()
 {
 	for (int w = 0; w != int(blinkerBot.Observation()->GetGameInfo().width); w++)
@@ -1236,6 +1324,9 @@ void ProductionManager::printDebug()
 
 }
 
+/*
+generates a 30x30 grid of buildable locations around a centre point
+*/
 std::vector<Point2D> ProductionManager::getBuildGrid(Point2D centre)
 {
 	std::vector<QueryInterface::PlacementQuery> queries;
@@ -1341,7 +1432,9 @@ std::vector<Point2D> ProductionManager::getBuildGrid(Point2D centre)
 	return buildGrid;
 }
 
-//prints out a set of squares representing buildable points
+/*
+prints out a set of squares representing buildable points
+*/
 void ProductionManager::printBuildGrid(std::vector<Point2D> buildGrid)
 {
 	for (auto point : buildGrid)
@@ -1373,4 +1466,25 @@ const Unit *ProductionManager::getClosestEnemyBase(Point2D point)
 		}
 		return closestBase;
 	}
+}
+
+/*
+tries to reset in the case that the production queue gets stuck for some reason
+*/
+void ProductionManager::breakDeadlock()
+{
+	//if we were trying to expand, then let's find a different location
+	if (productionQueue.getNextItem().item == ABILITY_ID::BUILD_NEXUS)
+	{
+		baseManager.removeNextBaseLocation();
+	}
+	//if we were trying to build a pylon, then get a new random location
+	if (productionQueue.getNextItem().item == ABILITY_ID::BUILD_PYLON)
+	{
+		setNextPylonLocation();
+	}
+	//let's delete whatever was in our current queue, and generate a new one
+	productionQueue.clearQueue();
+	productionQueue.generateMoreItems(generateBuildOrderGoal());
+	lastProductionFrame = blinkerBot.Observation()->GetGameLoop();
 }

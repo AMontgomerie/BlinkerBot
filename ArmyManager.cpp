@@ -50,11 +50,13 @@ void ArmyManager::scout()
 
 void ArmyManager::onStep()
 {
+	/*
 	//timer stuff
 	std::clock_t start;
 	double duration;
 	start = std::clock();
 	//timer stuff
+	*/
 
 	workerDefence();
 	if (underAttack())
@@ -92,6 +94,7 @@ void ArmyManager::onStep()
 		break;
 	}
 
+	/*
 	//timer stuff
 	duration = (std::clock() - start) / (double)CLOCKS_PER_SEC * 1000;
 	if (duration > 20)
@@ -99,19 +102,23 @@ void ArmyManager::onStep()
 		std::cout << "ArmyManager duration: " << duration << '\n';
 	}
 	//timer stuff
+	*/
 }
 
-//checks if any enemy units are near our bases and returns a unit pointer to the base that is under threat
+/*
+checks if any enemy units are near our bases and returns a unit pointer to the base that is under threat
+*/
 const Unit *ArmyManager::underAttack()
 {
-	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
+	if (blinkerBot.Observation()->GetGameLoop() % 10 == 0)
 	{
 		for (auto enemy : enemyArmy)
 		{
 			for (auto unit : blinkerBot.Observation()->GetUnits())
 			{
 				//if there is an enemy in range of one of our structures
-				if (UnitData::isOurs(unit) && UnitData::isStructure(unit) && inRange(enemy, unit))
+				if (UnitData::isOurs(unit) && UnitData::isStructure(unit) && 
+					(inRange(enemy, unit) || Distance2D(enemy->pos, unit->pos) < 10))
 				{
 					return unit;
 				}
@@ -127,7 +134,7 @@ pulls workers to defend in the event that there are not enough fighting units
 void ArmyManager::workerDefence()
 {
 	//if we don't have enough fighting units then we need to pull some workers
-	if (underAttack() && (calculateSupply(enemyArmy) > calculateSupply(army) * 1.5))
+	if (underAttack() && (calculateSupply(enemyArmy) > calculateSupply(army) * 1.2))
 	{
 		//if we don't have any workers then let's find some
 		if (pulledWorkers.empty())
@@ -146,16 +153,18 @@ void ArmyManager::workerDefence()
 			}
 		}
 		//if we've already got some workers, then let's make sure they're being pulled
-		else if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
+		for (auto worker : pulledWorkers)
 		{
-			for (auto worker : pulledWorkers)
+			if (worker->orders.empty() || (*worker->orders.begin()).ability_id != ABILITY_ID::ATTACK)
 			{
 				blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::ATTACK, getClosestEnemy(worker));
 			}
 		}
 	}
 	//if we're not under attack then we don't need the workers anymore
-	else
+	else if (!pulledWorkers.empty() && 
+		(getClosestEnemy(*pulledWorkers.begin()) == nullptr ||
+		Distance2D(getClosestEnemy(*pulledWorkers.begin())->pos, (*pulledWorkers.begin())->pos) > 20))
 	{
 		pulledWorkers.clear();
 	}
@@ -214,16 +223,9 @@ void ArmyManager::attack()
 		//otherwise let's find his closest base and go there
 		else
 		{
-			const Unit *closestStructure = *enemyStructures.begin();
-			for (auto structure : enemyStructures)
-			{
-				if (Distance2D(armyUnit.unit->pos, structure->pos) < Distance2D(armyUnit.unit->pos, closestStructure->pos))
-				{
-					closestStructure = structure;
-				}
-			}
-			target = closestStructure->pos;
+			target = getClosestEnemyBase(armyUnit.unit)->pos;
 		}
+
 		//if we don't know where the enemy base is, let's search randomly with our idle units
 		if (enemyStructures.empty() && enemyBaseExplored)
 		{
@@ -235,7 +237,7 @@ void ArmyManager::attack()
 		else
 		{
 			bool retreating = false;
-			if (calculateSupply(army) > 40)
+			if (calculateSupply(army) < 50)
 			{
 				//if any nearby units are trying to kite, let's run back too so we don't get in their way
 				for (auto otherUnit : army)
@@ -252,9 +254,13 @@ void ArmyManager::attack()
 			{
 				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::SMART, (*army.begin()).unit);
 			}
-			else if (retreating)
+			else if (retreating || getClosestEnemyBase(armyUnit.unit) &&
+				Distance2D(armyUnit.unit->pos, getClosestEnemyBase(armyUnit.unit)->pos) + 20 < averageUnitDistanceToEnemyBase())
 			{
-				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, getRetreatPoint(armyUnit.unit));
+				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::MOVE)
+				{
+					blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, getRetreatPoint(armyUnit.unit));
+				}
 			}
 			else
 			{
@@ -268,7 +274,10 @@ void ArmyManager::attack()
 					if (!blink(armyUnit.unit) && !kite(armyUnit) && !alreadyAttacking)
 					{
 						armyUnit.status = Attack;
-						blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+						if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+						{
+							blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+						}
 					}
 				}
 				else
@@ -276,12 +285,32 @@ void ArmyManager::attack()
 					if (!kite(armyUnit) && !alreadyAttacking)
 					{
 						armyUnit.status = Attack;
-						blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+						if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+						{
+							blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+						}
 					}
 				}
 			}
 		}
 	}
+}
+
+/*
+returns the average distance of our army units to the enemy base
+*/
+float ArmyManager::averageUnitDistanceToEnemyBase()
+{
+	float distance = 0;
+
+	for (auto armyUnit : army)
+	{
+		distance += Distance2D(armyUnit.unit->pos, getClosestEnemyBase(armyUnit.unit)->pos);
+	}
+
+	distance = distance / army.size();
+
+	return distance;
 }
 
 //tell all our units to attack move towards a specific point on the map
@@ -296,18 +325,24 @@ void ArmyManager::attack(Point2D target)
 		}
 		else if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
 		{
-			if (!blink(armyUnit.unit) && !kite(armyUnit))
+		if (!blink(armyUnit.unit) && !kite(armyUnit))
+		{
+			armyUnit.status = Attack;
+			if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK)
 			{
-				armyUnit.status = Attack;
 				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
 			}
+		}
 		}
 		else
 		{
 			if (!kite(armyUnit))
 			{
 				armyUnit.status = Attack;
-				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+				{
+					blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+				}
 			}
 		}
 	}
@@ -317,7 +352,7 @@ void ArmyManager::retreat()
 {
 	for (auto armyUnit : army)
 	{
-		blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE , rallyPoint);
+		blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, rallyPoint);
 	}
 }
 
@@ -344,6 +379,17 @@ void ArmyManager::removeUnit(const Unit *unit)
 		else
 		{
 			++armyUnit;
+		}
+	}
+	for (std::set<const Unit*>::iterator worker = pulledWorkers.begin(); worker != pulledWorkers.end();)
+	{
+		if (*worker == unit)
+		{
+			pulledWorkers.erase(worker++);
+		}
+		else
+		{
+			++worker;
 		}
 	}
 }
@@ -380,10 +426,33 @@ void ArmyManager::removeEnemyUnit(const Unit *unit)
 	}
 }
 
+/*
+generates an integer representing the size of the threat that enemy static defence represents
+*/
+int ArmyManager::calculateEnemyStaticDefence()
+{
+	int total = 0;
+	for (auto structure : enemyStructures)
+	{
+		if (structure->unit_type == UNIT_TYPEID::TERRAN_BUNKER ||
+			structure->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON ||
+			structure->unit_type == UNIT_TYPEID::ZERG_SPINECRAWLER)
+		{
+			total += 8;
+		}
+		else if (structure->unit_type == UNIT_TYPEID::TERRAN_PLANETARYFORTRESS)
+		{
+			total += 20;
+		}
+	}
+	return total;
+}
+
 bool ArmyManager::canAttack()
 {
 	if (calculateSupply(army) > 1 
-		&& (calculateSupply(army) >= calculateSupply(enemyArmy) || blinkerBot.Observation()->GetFoodCap() <= blinkerBot.Observation()->GetFoodUsed()))
+		&& (calculateSupply(army) >= calculateSupply(enemyArmy) + calculateEnemyStaticDefence() || 
+			blinkerBot.Observation()->GetFoodCap() <= blinkerBot.Observation()->GetFoodUsed() + 30))
 	{
 		return true;
 	}
@@ -493,6 +562,9 @@ bool ArmyManager::blink(const Unit *unit)
 	return false;
 }
 
+/*
+find the closest enemy army unit to a given unit
+*/
 const Unit *ArmyManager::getClosestEnemy(const Unit *ourUnit)
 {
 	if (enemyArmy.size() > 0)
@@ -510,6 +582,29 @@ const Unit *ArmyManager::getClosestEnemy(const Unit *ourUnit)
 	else
 	{
 		return nullptr;
+	}
+}
+
+/*
+find the closest enemy structure to a given unit
+*/
+const Unit *ArmyManager::getClosestEnemyBase(const Unit *ourUnit)
+{
+	if (enemyStructures.empty())
+	{
+		return nullptr;
+	}
+	else
+	{
+		const Unit *closestStructure = *enemyStructures.begin();
+		for (auto structure : enemyStructures)
+		{
+			if (Distance2D(ourUnit->pos, structure->pos) < Distance2D(ourUnit->pos, closestStructure->pos))
+			{
+				closestStructure = structure;
+			}
+		}
+		return closestStructure;
 	}
 }
 

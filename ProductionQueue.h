@@ -34,4 +34,5 @@ public:
 	void addItemHighPriority(AbilityID type);
 	void addItemLowPriority(AbilityID type);
 	bool includes(AbilityID unit);
+	void clearQueue();
 };

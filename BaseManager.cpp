@@ -604,7 +604,7 @@ void BaseManager::addBase(const Unit *unit)
 			}
 		}
 	}
-	printDebug();
+	//printDebug();
 }
 
 void BaseManager::removeBase(const Unit *unit)

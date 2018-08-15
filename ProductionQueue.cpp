@@ -5,12 +5,13 @@
 
 ProductionQueue::ProductionQueue(BlinkerBot & bot): blinkerBot(bot)
 {
-
 }
 
+/*
+adds an initial queue of BuildOrderItems (representing our opening build order) to the production queue.
+*/
 void ProductionQueue::initialiseQueue()
 {
-
 	//3gate blink
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
@@ -127,9 +128,12 @@ void ProductionQueue::initialiseQueue()
 	*/
 }
 
+/*
+remove the item from the front of the queue
+*/
 void ProductionQueue::removeItem()
 {
-	printDebug();
+	//printDebug();
 	if (productionQueue.empty())
 	{
 		//std::cerr << "queue empty" << std::endl;
@@ -142,6 +146,9 @@ void ProductionQueue::removeItem()
 	}
 }
 
+/*
+return the item at the front of the queue
+*/
 BuildOrderItem ProductionQueue::getNextItem()
 {
 	if (productionQueue.empty())
@@ -159,7 +166,10 @@ ProductionQueue::~ProductionQueue()
 {
 }
 
-//currently just returns something unbuildable, but plan to create some sort of build order generator here
+/*
+takes a build order goal passed from the production manager and translates it into BuildOrderItems that are added to the queue.
+Build order goals are sets of pairs containing AbilityIDs (units to be made) and ints (the quantity of the unit to be made).
+*/
 void ProductionQueue::generateMoreItems(std::set<std::pair<AbilityID, int>> buildOrderGoal)
 {
 	for (auto item : buildOrderGoal)
@@ -173,19 +183,25 @@ void ProductionQueue::generateMoreItems(std::set<std::pair<AbilityID, int>> buil
 			productionQueue.push_back(BuildOrderItem(item.first));
 		}
 	}
-	printDebug();
+	//printDebug();
 }
 
+/*
+add something to the front of the queue
+*/
 void ProductionQueue::addItemHighPriority(AbilityID type)
 {
 	productionQueue.insert(productionQueue.begin(), BuildOrderItem(type));
-	printDebug();
+	//printDebug();
 }
 
+/*
+add something to the back of the queue
+*/
 void ProductionQueue::addItemLowPriority(AbilityID type)
 {
 	productionQueue.push_back(BuildOrderItem(type));
-	printDebug();
+	//printDebug();
 }
 
 BuildOrderItem::BuildOrderItem(): item(NULL)
@@ -196,6 +212,9 @@ BuildOrderItem::BuildOrderItem(sc2::AbilityID c_item): item(c_item)
 {
 }
 
+/*
+prints the current production queue in the top left of the screen
+*/
 void ProductionQueue::printDebug()
 {
 	for (auto item : productionQueue)
@@ -205,7 +224,9 @@ void ProductionQueue::printDebug()
 	blinkerBot.Debug()->SendDebug();
 }
 
-//checks if there is a unit of the type specified in the current queue
+/*
+checks if there is a unit of the type specified in the current queue
+*/
 bool ProductionQueue::includes(AbilityID unit)
 {
 	for (auto item : productionQueue)
@@ -216,4 +237,12 @@ bool ProductionQueue::includes(AbilityID unit)
 		}
 	}
 	return false;
+}
+
+/*
+empties the production queue
+*/
+void ProductionQueue::clearQueue()
+{
+	productionQueue.clear();
 }
