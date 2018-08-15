@@ -464,7 +464,10 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 				}
 				//find the closest pylon to that base, and build the cannon there
 				const Unit *targetPylon = getClosestPylon(buildLocation);
-				buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 6.5f, targetPylon->pos.y + GetRandomScalar() * 6.5f);
+				if (targetPylon)
+				{
+					buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 6.5f, targetPylon->pos.y + GetRandomScalar() * 6.5f);
+				}
 			}
 			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
 		}
@@ -755,7 +758,7 @@ const Unit *ProductionManager::getClosestPylon(Point2D point)
 	}
 	else
 	{
-		return NULL;
+		return nullptr;
 	}
 }
 
@@ -891,7 +894,7 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 	}
 
 	//if the enemy has cloaked units, we want to make sure we have cannons at each base
-	if (enemyHasCloak)
+	if (enemyHasCloak || currentBases > 1)
 	{
 		int extraCannons = int(baseManager.getOurBases().size()) - currentCannons + 1;
 		if (extraCannons > 0)
@@ -1219,6 +1222,7 @@ void ProductionManager::receiveCloakSignal(bool signal)
 		{
 			if (!productionQueue.includes(ABILITY_ID::TRAIN_OBSERVER))
 			{
+				std::cerr << "adding obs to queue" << std::endl;
 				productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_OBSERVER);
 			}
 		}

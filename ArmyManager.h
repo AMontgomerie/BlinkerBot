@@ -54,6 +54,7 @@ class ArmyManager
 	void scout();
 	int calculateEnemyStaticDefence();
 	float averageUnitDistanceToEnemyBase();
+	const Unit *getClosestBase(const Unit *unit);
 public:
 	ArmyManager(BlinkerBot & bot);
 	~ArmyManager();

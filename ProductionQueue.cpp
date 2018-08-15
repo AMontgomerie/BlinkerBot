@@ -183,7 +183,7 @@ void ProductionQueue::generateMoreItems(std::set<std::pair<AbilityID, int>> buil
 			productionQueue.push_back(BuildOrderItem(item.first));
 		}
 	}
-	//printDebug();
+	printDebug();
 }
 
 /*
@@ -192,7 +192,7 @@ add something to the front of the queue
 void ProductionQueue::addItemHighPriority(AbilityID type)
 {
 	productionQueue.insert(productionQueue.begin(), BuildOrderItem(type));
-	//printDebug();
+	printDebug();
 }
 
 /*
@@ -201,7 +201,7 @@ add something to the back of the queue
 void ProductionQueue::addItemLowPriority(AbilityID type)
 {
 	productionQueue.push_back(BuildOrderItem(type));
-	//printDebug();
+	printDebug();
 }
 
 BuildOrderItem::BuildOrderItem(): item(NULL)

@@ -1,12 +1,12 @@
 necessary for ladder:
+- sometimes not building an observer even when it's at the front of the queue
+- defend against worker harass (responding to full army threat level rather than nearby)
+- improve detection (blind make cannons?)
 - workers getting stuck on move command at minerals sometimes (possibly returnToMining but not sure)
-- building pylons causes high latency frames
 
 later:
-- probes carrying gas get stuck unable to return to mining sometimes
 - make a vector of key researches that generate build order goal can use
 - some weird behaviour around tanks and ramps
-- improve handling defend - doesn't always get triggered
 - probably cant handle cannon rush
 - reduce kite blocking by checking stalkers that are closer to retreat point and moving those out of the way (maybe if they are out of range)
 - continue implementing UnitData
@@ -15,8 +15,6 @@ later:
 - might be able to replace pylons in ProductionManager with observation()->getPowerSources()
 
 DONE FOR NEXT UPLOAD:
-- factored in static defence to canAttack()
-- prevented conga line suicides
-- production manager tries to break deadlocks
-- reduced some unnecessary spamming of actions by checking current unit orders before issuing another command
-- fixed bugs preventing workers from being pulled
+- enemy workers are now included in enemy army for defending worker harass purposes
+- workers will now go home rather than chasing across the map
+- fixed a crash bug when we have 0 pylons

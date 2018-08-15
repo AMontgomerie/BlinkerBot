@@ -168,6 +168,16 @@ void ArmyManager::workerDefence()
 	{
 		pulledWorkers.clear();
 	}
+
+	//if workers chase too far away from our bases then tell them to go back home
+	for (auto worker : pulledWorkers)
+	{
+		const Unit *closestBase = getClosestBase(worker);
+		if (closestBase && Distance2D(closestBase->pos, worker->pos) > 20)
+		{
+			blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::MOVE, closestBase->pos);
+		}
+	}
 }
 
 
@@ -404,7 +414,7 @@ void ArmyManager::addEnemyUnit(const Unit *unit)
 			alreadySeen = true;
 		}
 	}
-	if (!alreadySeen && !UnitData::isWorker(unit) && !UnitData::isStructure(unit))
+	if (!alreadySeen && !UnitData::isStructure(unit)) //&& !UnitData::isWorker(unit)
 	{
 		//std::cerr << "adding new " << blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].name << std::endl;
 		enemyArmy.insert(unit);
@@ -479,7 +489,10 @@ float ArmyManager::calculateSupply(std::set<const Unit *> army)
 	float total = 0;
 	for (auto unit : army)
 	{
-		total += blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].food_required;
+		if (!UnitData::isWorker(unit))
+		{
+			total += blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].food_required;
+		}
 	}
 	return total;
 }
@@ -489,7 +502,10 @@ float ArmyManager::calculateSupply(std::vector<ArmyUnit> army)
 	float total = 0;
 	for (auto armyUnit : army)
 	{
-		total += blinkerBot.Observation()->GetUnitTypeData()[armyUnit.unit->unit_type].food_required;
+		if (!UnitData::isWorker(armyUnit.unit))
+		{
+			total += blinkerBot.Observation()->GetUnitTypeData()[armyUnit.unit->unit_type].food_required;
+		}
 	}
 	return total;
 }
@@ -766,4 +782,23 @@ Point2D ArmyManager::getRetreatPoint(const Unit *unit)
 	}
 
 	return retreatPoint;
+}
+
+/*
+finds the closest townhall to a given unit
+*/
+const Unit *ArmyManager::getClosestBase(const Unit *unit)
+{
+	const Unit *closestBase = nullptr;
+	for (auto structure : blinkerBot.Observation()->GetUnits())
+	{
+		if (UnitData::isOurs(structure) && UnitData::isTownHall(structure))
+		{
+			if (!closestBase || Distance2D(structure->pos, unit->pos) < Distance2D(closestBase->pos, unit->pos))
+			{
+				closestBase = structure;
+			}
+		}
+	}
+	return closestBase;
 }
