@@ -10,18 +10,7 @@ BlinkerBot::BlinkerBot(): productionManager(*this), armyManager(*this)
 
 void BlinkerBot::OnGameStart()
 {
-	
-	for (auto unit : Observation()->GetUnits())
-	{
-		if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
-		{
-			productionManager.addWorker(unit);
-		}
-		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
-		{
-			productionManager.addStructure(unit);
-		}
-	}
+	rallyPoint = Observation()->GetStartLocation();
 	productionManager.initialise();
 	armyManager.initialise();
 }
@@ -40,7 +29,27 @@ void BlinkerBot::OnStep()
 	productionManager.receiveAttackSignal(armyManager.sendAttackSignal());
 	productionManager.receiveCloakSignal(armyManager.detectionRequired());
 	armyManager.onStep();
-	armyManager.receiveRallyPoint(productionManager.getRallyPoint());	
+
+	//determine the location of our rally point
+	const Unit *closestPylon = productionManager.getClosestPylonToEnemyBase();
+	const Unit *threatenedStructure = armyManager.underAttack();
+	//if we aren't under attack we want to rally to the closest pylon to the enemy (probably a proxy pylon)
+	if (closestPylon && !threatenedStructure)
+	{
+		rallyPoint = closestPylon->pos;
+	}
+	//if we're under attack then  rally towards that location
+	else if (closestPylon && threatenedStructure)
+	{
+		rallyPoint = productionManager.getClosestPylon(threatenedStructure->pos)->pos;
+	}
+	//if we don't have any pylons then just rally to our main
+	else
+	{
+		rallyPoint = Observation()->GetStartLocation();
+	}
+	productionManager.setRallyPoint(rallyPoint);
+	armyManager.setRallyPoint(rallyPoint);
 
 	/*
 	//timer stuff

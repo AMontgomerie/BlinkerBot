@@ -138,6 +138,7 @@
     <ClCompile Include="ProductionManager.cpp" />
     <ClCompile Include="ProductionQueue.cpp" />
     <ClCompile Include="UnitData.cpp" />
+    <ClCompile Include="WorkerManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ArmyManager.h" />
@@ -146,6 +147,7 @@
     <ClInclude Include="ProductionManager.h" />
     <ClInclude Include="ProductionQueue.h" />
     <ClInclude Include="UnitData.h" />
+    <ClInclude Include="WorkerManager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

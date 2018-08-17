@@ -226,7 +226,7 @@ bool UnitData::isOurs(const Unit *unit)
 	 }
 }
 
-//returns which structure a tech can be researched from (limited implementation)
+//returns which structure is required to produce a given ability(limited implementation)
 UnitTypeID UnitData::requiredStructure(AbilityID ability)
 {
 	UnitTypeID required;
@@ -251,6 +251,18 @@ UnitTypeID UnitData::requiredStructure(AbilityID ability)
 	case ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL2:
 	case ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL3:
 		required = UNIT_TYPEID::PROTOSS_FORGE;
+		break;
+	case ABILITY_ID::TRAIN_ZEALOT:
+		required = UNIT_TYPEID::PROTOSS_GATEWAY;
+		break;
+	case ABILITY_ID::TRAIN_STALKER:
+		required = UNIT_TYPEID::PROTOSS_CYBERNETICSCORE;
+		break;
+	case ABILITY_ID::TRAIN_OBSERVER:
+		required = UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY;
+		break;
+	case ABILITY_ID::TRAIN_COLOSSUS:
+		required = UNIT_TYPEID::PROTOSS_ROBOTICSBAY;
 		break;
 	default:
 		UNIT_TYPEID::INVALID;
@@ -426,5 +438,73 @@ UnitTypeID UnitData::getUnitTypeID(AbilityID ability)
 	default:
 		return UNIT_TYPEID::INVALID;
 		break;
+	}
+}
+
+//returns true if the ability refers to a structure that a worker can build
+bool UnitData::isBuildAbility(AbilityID ability)
+{
+	if (ability == ABILITY_ID::BUILD_ARMORY ||
+		ability == ABILITY_ID::BUILD_ASSIMILATOR ||
+		ability == ABILITY_ID::BUILD_BANELINGNEST ||
+		ability == ABILITY_ID::BUILD_BARRACKS ||
+		ability == ABILITY_ID::BUILD_BUNKER ||
+		ability == ABILITY_ID::BUILD_COMMANDCENTER ||
+		ability == ABILITY_ID::BUILD_CYBERNETICSCORE ||
+		ability == ABILITY_ID::BUILD_DARKSHRINE ||
+		ability == ABILITY_ID::BUILD_ENGINEERINGBAY ||
+		ability == ABILITY_ID::BUILD_EVOLUTIONCHAMBER ||
+		ability == ABILITY_ID::BUILD_EXTRACTOR ||
+		ability == ABILITY_ID::BUILD_FACTORY ||
+		ability == ABILITY_ID::BUILD_FLEETBEACON ||
+		ability == ABILITY_ID::BUILD_FORGE ||
+		ability == ABILITY_ID::BUILD_FUSIONCORE ||
+		ability == ABILITY_ID::BUILD_GATEWAY ||
+		ability == ABILITY_ID::BUILD_GHOSTACADEMY ||
+		ability == ABILITY_ID::BUILD_HATCHERY ||
+		ability == ABILITY_ID::BUILD_HYDRALISKDEN ||
+		ability == ABILITY_ID::BUILD_INFESTATIONPIT ||
+		ability == ABILITY_ID::BUILD_MISSILETURRET ||
+		ability == ABILITY_ID::BUILD_NEXUS ||
+		ability == ABILITY_ID::BUILD_NYDUSNETWORK ||
+		ability == ABILITY_ID::BUILD_PHOTONCANNON ||
+		ability == ABILITY_ID::BUILD_PYLON ||
+		ability == ABILITY_ID::BUILD_REFINERY ||
+		ability == ABILITY_ID::BUILD_ROACHWARREN ||
+		ability == ABILITY_ID::BUILD_ROBOTICSBAY ||
+		ability == ABILITY_ID::BUILD_ROBOTICSFACILITY ||
+		ability == ABILITY_ID::BUILD_SENSORTOWER ||
+		ability == ABILITY_ID::BUILD_SHIELDBATTERY ||
+		ability == ABILITY_ID::BUILD_SPAWNINGPOOL ||
+		ability == ABILITY_ID::BUILD_SPINECRAWLER ||
+		ability == ABILITY_ID::BUILD_SPIRE ||
+		ability == ABILITY_ID::BUILD_SPORECRAWLER ||
+		ability == ABILITY_ID::BUILD_STARGATE ||
+		ability == ABILITY_ID::BUILD_STARPORT ||
+		ability == ABILITY_ID::BUILD_SUPPLYDEPOT ||
+		ability == ABILITY_ID::BUILD_TEMPLARARCHIVE ||
+		ability == ABILITY_ID::BUILD_TWILIGHTCOUNCIL ||
+		ability == ABILITY_ID::BUILD_ULTRALISKCAVERN)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+//returns true for Assimilators, Extractors, and Refineries
+bool UnitData::isGasStructure(const Unit *unit)
+{
+	if (unit->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR ||
+		unit->unit_type == UNIT_TYPEID::TERRAN_REFINERY ||
+		unit->unit_type == UNIT_TYPEID::ZERG_EXTRACTOR)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
 	}
 }

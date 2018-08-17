@@ -1,20 +1,19 @@
 necessary for ladder:
+- checking for detection in production manager might be redundant due to train()'s ability to look up production requirements?
 - sometimes not building an observer even when it's at the front of the queue
-- defend against worker harass (responding to full army threat level rather than nearby)
-- improve detection (blind make cannons?)
-- workers getting stuck on move command at minerals sometimes (possibly returnToMining but not sure)
 
 later:
+- got a weird random number out of bounds error
 - make a vector of key researches that generate build order goal can use
 - some weird behaviour around tanks and ramps
-- probably cant handle cannon rush
 - reduce kite blocking by checking stalkers that are closer to retreat point and moving those out of the way (maybe if they are out of range)
 - continue implementing UnitData
 - expand before mining out may or may not work (possibly working too fast and cutting our max worker count too)
 - bases might not be readded to available locations after a nexus destruction
-- might be able to replace pylons in ProductionManager with observation()->getPowerSources()
 
 DONE FOR NEXT UPLOAD:
-- enemy workers are now included in enemy army for defending worker harass purposes
-- workers will now go home rather than chasing across the map
-- fixed a crash bug when we have 0 pylons
+- fixed trying to fight creep tumour bug
+- fixed a bug causing all workers to be pulled in response to a single worker harass
+- restructured how rally point is stored so it can be moved more easily
+- refactored for worker manager and fixed some worker bugs
+- readded some stalker command spamming because they were occasionally running off in weird directions

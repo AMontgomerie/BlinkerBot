@@ -17,6 +17,7 @@ class BlinkerBot : public sc2::Agent
 {
 	ProductionManager productionManager;
 	ArmyManager armyManager;
+	Point2D rallyPoint;
 
 public:
 	BlinkerBot();

@@ -33,7 +33,6 @@ class ArmyManager
 	bool enemyBaseExplored;
 	Point2D rallyPoint;
 
-	const Unit *underAttack();
 	bool regroup();
 	void attack();
 	void attack(Point2D target);
@@ -42,6 +41,7 @@ class ArmyManager
 	float calculateSupply(std::set<const Unit *> army);
 	float calculateSupply(std::vector<ArmyUnit> army);
 	const Unit *getClosestEnemy(const Unit *ourUnit);
+	const Unit *getClosestEnemy(Point2D point);
 	const Unit *getClosestEnemyBase(const Unit *ourUnit);
 	bool inRange(const Unit *attacker, const Unit *target);
 	bool shieldsCritical(const Unit *unit, const Unit *attacker);
@@ -55,6 +55,7 @@ class ArmyManager
 	int calculateEnemyStaticDefence();
 	float averageUnitDistanceToEnemyBase();
 	const Unit *getClosestBase(const Unit *unit);
+	const Unit *getClosestBase(Point2D point);
 public:
 	ArmyManager(BlinkerBot & bot);
 	~ArmyManager();
@@ -66,8 +67,9 @@ public:
 	void addEnemyStructure(const Unit *structure);
 	void removeEnemyStructure(const Unit *structure);
 	bool sendAttackSignal();
-	void receiveRallyPoint(Point2D point);
+	void setRallyPoint(Point2D point);
 	bool detectionRequired();
 	void initialise();
+	const Unit *underAttack();
 };
 

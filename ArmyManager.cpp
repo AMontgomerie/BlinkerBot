@@ -118,7 +118,7 @@ const Unit *ArmyManager::underAttack()
 			{
 				//if there is an enemy in range of one of our structures
 				if (UnitData::isOurs(unit) && UnitData::isStructure(unit) && 
-					(inRange(enemy, unit) || Distance2D(enemy->pos, unit->pos) < 10))
+					(inRange(enemy, unit) || Distance2D(enemy->pos, unit->pos) < 15))
 				{
 					return unit;
 				}
@@ -136,16 +136,30 @@ void ArmyManager::workerDefence()
 	//if we don't have enough fighting units then we need to pull some workers
 	if (underAttack() && (calculateSupply(enemyArmy) > calculateSupply(army) * 1.2))
 	{
+		const Unit *threatenedStructure = underAttack();
 		//if we don't have any workers then let's find some
 		if (pulledWorkers.empty())
 		{
+			/*
 			//calculate the size of the enemy army
 			int threatLevel = 2 * int(calculateSupply(enemyArmy));
+			*/
+			//calculate the threat level of the nearby enemy units
+			std::set<const Unit *> enemies;
+			for (auto enemy : enemyArmy)
+			{
+				if (Distance2D(enemy->pos, threatenedStructure->pos) < 20)
+				{
+					enemies.insert(enemy);
+				}
+			}
+			int threatLevel = 2 * int(calculateSupply(enemies));
 
 			//find nearby workers
 			for (auto unit : blinkerBot.Observation()->GetUnits())
 			{
-				if (UnitData::isOurs(unit) && UnitData::isWorker(unit) && Distance2D(unit->pos, underAttack()->pos) < 20 && threatLevel > 0)
+				if (UnitData::isOurs(unit) && UnitData::isWorker(unit) && 
+					Distance2D(unit->pos, threatenedStructure->pos) < 20 && threatLevel > 0)
 				{
 					pulledWorkers.insert(unit);
 					threatLevel--;
@@ -267,10 +281,10 @@ void ArmyManager::attack()
 			else if (retreating || getClosestEnemyBase(armyUnit.unit) &&
 				Distance2D(armyUnit.unit->pos, getClosestEnemyBase(armyUnit.unit)->pos) + 20 < averageUnitDistanceToEnemyBase())
 			{
-				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::MOVE)
-				{
+				//if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::MOVE)
+				//{
 					blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, getRetreatPoint(armyUnit.unit));
-				}
+				//}
 			}
 			else
 			{
@@ -510,9 +524,24 @@ float ArmyManager::calculateSupply(std::vector<ArmyUnit> army)
 	return total;
 }
 
-void ArmyManager::receiveRallyPoint(Point2D point)
+/*
+A forward pylon is used as a rally point. The position is determined by ProductionManager and passed via BlinkerBot.
+*/
+void ArmyManager::setRallyPoint(Point2D point)
 {
 	rallyPoint = point;
+
+	//in the event that we have a forward pylon that we are using as a point to retreat to or regroup at...
+	if ((currentStatus == Retreat || currentStatus == Regroup) &&
+		(getClosestBase(rallyPoint) && Distance2D(getClosestBase(rallyPoint)->pos, rallyPoint) > 20))
+	{
+		//...if the enemy army is approaching the rally point, we don't want to fight...
+		if (getClosestEnemy(rallyPoint) && Distance2D(getClosestEnemy(rallyPoint)->pos, rallyPoint) < 10)
+		{
+			//...so let's retreat to our closest base
+			rallyPoint = getClosestBase(rallyPoint)->pos;
+		}
+	}
 }
 
 bool ArmyManager::kite(ArmyUnit armyUnit)
@@ -602,6 +631,29 @@ const Unit *ArmyManager::getClosestEnemy(const Unit *ourUnit)
 }
 
 /*
+find the closest enemy army unit to a given point
+*/
+const Unit *ArmyManager::getClosestEnemy(Point2D point)
+{
+	if (enemyArmy.size() > 0)
+	{
+		const Unit *closestEnemy = *enemyArmy.begin();
+		for (auto enemy : enemyArmy)
+		{
+			if (Distance2D(enemy->pos, point) < Distance2D(closestEnemy->pos, point))
+			{
+				closestEnemy = enemy;
+			}
+		}
+		return closestEnemy;
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+/*
 find the closest enemy structure to a given unit
 */
 const Unit *ArmyManager::getClosestEnemyBase(const Unit *ourUnit)
@@ -615,7 +667,8 @@ const Unit *ArmyManager::getClosestEnemyBase(const Unit *ourUnit)
 		const Unit *closestStructure = *enemyStructures.begin();
 		for (auto structure : enemyStructures)
 		{
-			if (Distance2D(ourUnit->pos, structure->pos) < Distance2D(ourUnit->pos, closestStructure->pos))
+			if (Distance2D(ourUnit->pos, structure->pos) < Distance2D(ourUnit->pos, closestStructure->pos)
+				&& structure->unit_type != UNIT_TYPEID::ZERG_CREEPTUMORBURROWED)
 			{
 				closestStructure = structure;
 			}
@@ -751,7 +804,7 @@ bool ArmyManager::detectionRequired()
 
 Point2D ArmyManager::getRetreatPoint(const Unit *unit)
 {
-	const int RETREATDIST = 30;
+	const int RETREATDIST = 5;
 	Point2D retreatPoint = unit->pos;
 	const Unit *closestEnemy = getClosestEnemy(unit);
 
@@ -795,6 +848,25 @@ const Unit *ArmyManager::getClosestBase(const Unit *unit)
 		if (UnitData::isOurs(structure) && UnitData::isTownHall(structure))
 		{
 			if (!closestBase || Distance2D(structure->pos, unit->pos) < Distance2D(closestBase->pos, unit->pos))
+			{
+				closestBase = structure;
+			}
+		}
+	}
+	return closestBase;
+}
+
+/*
+finds the closest townhall to a given point
+*/
+const Unit *ArmyManager::getClosestBase(Point2D point)
+{
+	const Unit *closestBase = nullptr;
+	for (auto structure : blinkerBot.Observation()->GetUnits())
+	{
+		if (UnitData::isOurs(structure) && UnitData::isTownHall(structure))
+		{
+			if (!closestBase || Distance2D(structure->pos, point) < Distance2D(closestBase->pos, point))
 			{
 				closestBase = structure;
 			}

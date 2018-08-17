@@ -133,7 +133,6 @@ remove the item from the front of the queue
 */
 void ProductionQueue::removeItem()
 {
-	//printDebug();
 	if (productionQueue.empty())
 	{
 		//std::cerr << "queue empty" << std::endl;
@@ -144,6 +143,7 @@ void ProductionQueue::removeItem()
 		//std::cerr << "removing " << productionQueue.front() << std::endl;
 		productionQueue.erase(productionQueue.begin());
 	}
+	printDebug();
 }
 
 /*
@@ -245,4 +245,5 @@ empties the production queue
 void ProductionQueue::clearQueue()
 {
 	productionQueue.clear();
+	printDebug();
 }

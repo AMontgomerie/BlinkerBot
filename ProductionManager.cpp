@@ -2,7 +2,7 @@
 #include "Blinkerbot.h"
 
 ProductionManager::ProductionManager(BlinkerBot & bot): blinkerBot(bot), forwardPylon(nullptr), 
-baseManager(bot), productionQueue(bot), nextPylonLocation(Point2D(-1.0,-1.0)), attacking(false), 
+baseManager(bot), productionQueue(bot), workerManager(bot), nextPylonLocation(Point2D(-1.0,-1.0)), attacking(false),
 enemyHasCloak(false), currentUpgradeLevel(0), lastProductionFrame(0)
 {
 	productionQueue.initialiseQueue();
@@ -15,6 +15,17 @@ ProductionManager::~ProductionManager()
 
 void ProductionManager::initialise()
 {
+	for (auto unit : blinkerBot.Observation()->GetUnits())
+	{
+		if (UnitData::isWorker(unit))
+		{
+			workerManager.addWorker(unit);
+		}
+		else if (UnitData::isTownHall(unit))
+		{
+			addStructure(unit);
+		}
+	}
 	baseManager.initialise();
 	rallyPoint = blinkerBot.Observation()->GetStartLocation();
 	locateForwardPylonPoint();
@@ -47,12 +58,12 @@ void ProductionManager::onStep()
 	checkSupply();
 	//deal with the next item in the production queue
 	produce(productionQueue.getNextItem());
+
 	//the following don't need to be called so frequently
 	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
 	{
+		workerManager.update();
 		trainUnits();
-		setRallyPoint();
-		checkSaturation();
 		chronoBoost();
 	}
 
@@ -70,26 +81,29 @@ void ProductionManager::onStep()
 /*
 determines an appropriate rally point
 */
-void ProductionManager::setRallyPoint()
+const Unit *ProductionManager::getClosestPylonToEnemyBase()
 {
+	const Unit *rallyPylon = nullptr;
+
 	//first we want to make sure we have a base so we can compare distances
 	if (!baseManager.getOurBases().empty())
 	{
 		//if we have a base, then we want to find the closest enemy base to that
 		const Unit *closestEnemyBase = getClosestEnemyBase(baseManager.getOurBases().back().getBuildLocation());
-		const Unit *rallyPylon = nullptr;
 
 		//if we've found an enemy base then find the closest one of our pylons to that
 		if (closestEnemyBase)
 		{
 			rallyPylon = getClosestPylon(closestEnemyBase->pos);
 		}
-		//if we've got a pylon, then that's our rally point
-		if (rallyPylon)
-		{
-			rallyPoint = rallyPylon->pos;
-		}
 	}
+
+	return rallyPylon;
+}
+
+void ProductionManager::setRallyPoint(Point2D point)
+{
+	rallyPoint = point;
 }
 
 void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
@@ -135,7 +149,7 @@ void ProductionManager::trainUnits()
 	for (auto structure : structures)
 	{
 		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->orders.size() == 0 
-			&& getWorkerCount() <= (calculateMiningBases() * 22))
+			&& workerManager.getWorkerCount() <= (calculateMiningBases() * 22))
 		{
 			blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_PROBE);
 		}
@@ -159,7 +173,7 @@ void ProductionManager::trainUnits()
 		}
 		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE)
 		{
-			Point2D location = Point2D(rallyPoint.x + GetRandomScalar() * 15.0f, rallyPoint.y + GetRandomScalar() * 15.0f);
+			Point2D location = Point2D(rallyPoint.x + GetRandomScalar() * 7.0f, rallyPoint.y + GetRandomScalar() * 7.0f);
 			if (haveCyberneticscore &&
 				blinkerBot.Observation()->GetVespene() > blinkerBot.Observation()->GetUnitTypeData()[UnitTypeID(UNIT_TYPEID::PROTOSS_STALKER)].vespene_cost)
 			{
@@ -173,11 +187,6 @@ void ProductionManager::trainUnits()
 		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY)
 		{
 			blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_COLOSSUS);
-		}
-		//make sure we have the right numbers of workers mining while we're here
-		if (structure->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
-		{
-			checkGas(structure);
 		}
 	}
 }
@@ -223,8 +232,9 @@ void ProductionManager::train(BuildOrderItem item)
 	bool isStarted = false;
 	bool isTrainable = false;
 	const Unit *productionFacility = nullptr;
-	UnitTypeID requiredStructure = blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].tech_requirement;
+	//UnitTypeID requiredStructure = blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].tech_requirement;
 
+	UnitTypeID requiredStructure = UnitData::requiredStructure(item.item);
 
 	//search our buildings
 	for (auto structure : structures)
@@ -255,7 +265,7 @@ void ProductionManager::train(BuildOrderItem item)
 	}
 	
 	//if we haven't started it yet, then let's try
-	else if (!isStarted)
+	else if (isTrainable && !isStarted)
 	{
 		//check if we have the necessary resources
 		if ((blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].mineral_cost)
@@ -312,85 +322,19 @@ void ProductionManager::research(BuildOrderItem item)
 	}
 }
 
-void ProductionManager::addWorker(const Unit *unit)
-{
-	workers.insert(unit);
-	availableWorkers.insert(unit);
-}
-
-void ProductionManager::removeWorker(const Unit *unit)
-{
-	workers.erase(unit);
-	availableWorkers.erase(unit);
-}
-
 void ProductionManager::addStructure(const Unit *unit)
 {
 	structures.insert(unit);
 	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
 	{
 		baseManager.addBase(unit);
-	}
-}
-
-size_t ProductionManager::getWorkerCount()
-{
-	return workers.size();
-}
-
-void ProductionManager::checkGas(const Unit *gas)
-{
-	//check how many workers are mining at the geyser
-	int toAdd = gas->ideal_harvesters - gas->assigned_harvesters;
-	std::set<const Unit *>::const_iterator worker = availableWorkers.begin();
-	//if we don't have enough, then put some more in
-	while (toAdd > 0 && worker != availableWorkers.end())
-	{
-		if ((*worker)->orders.empty() || (*(*worker)->orders.begin()).ability_id != productionQueue.getNextItem().item)
-		{
-			blinkerBot.Actions()->UnitCommand(*worker, ABILITY_ID::SMART, gas);
-			availableWorkers.erase(worker++);
-			toAdd--;
-		}
-		else
-		{
-			worker++;
-		}
-	}
-	worker = workers.begin();
-	//if we have too many then take some out
-	while (toAdd < 0 && worker != workers.end())
-	{
-		for (auto order : (*worker)->orders)
-		{
-			if (order.target_pos == gas->pos || Distance2D((*worker)->pos, gas->pos) < 2)
-			{
-				returnToMining(*worker);
-				availableWorkers.insert(*worker);
-				toAdd++;
-			}
-		}
-		worker++;
-	}
-}
-
-const Unit *ProductionManager::getBuilder()
-{
-	if (availableWorkers.size() > 0)
-	{
-		std::set<const Unit *>::const_iterator builder = availableWorkers.begin();
-		return *builder;
-	}
-	else
-	{
-		std::cerr << "No workers Available" << std::endl;
-		return nullptr;
+		workerManager.addBase(unit);
 	}
 }
 
 void ProductionManager::buildStructure(AbilityID structureToBuild)
 {
-	const Unit *builder = getBuilder();
+	const Unit *builder = workerManager.getBuilder();
 
 	if (structureToBuild == ABILITY_ID::BUILD_ASSIMILATOR)
 	{
@@ -555,7 +499,7 @@ build a structure at a specified point on the map
 */
 void ProductionManager::buildStructure(AbilityID structureToBuild, Point2D target)
 {
-	const Unit *builder = getBuilder();
+	const Unit *builder = workerManager.getBuilder();
 	blinkerBot.Actions()->UnitCommand(builder, structureToBuild, target);
 }
 
@@ -565,41 +509,6 @@ build a structure at a specified point on the map using the supplied unit
 void ProductionManager::buildStructure(const Unit *builder, AbilityID structureToBuild, Point2D target)
 {
 	blinkerBot.Actions()->UnitCommand(builder, structureToBuild, target);
-}
-
-/*
-takes a unit and issues a command to mine minerals
-*/
-void ProductionManager::returnToMining(const Unit *unit)
-{	
-	//first let's check if there's any visible minerals nearby
-	bool nextToMineral = false;
-	for (auto mineral : blinkerBot.Observation()->GetUnits())
-	{
-		//if we find some nearby visible minerals, let's right click 'em
-		if (mineral->mineral_contents > 0 && Distance2D(mineral->pos, unit->pos) < 10 && mineral->display_type == Unit::DisplayType::Visible)
-		{
-			nextToMineral = true;
-			blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::SMART, mineral);
-		}
-	}
-	//if there's no visible minerals nearby, issue a move command towards the minerals at the closest base
-	//we issue move rather than smart here because smart can't right click on units with a display_type of snapshot (which might be the case here)
-	if (!nextToMineral)
-	{
-		//find the closest base
-		Base closestBase = *baseManager.getOurBases().begin();
-		for (auto base : baseManager.getOurBases())
-		{
-			if (Distance2D(unit->pos, base.getBuildLocation()) < Distance2D(unit->pos, closestBase.getBuildLocation()))
-			{
-				closestBase = base;
-			}
-		}
-		const Unit * mineral = *closestBase.getMinerals().begin();
-		//move towards the minerals
-		blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::MOVE, mineral);
-	}
 }
 
 /*
@@ -627,10 +536,11 @@ void ProductionManager::addNewUnit(const Unit *unit)
 	}
 	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
 	{
-		addWorker(unit);
+		workerManager.addWorker(unit);
 	}
 	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
 	{
+		workerManager.addGas(unit);
 		baseManager.addGas(unit);
 	}
 	if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && blinkerBot.Observation()->GetGameLoop() > 1)
@@ -646,7 +556,7 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 {
 	if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
 	{
-		removeWorker(unit);
+		workerManager.removeWorker(unit);
 	}
 	else
 	{	
@@ -664,11 +574,13 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 				if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
 				{
 					baseManager.removeBase(unit);
+					workerManager.removeBase(unit);
 					baseManager.addAvailableBaseLocation(unit);
 				}
 				//if it was a gas then we need to update baseManager too
 				else if (unit->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
 				{
+					workerManager.removeGas(unit);
 					baseManager.removeGas(unit);
 				}
 			}
@@ -763,12 +675,11 @@ const Unit *ProductionManager::getClosestPylon(Point2D point)
 }
 
 /*
-sets the rally point for our units to move to, retreat to, and warp in at
-*/
 Point2D ProductionManager::getRallyPoint()
 {
 	return rallyPoint;
 }
+*/
 
 /*
 checks our current supply status and queues up extra pylons if necessary
@@ -827,7 +738,7 @@ void ProductionManager::expand()
 
 	Point2D nextBase = baseManager.getNextBaseLocation();
 
-	if (blinkerBot.Query()->Placement(ABILITY_ID::BUILD_NEXUS, nextBase, getBuilder()))
+	if (blinkerBot.Query()->Placement(ABILITY_ID::BUILD_NEXUS, nextBase, workerManager.getBuilder()))
 	{
 		buildStructure(ABILITY_ID::BUILD_NEXUS, nextBase);
 	}
@@ -896,7 +807,7 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 	//if the enemy has cloaked units, we want to make sure we have cannons at each base
 	if (enemyHasCloak || currentBases > 1)
 	{
-		int extraCannons = int(baseManager.getOurBases().size()) - currentCannons + 1;
+		int extraCannons = int(baseManager.getOurBases().size()) - currentCannons;
 		if (extraCannons > 0)
 		{
 			buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_PHOTONCANNON, extraCannons));
@@ -919,7 +830,7 @@ std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
 	}
 
 	//if we've alreadygot plenty of production facilities then we want to think about expanding
-	if (extraProductionFacilities < 1 || miningOut())
+	if (extraProductionFacilities < 1 || workerManager.miningOut())
 	{
 		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_NEXUS, 1));
 	}
@@ -984,65 +895,6 @@ void ProductionManager::onUpgradeComplete(UpgradeID upgrade)
 		upgrade == UPGRADE_ID::PROTOSSGROUNDWEAPONSLEVEL3)
 	{
 		currentUpgradeLevel++;
-	}
-}
-
-/*
-checks our mineral saturation at each nexus, and calls transferWorkers if we are over-saturated
-*/
-void ProductionManager::checkSaturation()
-{
-	for (auto base : baseManager.getOurBases())
-	{
-		for (auto structure : structures)
-		{
-			if (Distance2D(base.getBuildLocation(), structure->pos) < 4 && structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
-			{
-				if (structure->assigned_harvesters > structure->ideal_harvesters)
-				{
-					//std::cerr << "we've got too many workers at a base" << std::endl;
-					transferWorkers(structure->assigned_harvesters - structure->ideal_harvesters, base);
-				}
-			}
-		}
-	}
-}
-
-/*
-takes an oversaturated base and the amount of workers we want to move and tries to find another place for them to go
-*/
-void ProductionManager::transferWorkers(int numOfWorkers, Base overSaturatedBase)
-{
-	for (auto base : baseManager.getOurBases())
-	{
-		//make sure we're looking at a different base location
-		if (base.getBuildLocation() != overSaturatedBase.getBuildLocation())
-		{
-			for (auto structure : structures)
-			{
-				//find the nexus for this base
-				if (Distance2D(base.getBuildLocation(), structure->pos) < 4 && structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
-				{
-					//std::cerr << "we found another nexus" << std::endl;
-					//calculate how many workers we can take on
-					int freeSpace = structure->ideal_harvesters - structure->assigned_harvesters;
-					std::set<const Unit *>::iterator worker = availableWorkers.begin();
-					while (freeSpace > 0 && numOfWorkers > 0 && worker != availableWorkers.end())
-					{
-						//std::cerr << "found an undersaturated nexus" << std::endl;
-						if (Distance2D((*worker)->pos, overSaturatedBase.getBuildLocation()) < 5)
-						{
-							//std::cerr << "transferring a worker" << std::endl;
-							
-							blinkerBot.Actions()->UnitCommand((*worker), ABILITY_ID::MOVE, base.getBuildLocation());
-							freeSpace--;
-							numOfWorkers--;
-						}
-						worker++;
-					}
-				}
-			}
-		}
 	}
 }
 
@@ -1152,31 +1004,6 @@ int ProductionManager::checkPriority(ABILITY_ID ability)
 }
 
 /*
-check if any of our bases are starting to run out of resources
-*/
-bool ProductionManager::miningOut()
-{
-	for (auto base : baseManager.getOurBases())
-	{
-		int mineralNodeCount = 0;
-		for (auto unit : blinkerBot.Observation()->GetUnits())
-		{
-			//count how many mineral patches still have remaining minerals
-			if (unit->mineral_contents > 0)
-			{
-				mineralNodeCount++;
-			}
-		}
-		if (mineralNodeCount < 7)
-		{
-			//std::cerr << "we're mining out!" << std::endl;
-			return true;
-		}
-	}
-	return false;
-}
-
-/*
 if army manager sends us a signal alerting us of undetected cloak, let's make some detection
 */
 void ProductionManager::receiveCloakSignal(bool signal)
@@ -1222,7 +1049,6 @@ void ProductionManager::receiveCloakSignal(bool signal)
 		{
 			if (!productionQueue.includes(ABILITY_ID::TRAIN_OBSERVER))
 			{
-				std::cerr << "adding obs to queue" << std::endl;
 				productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_OBSERVER);
 			}
 		}
@@ -1491,4 +1317,41 @@ void ProductionManager::breakDeadlock()
 	productionQueue.clearQueue();
 	productionQueue.generateMoreItems(generateBuildOrderGoal());
 	lastProductionFrame = blinkerBot.Observation()->GetGameLoop();
+}
+
+/*
+tells a worker to mine minerals (called by BlinkerBot::OnUnitIdle)
+*/
+void ProductionManager::returnToMining(const Unit *unit)
+{
+	/*
+	//first let's check if there's any visible minerals nearby
+	bool nextToMineral = false;
+	for (auto mineral : blinkerBot.Observation()->GetUnits())
+	{
+		//if we find some nearby visible minerals, let's right click 'em
+		if (mineral->mineral_contents > 0 && Distance2D(mineral->pos, unit->pos) < 10 && mineral->display_type == Unit::DisplayType::Visible)
+		{
+			nextToMineral = true;
+			blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::SMART, mineral);
+		}
+	}
+	//if there's no visible minerals nearby, issue a move command towards the minerals at the closest base
+	//we issue move rather than smart here because smart can't right click on units with a display_type of snapshot (which might be the case here)
+	if (!nextToMineral)
+	{
+		//find the closest base
+		Base closestBase = *baseManager.getOurBases().begin();
+		for (auto base : baseManager.getOurBases())
+		{
+			if (Distance2D(unit->pos, base.getBuildLocation()) < Distance2D(unit->pos, closestBase.getBuildLocation()))
+			{
+				closestBase = base;
+			}
+		}
+		const Unit * mineral = *closestBase.getMinerals().begin();
+		//move towards the minerals
+		blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::MOVE, mineral);
+	}
+	*/
 }
