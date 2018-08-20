@@ -11,7 +11,6 @@ adds an initial queue of BuildOrderItems (representing our opening build order) 
 */
 void ProductionQueue::initialiseQueue()
 {
-	/*
 	//3gate blink
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
@@ -26,7 +25,6 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK));
-	*/
 
 	/*
 	//3 gate
@@ -62,6 +60,7 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	*/
 
+	/*
 	//nexus first into 4gate blink	
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
@@ -81,6 +80,7 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	*/
 
 	/*
 	//nexus first 6 gate
