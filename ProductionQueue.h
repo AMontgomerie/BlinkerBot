@@ -4,6 +4,7 @@
 #include "sc2api/sc2_agent.h"
 #include "sc2api/sc2_map_info.h"
 #include "sc2lib/sc2_lib.h"
+#include "BuildOrderManager.h"
 
 using namespace sc2;
 
@@ -30,7 +31,7 @@ public:
 	void removeItem();
 	void initialiseQueue();
 	BuildOrderItem getNextItem();
-	void generateMoreItems(std::set<std::pair<AbilityID, int>> buildOrderGoal);
+	void generateMoreItems(std::vector<ProductionGoal> buildOrderGoal);
 	void addItemHighPriority(AbilityID type);
 	void addItemLowPriority(AbilityID type);
 	bool includes(AbilityID unit);

@@ -9,6 +9,7 @@
 #include "BaseManager.h"
 #include "UnitData.h"
 #include "WorkerManager.h"
+#include "BuildOrderManager.h"
 
 using namespace sc2;
 
@@ -16,10 +17,13 @@ class BlinkerBot;
 
 class ProductionManager
 {
+	const uint32_t DEADLOCK = 1000;
+
 	BlinkerBot & blinkerBot;
 	ProductionQueue productionQueue;
 	BaseManager baseManager;
 	WorkerManager workerManager;
+	BuildOrderManager buildOrderManager;
 
 	std::set<const Unit *> structures;
 	std::set<const Unit *> pylons;
@@ -31,7 +35,6 @@ class ProductionManager
 	Point2D forwardPylonPoint;
 	bool attacking;
 	bool enemyHasCloak;
-	int currentUpgradeLevel;
 	int lastProductionFrame;
 
 	void buildStructure(AbilityID structureToBuild);
@@ -42,7 +45,6 @@ class ProductionManager
 	void locateForwardPylonPoint();
 	void checkSupply();
 	void expand();
-	std::set<std::pair<AbilityID, int>> generateBuildOrderGoal();
 	void chronoBoost();
 	std::set<std::pair<AbilityID, const Unit *>> getCurrentlyInProduction();
 	const Unit *getHighestPriorityInProduction(std::set<std::pair<AbilityID, const Unit *>> inProduction);
@@ -58,6 +60,7 @@ class ProductionManager
 	void build(BuildOrderItem item);
 	const Unit *getClosestEnemyBase(Point2D point);
 	void breakDeadlock();
+	float calculateSupplyCapacity();
 public:
 	ProductionManager(BlinkerBot & bot);
 	~ProductionManager();
@@ -67,7 +70,6 @@ public:
 	void addStructure(const Unit *unit);
 	void addNewUnit(const Unit *unit);
 	void receiveAttackSignal(bool attack);
-	//Point2D getRallyPoint();
 	void addEnemyBase(const Unit *unit);
 	void removeEnemyBase(const Unit *unit);
 	void receiveCloakSignal(bool signal);

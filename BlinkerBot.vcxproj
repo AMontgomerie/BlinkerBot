@@ -135,6 +135,7 @@
     <ClCompile Include="BaseManager.cpp" />
     <ClCompile Include="Blinkerbot.cpp" />
     <ClCompile Include="BlinkerbotMain.cpp" />
+    <ClCompile Include="BuildOrderManager.cpp" />
     <ClCompile Include="ProductionManager.cpp" />
     <ClCompile Include="ProductionQueue.cpp" />
     <ClCompile Include="UnitData.cpp" />
@@ -144,6 +145,7 @@
     <ClInclude Include="ArmyManager.h" />
     <ClInclude Include="BaseManager.h" />
     <ClInclude Include="Blinkerbot.h" />
+    <ClInclude Include="BuildOrderManager.h" />
     <ClInclude Include="ProductionManager.h" />
     <ClInclude Include="ProductionQueue.h" />
     <ClInclude Include="UnitData.h" />

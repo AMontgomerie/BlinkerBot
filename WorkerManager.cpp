@@ -90,14 +90,22 @@ bool WorkerManager::isAvailableWorker(const Unit *unit)
 	}
 }
 
+/*
+finds an available worker
+*/
 const Unit *WorkerManager::getBuilder()
 {
 	if (workers.size() > 0)
 	{
 		std::set<const Unit *>::const_iterator builder = workers.begin();
-		while (!isAvailableWorker(*builder))
+		while (!isAvailableWorker(*builder) && builder != workers.end())
 		{
 			builder++;
+		}
+		if (builder == workers.end() && !isAvailableWorker(*builder))
+		{
+			std::cerr << "No workers Available" << std::endl;
+			return nullptr;
 		}
 		return *builder;
 	}
@@ -191,7 +199,7 @@ bool WorkerManager::miningOut()
 				mineralNodeCount++;
 			}
 		}
-		if (mineralNodeCount < 7)
+		if (mineralNodeCount < 6)
 		{
 			//std::cerr << "we're mining out!" << std::endl;
 			return true;

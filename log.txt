@@ -1,10 +1,19 @@
-necessary for ladder:
-- checking for detection in production manager might be redundant due to train()'s ability to look up production requirements?
-- sometimes not building an observer even when it's at the front of the queue
+high priority:
+- some techs are not skipped correctly?
 
 later:
+- somehow deal with level2+ upgrades that require extra tech (perhaps a vector to show they require multiple?)
+- builds way too many pylons
+- pylon occasionally unbuildable causing build order deadlock
+- improve scouting:
+	- scout should be assigned (and replaced if dead)
+	- scout can be triggered by not knowing the locations of any enemy bases, rather than game start
+	- probe harass (attack, but if taking shield damage, run away until recharged)
 - got a weird random number out of bounds error
+- there's also a pointer/iterator issue with both a set and a vector
 - make a vector of key researches that generate build order goal can use
+	- if the tech is finished then remove it from the vector
+	- while the tech is in production, exclude it from future build order goals and add the next one instead
 - some weird behaviour around tanks and ramps
 - reduce kite blocking by checking stalkers that are closer to retreat point and moving those out of the way (maybe if they are out of range)
 - continue implementing UnitData
@@ -12,8 +21,7 @@ later:
 - bases might not be readded to available locations after a nexus destruction
 
 DONE FOR NEXT UPLOAD:
-- fixed trying to fight creep tumour bug
-- fixed a bug causing all workers to be pulled in response to a single worker harass
-- restructured how rally point is stored so it can be moved more easily
-- refactored for worker manager and fixed some worker bugs
-- readded some stalker command spamming because they were occasionally running off in weird directions
+- fixed a bug causing units to continue to defend a location after enemies had left
+- created BuildOrderManager
+- refactored generatebuildordergoal to be handled by buildordermanager
+- BuildOrderManager also keeps track of keyTechs and completedTechs

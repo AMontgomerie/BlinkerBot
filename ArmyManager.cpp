@@ -59,8 +59,9 @@ void ArmyManager::onStep()
 	*/
 
 	workerDefence();
-	if (underAttack())
+	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0 && underAttack())
 	{
+		//std::cerr << "under attack" << std::endl;
 		attack(underAttack()->pos);
 	}
 	else if (blinkerBot.Observation()->GetGameLoop() % 30 == 0 && canAttack() && regroupComplete)
@@ -70,9 +71,9 @@ void ArmyManager::onStep()
 	}
 	else
 	{
-		//std::cerr << "regrouping" << std::endl;
 		if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
 		{
+			//std::cerr << "regrouping" << std::endl;
 			regroupComplete = regroup();
 			currentStatus = Regroup;
 		}
@@ -81,15 +82,24 @@ void ArmyManager::onStep()
 	switch (currentStatus)
 	{
 	case Attack:
-		//std::cerr << "attack!" << std::endl;
+		if (blinkerBot.Observation()->GetGameLoop() % 120 == 0)
+		{
+			//std::cerr << "attack!" << std::endl;
+		}
 		attack();
 		break;
 	case Retreat:
-		//std::cerr << "retreat!" << std::endl;
+		if (blinkerBot.Observation()->GetGameLoop() % 120 == 0)
+		{
+			//std::cerr << "retreat!" << std::endl;
+		}
 		retreat();
 		break;
 	case Defend:
-		//std::cerr << "defend!" << std::endl;
+		if (blinkerBot.Observation()->GetGameLoop() % 120 == 0)
+		{
+			//std::cerr << "defend!" << std::endl;
+		}
 		//not yet implemented
 		break;
 	}
@@ -110,18 +120,17 @@ checks if any enemy units are near our bases and returns a unit pointer to the b
 */
 const Unit *ArmyManager::underAttack()
 {
-	if (blinkerBot.Observation()->GetGameLoop() % 10 == 0)
+	for (auto enemy : enemyArmy)
 	{
-		for (auto enemy : enemyArmy)
+		for (auto unit : blinkerBot.Observation()->GetUnits())
 		{
-			for (auto unit : blinkerBot.Observation()->GetUnits())
+			//if there is an enemy in range of one of our structures
+			if (UnitData::isOurs(unit) && UnitData::isStructure(unit) && 
+				(enemy->last_seen_game_loop == blinkerBot.Observation()->GetGameLoop() && 
+				(inRange(enemy, unit) || Distance2D(enemy->pos, unit->pos) < 15)))
 			{
-				//if there is an enemy in range of one of our structures
-				if (UnitData::isOurs(unit) && UnitData::isStructure(unit) && 
-					(inRange(enemy, unit) || Distance2D(enemy->pos, unit->pos) < 15))
-				{
-					return unit;
-				}
+				//std::cerr << UnitTypeToName(unit->unit_type) << " is under attack from " << UnitTypeToName(enemy->unit_type) << std::endl;
+				return unit;
 			}
 		}
 	}
@@ -214,6 +223,7 @@ bool ArmyManager::regroup()
 	}
 	else
 	{
+		//std::cerr << "no units to regroup" << std::endl;
 		return false;
 	}
 }
@@ -727,6 +737,7 @@ bool ArmyManager::shieldsCritical(const Unit *unit, const Unit *attacker)
 
 void ArmyManager::printDebug()
 {
+	/*
 	std::ostringstream ourArmy;
 	ourArmy << "Current army supply: " << calculateSupply(army) << std::endl;
 	blinkerBot.Debug()->DebugTextOut(ourArmy.str(), Point2D(0.1f, 0.5f));
@@ -734,6 +745,30 @@ void ArmyManager::printDebug()
 	theirArmy << "Known enemy army supply: " << calculateSupply(enemyArmy) << std::endl;
 	blinkerBot.Debug()->DebugTextOut(theirArmy.str(), Point2D(0.1f, 0.6f));
 	blinkerBot.Debug()->SendDebug();
+
+	std::string armyStatus;
+	switch (currentStatus)
+	{
+	case Attack:
+		armyStatus = "ATTACK";
+			break;
+	case Defend:
+		armyStatus = "DEFEND";
+		break;
+	case Regroup:
+		armyStatus = "REGROUP";
+		break;
+	case Retreat:
+		armyStatus = "RETREAT";
+		break;
+	default:
+		armyStatus = "UNKNOWN";
+		break;
+	}
+	std::ostringstream statusString;
+	statusString << "Army Status: " << armyStatus << std::endl;
+	blinkerBot.Debug()->DebugTextOut(statusString.str());
+	*/
 }
 
 void ArmyManager::addEnemyStructure(const Unit *structure)

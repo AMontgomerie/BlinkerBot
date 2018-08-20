@@ -28,7 +28,11 @@ public:
 	static bool isTrainableUnitType(AbilityID ability);
 	static bool isGasStructure(const Unit *unit);
 	static bool canCloak(const Unit *unit);
+	static bool isComparableUpgrade(AbilityID abilityA, AbilityID abilityB);
 	static UnitTypeID getUnitTypeID(AbilityID ability);
+	static AbilityID getAbilityID(UpgradeID upgrade);
 	static UnitTypeID requiredStructure(AbilityID ability);
+private:
+	static bool compareUpgrades(AbilityID abilityA, AbilityID abilityB);
 };
 

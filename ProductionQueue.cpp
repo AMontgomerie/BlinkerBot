@@ -2,7 +2,6 @@
 #include "iostream"
 #include "Blinkerbot.h"
 
-
 ProductionQueue::ProductionQueue(BlinkerBot & bot): blinkerBot(bot)
 {
 }
@@ -12,6 +11,7 @@ adds an initial queue of BuildOrderItems (representing our opening build order) 
 */
 void ProductionQueue::initialiseQueue()
 {
+	/*
 	//3gate blink
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
@@ -26,6 +26,7 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK));
+	*/
 
 	/*
 	//3 gate
@@ -61,7 +62,6 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	*/
 
-	/*
 	//nexus first into 4gate blink	
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
@@ -81,7 +81,6 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
-	*/
 
 	/*
 	//nexus first 6 gate
@@ -170,17 +169,17 @@ ProductionQueue::~ProductionQueue()
 takes a build order goal passed from the production manager and translates it into BuildOrderItems that are added to the queue.
 Build order goals are sets of pairs containing AbilityIDs (units to be made) and ints (the quantity of the unit to be made).
 */
-void ProductionQueue::generateMoreItems(std::set<std::pair<AbilityID, int>> buildOrderGoal)
+void ProductionQueue::generateMoreItems(std::vector<ProductionGoal> buildOrderGoal)
 {
 	for (auto item : buildOrderGoal)
 	{
-		for (int i = 0; i != item.second; i++)
+		for (int i = 0; i != item.quantity; i++)
 		{
-			if (i % 3 == 0)
+			if (i % 5 == 0)
 			{
 				productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 			}
-			productionQueue.push_back(BuildOrderItem(item.first));
+			productionQueue.push_back(BuildOrderItem(item.type));
 		}
 	}
 	printDebug();

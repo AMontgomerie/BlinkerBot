@@ -1,9 +1,9 @@
 #include "ProductionManager.h"
 #include "Blinkerbot.h"
 
-ProductionManager::ProductionManager(BlinkerBot & bot): blinkerBot(bot), forwardPylon(nullptr), 
-baseManager(bot), productionQueue(bot), workerManager(bot), nextPylonLocation(Point2D(-1.0,-1.0)), attacking(false),
-enemyHasCloak(false), currentUpgradeLevel(0), lastProductionFrame(0)
+ProductionManager::ProductionManager(BlinkerBot & bot): 
+	blinkerBot(bot), baseManager(bot), productionQueue(bot), workerManager(bot), buildOrderManager(bot), 
+	forwardPylon(nullptr), nextPylonLocation(Point2D(-1.0,-1.0)), attacking(false), enemyHasCloak(false), lastProductionFrame(0)
 {
 	productionQueue.initialiseQueue();
 }
@@ -41,8 +41,8 @@ void ProductionManager::onStep()
 	//timer stuff
 	*/
 
-	if (blinkerBot.Observation()->GetGameLoop() - lastProductionFrame > 1000
-		&& blinkerBot.Observation()->GetMinerals() > 1000)
+	if (blinkerBot.Observation()->GetGameLoop() - lastProductionFrame > DEADLOCK
+		&& blinkerBot.Observation()->GetMinerals() > DEADLOCK)
 	{
 		std::cerr << "attempting to break production deadlock" << std::endl;
 		breakDeadlock();
@@ -63,8 +63,16 @@ void ProductionManager::onStep()
 	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
 	{
 		workerManager.update();
-		trainUnits();
 		chronoBoost();
+
+		//let's stop production briefly to make sure the next base actually gets started
+		if (!(productionQueue.getNextItem().item == ABILITY_ID::BUILD_NEXUS && blinkerBot.Observation()->GetGameLoop() - lastProductionFrame < DEADLOCK))
+		{
+			trainUnits();
+		}
+
+		//if worker manager sends a warning that a base is mining out, build order manager needs to be informed
+		buildOrderManager.receiveMiningOutSignal(workerManager.miningOut());
 	}
 
 	/*
@@ -111,7 +119,7 @@ void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 	//check if the queue is empty. If it is, then let's generate a new goal and queue up some items
 	if (nextBuildOrderItem.item == ABILITY_ID::INVALID)
 	{
-		productionQueue.generateMoreItems(generateBuildOrderGoal());
+		productionQueue.generateMoreItems(buildOrderManager.generateGoal());
 	}
 	//deal with units
 	else if (UnitData::isTrainableUnitType(nextBuildOrderItem.item))
@@ -191,9 +199,18 @@ void ProductionManager::trainUnits()
 	}
 }
 
+/*
+takes a given BuildOrderItem and attempts to build a corresponding structure. Queues up required tech structures if necessary
+*/
 void ProductionManager::build(BuildOrderItem item)
 {
-	//first let's check if we have the necessary tech to build this structure
+	//if we're already at supply capacity, we don't want to make any more pylons
+	if (item.item == ABILITY_ID::BUILD_PYLON && calculateSupplyCapacity() >= 200)
+	{
+		productionQueue.removeItem();
+	}
+
+	//let's check if we have the necessary tech to build this structure
 	UnitTypeID requiredStructure = blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].tech_requirement;
 	bool isBuildable = false;
 	if (requiredStructure == UNIT_TYPEID::INVALID)
@@ -284,19 +301,26 @@ void ProductionManager::research(BuildOrderItem item)
 	const Unit *researchStructure = nullptr;
 	UnitTypeID requiredStructure = UnitData::requiredStructure(item.item);
 
+	//make sure we don't already have this tech
+	if (buildOrderManager.alreadyResearched(item.item))
+	{
+		productionQueue.removeItem();
+	}
+
 	//search our buildings
 	for (auto structure : structures)
 	{
 		//check if we started the research already
 		for (auto order : structure->orders)
 		{
-			if (order.ability_id == item.item)
+			if (order.ability_id == item.item || UnitData::isComparableUpgrade(order.ability_id, item.item))
 			{
 				//if we've already started it then remove it from the to do list
 				productionQueue.removeItem();
 				lastProductionFrame = blinkerBot.Observation()->GetGameLoop();
 				isStarted = true;
 			}
+			
 		}
 		//check if we have the necessary structure
 		if (structure->unit_type == requiredStructure)
@@ -309,6 +333,11 @@ void ProductionManager::research(BuildOrderItem item)
 	if (!isResearchable)
 	{
 		productionQueue.addItemHighPriority(blinkerBot.Observation()->GetUnitTypeData()[requiredStructure].ability_id);
+	}
+	//if the structure is already busy researching, let's just remove the new one from the queue and regenerate it later
+	else if (!researchStructure->orders.empty())
+	{
+		productionQueue.removeItem();
 	}
 	//if we haven't started it yet, then let's try
 	else if (!isStarted)
@@ -568,7 +597,7 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 
 				//if we lost something important, then we should recalculate our production queue
 				productionQueue.clearQueue();
-				productionQueue.generateMoreItems(generateBuildOrderGoal());
+				productionQueue.generateMoreItems(buildOrderManager.generateGoal());
 
 				//if we lost an expansion, make this point available to be expanded on again
 				if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
@@ -682,15 +711,12 @@ Point2D ProductionManager::getRallyPoint()
 */
 
 /*
-checks our current supply status and queues up extra pylons if necessary
+calculate our current maximum supply capacity
 */
-void ProductionManager::checkSupply()
+float ProductionManager::calculateSupplyCapacity()
 {
 	float supplyCapacity = 0;
-	float supplyUsed = 0;
-	bool pylonAlreadyInProduction = false;
 
-	//calculate our current supply capacity
 	for (auto structure : structures)
 	{
 		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
@@ -702,6 +728,18 @@ void ProductionManager::checkSupply()
 			supplyCapacity += 8;
 		}
 	}
+	return supplyCapacity;
+}
+
+/*
+checks our current supply status and queues up extra pylons if necessary
+*/
+void ProductionManager::checkSupply()
+{
+	float supplyCapacity = calculateSupplyCapacity();
+	float supplyUsed = 0;
+	bool pylonAlreadyInProduction = false;
+
 	//calculate how much supply we have
 	for (auto unit : blinkerBot.Observation()->GetUnits())
 	{
@@ -775,127 +813,11 @@ void ProductionManager::removeEnemyBase(const Unit *unit)
 }
 
 /*
-returns a set of AbilityID and int pairs representing things we want to produce and the quantity of each thing we want
-*/
-std::set<std::pair<AbilityID, int>> ProductionManager::generateBuildOrderGoal()
-{
-	std::set<std::pair<AbilityID, int>> buildOrderGoal;
-	int currentBases = int(baseManager.getOurBases().size());
-	int currentProductionFacilities = 0;
-	int currentGases = 0;
-	int currentCannons = 0;
-
-	//first let's count the number of things we currently have
-	for (auto structure : structures)
-	{
-		if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY || 
-			structure->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE ||
-			structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY)
-		{
-			currentProductionFacilities++;
-		}
-		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
-		{
-			currentGases++;
-		}
-		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
-		{
-			currentCannons++;
-		}
-	}
-
-	//if the enemy has cloaked units, we want to make sure we have cannons at each base
-	if (enemyHasCloak || currentBases > 1)
-	{
-		int extraCannons = int(baseManager.getOurBases().size()) - currentCannons;
-		if (extraCannons > 0)
-		{
-			buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_PHOTONCANNON, extraCannons));
-		}
-	}
-
-	//add extra gateways at a 3:1 gateway to base ratio as our economy improves
-	int extraProductionFacilities = (currentBases * 3) - currentProductionFacilities;
-	if (extraProductionFacilities > 0)
-	{
-		//we don't wanna add too many extra production facilities at one time as this will slow down our production
-		if (extraProductionFacilities > 2)
-		{
-			buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_GATEWAY, 2));
-		}
-		else
-		{
-			buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_GATEWAY, extraProductionFacilities));
-		}
-	}
-
-	//if we've alreadygot plenty of production facilities then we want to think about expanding
-	if (extraProductionFacilities < 1 || workerManager.miningOut())
-	{
-		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_NEXUS, 1));
-	}
-
-	//count bases excluding those that only recently started being produced (we don't wanna take gas too early)
-	int readyToMineBases = 0;
-	for (auto base : baseManager.getOurBases())
-	{
-		if (base.getTownhall()->build_progress > 0.8)
-		{
-			readyToMineBases++;
-		}
-	}
-
-	//calculate any additional gases we want to take
-	int additionalGases = (readyToMineBases * 2) - currentGases;
-	if (additionalGases > 0)
-	{
-		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_ASSIMILATOR, additionalGases));
-	}
-
-	//if we're already on 2 or more bases and have some gas coming in, let's start upgrading
-	if (currentBases > 1 && currentGases > 1 && currentUpgradeLevel < 3)
-	{
-		buildOrderGoal.insert(std::make_pair(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONS, 1));
-	}
-
-	if (currentBases > 2)
-	{
-		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_ROBOTICSBAY, 1));
-	}
-
-	/*
-	std::cerr << "current bases: " << currentBases << std::endl;
-	std::cerr << "current gateways: " << currentProductionFacilities << std::endl;
-	std::cerr << "goal state: " << currentBases << " bases and " << currentProductionFacilities + extraProductionFacilities << " gateways" << std::endl;
-	std::cerr << "adding to production queue:" << std::endl;
-	for (auto item : buildOrderGoal)
-	{
-		for (int i = 0; i != item.second; i++)
-		{
-			std::cerr << AbilityTypeToName(item.first) << std::endl;
-		}
-	}
-	*/
-
-	if (buildOrderGoal.empty())
-	{
-		buildOrderGoal.insert(std::make_pair(ABILITY_ID::BUILD_PYLON, 1));
-	}
-
-	return buildOrderGoal;
-}
-
-/*
-keeps track of our weapons upgrades
+pass finished upgrades to BuildOrderManager to keep track of
 */
 void ProductionManager::onUpgradeComplete(UpgradeID upgrade)
 {
-	if (upgrade == UPGRADE_ID::PROTOSSGROUNDWEAPONSLEVEL1 ||
-		upgrade == UPGRADE_ID::PROTOSSGROUNDWEAPONSLEVEL2 ||
-		upgrade == UPGRADE_ID::PROTOSSGROUNDWEAPONSLEVEL3)
-	{
-		currentUpgradeLevel++;
-	}
+	buildOrderManager.onUpgradeComplete(upgrade);
 }
 
 /*
@@ -1008,6 +930,8 @@ if army manager sends us a signal alerting us of undetected cloak, let's make so
 */
 void ProductionManager::receiveCloakSignal(bool signal)
 {
+	buildOrderManager.receiveCloakSignal(signal);
+
 	if (signal)
 	{
 		enemyHasCloak = true;
@@ -1315,12 +1239,13 @@ void ProductionManager::breakDeadlock()
 	}
 	//let's delete whatever was in our current queue, and generate a new one
 	productionQueue.clearQueue();
-	productionQueue.generateMoreItems(generateBuildOrderGoal());
+	productionQueue.generateMoreItems(buildOrderManager.generateGoal());
 	lastProductionFrame = blinkerBot.Observation()->GetGameLoop();
 }
 
 /*
 tells a worker to mine minerals (called by BlinkerBot::OnUnitIdle)
+REDUNDANT: now handled by WorkerManager
 */
 void ProductionManager::returnToMining(const Unit *unit)
 {
