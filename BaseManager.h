@@ -48,6 +48,10 @@ class BaseManager
 	std::vector<Point2D> getBuildGrid(Point2D centre);
 	//std::vector<Point2D> getPreliminaryBuildGrid(Point2D centre);
 	Point2D calculateBuildLocation(Base base);
+	Point2D calculateAveragePoint(std::set<const Unit *> nodes);
+	Point2D calculateAveragePoint(std::vector<const Unit *> nodes);
+	std::vector<const Unit *> sortMineralLine(std::set<const Unit *> line, Point2D baseLocation);
+	std::set<const Unit *> findTwoClosestGeysers(std::set<const Unit *> geysers, Point2D baseLocation);
 public:
 	BaseManager(BlinkerBot & bot);
 	~BaseManager();

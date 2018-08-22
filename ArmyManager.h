@@ -51,7 +51,6 @@ class ArmyManager
 	bool outranges(const Unit *attacker, const Unit *target);
 	Point2D getRetreatPoint(const Unit *unit);
 	void workerDefence();
-	void scout();
 	int calculateEnemyStaticDefence();
 	float averageUnitDistanceToEnemyBase();
 	const Unit *getClosestBase(const Unit *unit);

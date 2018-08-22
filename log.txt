@@ -1,19 +1,16 @@
 high priority:
-- some techs are not skipped correctly?
+- sortMineralLine only returns half of the minerals
+- turned off the conga line preventer: need an alternative solution with less spazzing
+- if a unit's dist to enemy is much closer than the avg, he should wait until the others catch up
+- figure out the control flow of onStep in ArmyManager; it's a mess
 
 later:
+- check our erase methods
 - somehow deal with level2+ upgrades that require extra tech (perhaps a vector to show they require multiple?)
 - builds way too many pylons
 - pylon occasionally unbuildable causing build order deadlock
-- improve scouting:
-	- scout should be assigned (and replaced if dead)
-	- scout can be triggered by not knowing the locations of any enemy bases, rather than game start
-	- probe harass (attack, but if taking shield damage, run away until recharged)
 - got a weird random number out of bounds error
 - there's also a pointer/iterator issue with both a set and a vector
-- make a vector of key researches that generate build order goal can use
-	- if the tech is finished then remove it from the vector
-	- while the tech is in production, exclude it from future build order goals and add the next one instead
 - some weird behaviour around tanks and ramps
 - reduce kite blocking by checking stalkers that are closer to retreat point and moving those out of the way (maybe if they are out of range)
 - continue implementing UnitData
@@ -21,7 +18,6 @@ later:
 - bases might not be readded to available locations after a nexus destruction
 
 DONE FOR NEXT UPLOAD:
-- fixed a bug causing units to continue to defend a location after enemies had left
-- created BuildOrderManager
-- refactored generatebuildordergoal to be handled by buildordermanager
-- BuildOrderManager also keeps track of keyTechs and completedTechs
+- improved expansion location calculation so bot no longer takes 3rd before natural on some maps
+- improved scouting to include worker harass
+- baseManager now removes unplaceable bases rather than getting stuck like a bitch

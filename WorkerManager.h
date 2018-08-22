@@ -16,6 +16,9 @@ class WorkerManager
 	std::set<const Unit *> workers;
 	std::set<const Unit *> bases;
 	std::set<const Unit *> gases;
+	const Unit *enemyMain;
+	const Unit *scout;
+	bool scouting;
 
 	void returnToMining(const Unit *unit);
 	void transferWorkers(int numOfWorkers, const Unit *overSaturatedBase);
@@ -23,7 +26,12 @@ class WorkerManager
 	void checkForIdleWorkers();
 	void checkGases();
 	bool isAvailableWorker(const Unit *unit);
+	void assignScout();
+	void scoutEnemyBases();
+	void harassWorkers();
+	const Unit *getClosestEnemyWorker(const Unit *ourUnit);
 public:
+	void initialise();
 	void update();
 	bool miningOut();
 	size_t getWorkerCount();
@@ -35,6 +43,8 @@ public:
 	void removeBase(const Unit *unit);
 	void addGas(const Unit *unit);
 	void removeGas(const Unit *unit);
+	const Unit *getScout();
+	void addEnemyMain(const Unit *unit);
 	WorkerManager(BlinkerBot & bot);
 	~WorkerManager();
 };

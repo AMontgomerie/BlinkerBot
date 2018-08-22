@@ -27,6 +27,7 @@ void ProductionManager::initialise()
 		}
 	}
 	baseManager.initialise();
+	workerManager.initialise();
 	rallyPoint = blinkerBot.Observation()->GetStartLocation();
 	locateForwardPylonPoint();
 }
@@ -42,7 +43,7 @@ void ProductionManager::onStep()
 	*/
 
 	if (blinkerBot.Observation()->GetGameLoop() - lastProductionFrame > DEADLOCK
-		&& blinkerBot.Observation()->GetMinerals() > DEADLOCK)
+		&& uint32_t(blinkerBot.Observation()->GetMinerals()) > DEADLOCK)
 	{
 		std::cerr << "attempting to break production deadlock" << std::endl;
 		breakDeadlock();
@@ -59,14 +60,17 @@ void ProductionManager::onStep()
 	//deal with the next item in the production queue
 	produce(productionQueue.getNextItem());
 
+	//update workers (called frequently because of scouting worker micro)
+	workerManager.update();
+
 	//the following don't need to be called so frequently
 	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
 	{
-		workerManager.update();
 		chronoBoost();
 
 		//let's stop production briefly to make sure the next base actually gets started
-		if (!(productionQueue.getNextItem().item == ABILITY_ID::BUILD_NEXUS && blinkerBot.Observation()->GetGameLoop() - lastProductionFrame < DEADLOCK))
+		if (!(productionQueue.getNextItem().item == ABILITY_ID::BUILD_NEXUS && 
+			blinkerBot.Observation()->GetGameLoop() - lastProductionFrame < DEADLOCK))
 		{
 			trainUnits();
 		}
@@ -574,6 +578,7 @@ void ProductionManager::addNewUnit(const Unit *unit)
 	}
 	if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && blinkerBot.Observation()->GetGameLoop() > 1)
 	{
+		
 		baseManager.removeNextBaseLocation();
 	}
 }
@@ -792,6 +797,7 @@ called when we find a new enemy base
 void ProductionManager::addEnemyBase(const Unit *unit)
 {
 	enemyBases.insert(unit);
+	workerManager.addEnemyMain(unit);
 }
 
 /*

@@ -13,40 +13,8 @@ ArmyManager::~ArmyManager()
 
 void ArmyManager::initialise()
 {
-	scout();
+	//scout();
 }
-
-/*
-//finds a worker and sends it to each potential enemy start location
-*/
-void ArmyManager::scout()
-{
-	const Unit *worker = *blinkerBot.Observation()->GetUnits().begin();
-	const Unit *mineral = nullptr;
-
-	for (auto unit : blinkerBot.Observation()->GetUnits())
-	{
-		//find one of our workers
-		if (UnitData::isWorker(unit))
-		{
-			worker = unit;
-		}
-		//find a mineral node in our main
-		if (UnitData::isMinerals(unit) && unit->display_type == Unit::DisplayType::Visible 
-			&& Distance2D(unit->pos, blinkerBot.Observation()->GetStartLocation()) < 15)
-		{
-			mineral = unit;
-		}
-	}
-	//queue commands to move to each potential enemy start location
-	for (auto location : blinkerBot.Observation()->GetGameInfo().enemy_start_locations)
-	{
-		blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::MOVE, location, true);
-	}
-	//queue a command to return to mining after scouting
-	blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::SMART, mineral->pos, true);
-}
-
 
 void ArmyManager::onStep()
 {
@@ -100,7 +68,7 @@ void ArmyManager::onStep()
 		{
 			//std::cerr << "defend!" << std::endl;
 		}
-		//not yet implemented
+		//nothing here
 		break;
 	}
 
@@ -288,8 +256,8 @@ void ArmyManager::attack()
 			{
 				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::SMART, (*army.begin()).unit);
 			}
-			else if (retreating || getClosestEnemyBase(armyUnit.unit) &&
-				Distance2D(armyUnit.unit->pos, getClosestEnemyBase(armyUnit.unit)->pos) + 20 < averageUnitDistanceToEnemyBase())
+			else if (retreating) //|| getClosestEnemyBase(armyUnit.unit) &&
+				//Distance2D(armyUnit.unit->pos, getClosestEnemyBase(armyUnit.unit)->pos) + 20 < averageUnitDistanceToEnemyBase())
 			{
 				//if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::MOVE)
 				//{

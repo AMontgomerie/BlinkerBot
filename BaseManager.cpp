@@ -39,7 +39,7 @@ Base::Base(std::set<const Unit *> minerals, std::set<const Unit *> geysers, Poin
 void BaseManager::initialise()
 {
 	findBases();
-	//printDebug();
+	printDebug();
 }
 
 //searches the map for minerals and groups them into mineral lines, the results are stored in mineralLines
@@ -63,7 +63,7 @@ std::vector<std::vector<const Unit *>> BaseManager::findMineralLines()
 				std::vector<const Unit *>::iterator mineral = (*line).begin();
 				while (!groupFound && mineral != (*line).end())
 				{
-					if (Distance2D((*mineral)->pos, unit->pos) < 15)
+					if (Distance2D((*mineral)->pos, unit->pos) < 12)
 					{
 						//if the new mineral patch is part of a previously known mineral line, at it to the vector
 						(*line).push_back(unit);
@@ -119,7 +119,6 @@ void BaseManager::printDebug()
 		blinkerBot.Debug()->DebugTextOut(ourBase.str());
 	}
 	*/
-
 	/*
 	int n = 0;
 	for (auto base : bases)
@@ -311,8 +310,20 @@ std::vector<Base> BaseManager::sortBaseLocations(std::vector<Base> baseLocations
 		int count = 0;
 		for (auto base : baseLocations)
 		{
-			if (Distance2D(blinkerBot.Observation()->GetStartLocation(), base.getBuildLocation()) <
-				Distance2D(blinkerBot.Observation()->GetStartLocation(), closestBase.getBuildLocation()))
+			//get a worker to be our distance tester
+			const Unit *worker = *blinkerBot.Observation()->GetUnits().begin();
+			for (auto unit : blinkerBot.Observation()->GetUnits())
+			{
+				if (UnitData::isOurs(unit) && UnitData::isWorker(unit))
+				{
+					worker = unit;
+				}
+			}
+			//std::cerr << "query: " << blinkerBot.Query()->PathingDistance(worker, base.getBuildLocation()) << std::endl;
+			//std::cerr << "dist: " << Distance2D(blinkerBot.Observation()->GetStartLocation(), base.getBuildLocation()) << std::endl;
+
+			if (blinkerBot.Query()->PathingDistance(worker, base.getBuildLocation()) < 
+				blinkerBot.Query()->PathingDistance(worker, closestBase.getBuildLocation()))				
 			{
 				closestBase = base;
 				closestIndex = count;
@@ -323,15 +334,25 @@ std::vector<Base> BaseManager::sortBaseLocations(std::vector<Base> baseLocations
 		baseLocations.erase(baseLocations.begin() + closestIndex);
 
 		//add our closest base to the new vector, then loop and find the next closest
-		sorted.push_back(closestBase);
+		sorted.push_back(closestBase);		
 	}
 
 	/*
-	for (auto point : sorted)
+	const Unit *worker = *blinkerBot.Observation()->GetUnits().begin();
+	for (auto unit : blinkerBot.Observation()->GetUnits())
 	{
-	std::cerr << Distance2D(point, blinkerBot.Observation()->GetStartLocation()) << std::endl;
+		if (UnitData::isOurs(unit) && UnitData::isWorker(unit))
+		{
+			worker = unit;
+		}
+	}
+
+	for (auto base : sorted)
+	{
+		std::cerr << blinkerBot.Query()->PathingDistance(worker, calculateGasAverage(base.getGeysers())) << std::endl;
 	}
 	*/
+	
 	return sorted;
 
 }
@@ -381,13 +402,70 @@ std::vector<Base> BaseManager::getAvailableBaseLocations()
 
 Point2D BaseManager::getNextBaseLocation()
 {
+	/*
 	Base nextBase = *availableBases.begin();
 
 	//if we haven't calculated the base location yet, we need to do it before we pass it to production manager
-	if (nextBase.getBuildLocation() == (*nextBase.getMinerals().begin())->pos)
+	//if (nextBase.getBuildLocation() == (*nextBase.getMinerals().begin())->pos)
+	if (nextBase.getBuildLocation() == calculateGasAverage(nextBase.getGeysers()))
 	{
 		//make a new base with the same minerals and gas and an accurate location
 		Base accurateBase = Base(nextBase.getMinerals(), nextBase.getGeysers(), calculateBuildLocation(nextBase));
+		//throw away the old version
+		removeNextBaseLocation();
+		//put the new base at the front
+		availableBases.insert(availableBases.begin(), accurateBase);
+	}
+	return (*availableBases.begin()).getBuildLocation();
+	*/
+
+	if (availableBases.empty())
+	{
+		std::cerr << "BaseManager::getNextBaseLocation(): No available expansions." << std::endl;
+		return blinkerBot.Observation()->GetStartLocation();
+	}
+
+	std::vector<Base>::iterator nextBase = availableBases.begin();
+
+	//find a worker to test with
+	const Unit *worker = nullptr;
+	for (auto unit : blinkerBot.Observation()->GetUnits())
+	{
+		if (UnitData::isOurs(unit) && UnitData::isWorker(unit))
+		{
+			worker = unit;
+		}
+	}
+	if (worker)
+	{
+		//check if our worker can get to the closest base
+		bool pathable = false;
+		while (!pathable && nextBase != availableBases.end())
+		{
+			if (blinkerBot.Query()->PathingDistance(worker, (*nextBase).getBuildLocation()) == 0)
+			{
+				//std::cerr << "unreachable base at " << (*nextBase).getBuildLocation().x << ":" << (*nextBase).getBuildLocation().y << std::endl;
+				nextBase = availableBases.erase(nextBase);
+			}
+			else
+			{
+				pathable = true;
+			}
+		}
+		//if we have no reachable bases left, exit
+		if (availableBases.empty())
+		{
+			std::cerr << "BaseManager::getNextBaseLocation(): No available expansions." << std::endl;
+			return blinkerBot.Observation()->GetStartLocation();
+		}
+	}
+
+	//if we haven't calculated the base location yet, we need to do it before we pass it to production manager
+	//if (nextBase.getBuildLocation() == (*nextBase.getMinerals().begin())->pos)
+	if ((*nextBase).getBuildLocation() == calculateAveragePoint((*nextBase).getGeysers()))
+	{
+		//make a new base with the same minerals and gas and an accurate location
+		Base accurateBase = Base((*nextBase).getMinerals(), (*nextBase).getGeysers(), calculateBuildLocation(*nextBase));
 		//throw away the old version
 		removeNextBaseLocation();
 		//put the new base at the front
@@ -431,6 +509,7 @@ Point2D BaseManager::calculateBuildLocation(Base base)
 			}
 		}
 	}
+	printDebug();
 	return closest;
 }
 
@@ -474,6 +553,40 @@ const Unit *Base::getTownhall()
 }
 
 /*
+takes a set and returns an average point given a set of geysers or minerals. Used for initial base location estimations
+*/
+Point2D BaseManager::calculateAveragePoint(std::set<const Unit *> nodes)
+{
+	float averageX = 0;
+	float averageY = 0;
+	for (auto node : nodes)
+	{
+		averageX += node->pos.x;
+		averageY += node->pos.y;
+	}
+	averageX = averageX / nodes.size();
+	averageY = averageY / nodes.size();
+	return Point2D(averageX, averageY);
+}
+
+/*
+takes a vector and returns an average point given a set of geysers or minerals. Used for initial base location estimations
+*/
+Point2D BaseManager::calculateAveragePoint(std::vector<const Unit *> nodes)
+{
+	float averageX = 0;
+	float averageY = 0;
+	for (auto node : nodes)
+	{
+		averageX += node->pos.x;
+		averageY += node->pos.y;
+	}
+	averageX = averageX / nodes.size();
+	averageY = averageY / nodes.size();
+	return Point2D(averageX, averageY);
+}
+
+/*
 find all of the Bases on the map and updates the bases vector with them
 */
 void BaseManager::findBases()
@@ -488,13 +601,16 @@ void BaseManager::findBases()
 		std::set<const Unit *> geysers;
 
 		//find the geysers
+		/*
 		for (auto geyser : allGeysers)
 		{
-			if (Distance2D(geyser->pos, (*line.begin())->pos) < 15)
+			if (Distance2D(geyser->pos, (*line.begin())->pos) < 12)
 			{
 				geysers.insert(geyser);
 			}
-		}
+		}*/
+
+		geysers = findTwoClosestGeysers(allGeysers, calculateAveragePoint(line));
 
 		//find the minerals
 		for (auto mineral : line)
@@ -502,43 +618,19 @@ void BaseManager::findBases()
 			mineralLine.insert(mineral);
 		}
 
-		//find the build location
-		baseLocation = (*mineralLine.begin())->pos;
+		//sort the minerals by distance from an average point
+		std::vector<const Unit *> sortedLine = sortMineralLine(mineralLine, calculateAveragePoint(geysers));
+		mineralLine.clear();
 
-		/*
-		//first we get a vector of nearby buildable locations
-		//std::vector<Point2D> buildGrid = getBuildGrid((*mineralLine.begin())->pos);
-		//std::vector<Point2D> buildGrid = getPreliminaryBuildGrid((*mineralLine.begin())->pos);
-
-		//search through the locations we receive and try to find the closest point that isn't too close
-		Point2D closest = *buildGrid.begin();
-		for (auto point : buildGrid)
+		//feed in the 8 closest mineral nodes and ignore any extra ones as they're mistakenly grouped from another nearby base
+		for (int i = 0; i < sortedLine.size() && i < 8; i++)
 		{
-			if (Distance2D(point, (*mineralLine.begin())->pos) < Distance2D(closest, (*mineralLine.begin())->pos))
-			{
-				bool invalid = false;
-				for (auto mineral : mineralLine)
-				{
-					if (Distance2D(mineral->pos, point) < 3 || Distance2D(mineral->pos, point) > 10)
-					{
-						invalid = true;
-					}
-				}
-				for (auto geyser : geysers)
-				{
-					if (Distance2D(geyser->pos, point) < 3 || Distance2D(geyser->pos, point) > 10)
-					{
-						invalid = true;
-					}
-				}
-				if (!invalid)
-				{
-					closest = point;
-				}
-			}	
+			mineralLine.insert(sortedLine[i]);
 		}
-		baseLocation = closest;
-		*/
+
+		//find the build location
+		baseLocation = calculateAveragePoint(geysers);
+		//baseLocation = (*mineralLine.begin())->pos;
 
 		//the placement will be messed up for our main base since there's already a nexus there, so let's just add the start location instead
 		if (Distance2D((*mineralLine.begin())->pos, blinkerBot.Observation()->GetStartLocation()) < 15)
@@ -573,9 +665,78 @@ void BaseManager::findBases()
 			unsortedBases.push_back(base);
 		}
 	}
+
 	//now we have all the available bases, let's sort them in order of distance from our main
 	availableBases = sortBaseLocations(unsortedBases);
 
+}
+
+/*
+finds the closest two geysers to the given base location and returns them as a set
+*/
+std::set<const Unit *> BaseManager::findTwoClosestGeysers(std::set<const Unit *> geysers, Point2D baseLocation)
+{
+	const Unit *closestGeyser = *geysers.begin();
+	const Unit *nextClosestGeyser = *geysers.begin();
+	std::set<const Unit *> closestPair;
+
+	//find the closest geyser to the target
+	for (auto geyser : geysers)
+	{
+		if (Distance2D(geyser->pos, baseLocation) < Distance2D(closestGeyser->pos, baseLocation))
+		{
+			closestGeyser = geyser;
+		}
+	}
+	//find the closest geyser to the target that isn't the first one we found
+	for (auto geyser : geysers)
+	{
+		if (geyser != closestGeyser && Distance2D(geyser->pos, baseLocation) < Distance2D(nextClosestGeyser->pos, baseLocation))
+		{
+			nextClosestGeyser = geyser;
+		}
+	}
+	closestPair.insert(closestGeyser);
+	closestPair.insert(nextClosestGeyser);
+	return closestPair;
+}
+
+/*
+takes a set of pointers to minerals and a base location point, and returns a vector of the minerals sorted by their distance from the point
+*/
+std::vector<const Unit *> BaseManager::sortMineralLine(std::set<const Unit *> line, Point2D baseLocation)
+{
+	std::vector<const Unit *> sortedLine;
+	size_t size = line.size();
+
+	for (int i = 0; i != size; i++)
+	{
+		//find the closest mineral in the line
+		const Unit *closestMineral = nullptr;
+		for (auto mineral : line)
+		{
+			if (!closestMineral || Distance2D(mineral->pos, baseLocation) < Distance2D(closestMineral->pos, baseLocation))
+			{
+				closestMineral = mineral;
+			}
+		}
+		//erase the closest mineral from the line
+		for (std::set<const Unit *>::iterator mineral = line.begin(); mineral != line.end();)
+		{
+			if (*mineral == closestMineral)
+			{
+				line.erase(mineral++);
+			}
+			else
+			{
+				++mineral;
+			}
+		}
+		//add the closest mineral to the sorted set
+		sortedLine.push_back(closestMineral);
+	}
+
+	return sortedLine;
 }
 
 void Base::setTownhall(const Unit *unit)
@@ -604,7 +765,7 @@ void BaseManager::addBase(const Unit *unit)
 			}
 		}
 	}
-	//printDebug();
+	printDebug();
 }
 
 void BaseManager::removeBase(const Unit *unit)

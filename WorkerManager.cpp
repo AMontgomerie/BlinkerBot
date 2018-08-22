@@ -2,7 +2,7 @@
 #include "Blinkerbot.h"
 
 
-WorkerManager::WorkerManager(BlinkerBot & bot) : blinkerBot(bot)
+WorkerManager::WorkerManager(BlinkerBot & bot) : blinkerBot(bot), scout(nullptr), enemyMain(nullptr), scouting(false)
 {
 }
 
@@ -11,22 +11,55 @@ WorkerManager::~WorkerManager()
 {
 }
 
+/*
+perform one-time only actions at the start of the game
+*/
+void WorkerManager::initialise()
+{
+	assignScout();
+}
 
+/*
+add a new worker to our set of workers
+*/
 void WorkerManager::addWorker(const Unit *unit)
 {
-	workers.insert(unit);
+	//this is to prevent the scout from being reassigned to the set of workers and pulled back home
+	if (unit != scout)
+	{
+		workers.insert(unit);
+	}
 }
 
+/*
+remove a worker from our set of workers
+*/
 void WorkerManager::removeWorker(const Unit *unit)
 {
-	workers.erase(unit);
+	for (std::set<const Unit *>::iterator worker = workers.begin(); worker != workers.end();)
+	{
+		if (*worker == unit)
+		{
+			workers.erase(worker++);
+		}
+		else
+		{
+			++worker;
+		}
+	}
 }
 
+/*
+returns the number of workers we have
+*/
 size_t WorkerManager::getWorkerCount()
 {
 	return workers.size();
 }
 
+/*
+checks that all our gases are being mined by the ideal number of harvesters
+*/
 void WorkerManager::checkGas(const Unit *gas)
 {
 	//check how many workers are mining at the geyser
@@ -61,7 +94,9 @@ void WorkerManager::checkGas(const Unit *gas)
 	}
 }
 
-//returns true if the worker is not mining gas
+/*
+returns true if the worker is not mining gas or scouting
+*/
 bool WorkerManager::isAvailableWorker(const Unit *unit)
 {
 	if (unit->orders.empty())
@@ -70,6 +105,10 @@ bool WorkerManager::isAvailableWorker(const Unit *unit)
 	}
 	else
 	{
+		if (unit == scout)
+		{
+			return false;
+		}
 		//if the worker's current target is a townhall, then it might be returning vespene gas
 		for (auto base : bases)
 		{
@@ -104,14 +143,14 @@ const Unit *WorkerManager::getBuilder()
 		}
 		if (builder == workers.end() && !isAvailableWorker(*builder))
 		{
-			std::cerr << "No workers Available" << std::endl;
+			std::cerr << "WorkerManager::getBuilder(): No workers Available." << std::endl;
 			return nullptr;
 		}
 		return *builder;
 	}
 	else
 	{
-		std::cerr << "No workers Available" << std::endl;
+		std::cerr << "WorkerManager::getBuilder(): No workers Available." << std::endl;
 		return nullptr;
 	}
 }
@@ -208,18 +247,33 @@ bool WorkerManager::miningOut()
 	return false;
 }
 
+/*
+call regularly to trigger various worker management-related methods
+*/
 void WorkerManager::update()
 {
-	checkForIdleWorkers();
-	checkSaturation();
-	checkGases();
+	if (enemyMain && scout->is_alive)
+	{
+		harassWorkers();
+	}
+	else if (!enemyMain && !scouting && scout->is_alive)
+	{
+		scoutEnemyBases();
+	}
+
+	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
+	{
+		checkForIdleWorkers();
+		checkSaturation();
+		checkGases();
+	}
 
 	/*
 	std::ostringstream workerCount;
-	workerCount << "gas worker count: " << gasWorkers.size() << std::endl;
+	workerCount << " worker count: " << workers.size() << std::endl;
 	blinkerBot.Debug()->DebugTextOut(workerCount.str());
 	blinkerBot.Debug()->SendDebug();
-	*/
+	*/	
 }
 
 /*
@@ -229,7 +283,7 @@ void WorkerManager::checkForIdleWorkers()
 {
 	for (auto worker : workers)
 	{
-		if (worker->orders.empty())
+		if (worker->orders.empty() && worker != scout)
 		{
 			returnToMining(worker);
 		}
@@ -295,6 +349,9 @@ void WorkerManager::returnToMining(const Unit *unit)
 	}
 }
 
+/*
+adds a new base to the set of bases under our control
+*/
 void WorkerManager::addBase(const Unit *unit)
 {
 	if (UnitData::isOurs(unit) && UnitData::isTownHall(unit))
@@ -303,17 +360,168 @@ void WorkerManager::addBase(const Unit *unit)
 	}
 }
 
+/*
+removes a base from the set of bases under our control
+*/
 void WorkerManager::removeBase(const Unit *unit)
 {
 	bases.erase(unit);
 }
 
+/*
+adds a new gas to our set of gases (used by checkGas() to maintain saturation)
+*/
 void WorkerManager::addGas(const Unit *unit)
 {
 	gases.insert(unit);
 }
 
+/*
+remove a gas from the set of our gases
+*/
 void WorkerManager::removeGas(const Unit *unit)
 {
 	gases.erase(unit);
+}
+
+/*
+finds a worker to send scouting
+*/
+void WorkerManager::assignScout()
+{
+	if (workers.empty())
+	{
+		std::cerr << "no workers to scout with" << std::endl;
+		return;
+	}
+	else
+	{
+		std::set<const Unit *>::iterator worker = workers.begin();
+		scout = *worker;
+		removeWorker(*worker);
+	}
+}
+
+/*
+returns our assigned scouting worker
+*/
+const Unit *WorkerManager::getScout()
+{
+	return scout;
+}
+
+/*
+scout the enemy bases if we don't know where they are
+*/
+void WorkerManager::scoutEnemyBases()
+{
+	//queue commands to move to each potential enemy start location
+	for (auto location : blinkerBot.Observation()->GetGameInfo().enemy_start_locations)
+	{
+		blinkerBot.Actions()->UnitCommand(scout, ABILITY_ID::MOVE, location, true);
+	}
+	//queue a command to return to mining after scouting
+	scouting = true;
+}
+
+/*
+assign a pointer to the enemy main when we find it (for scouting and worker harassment purposes)
+*/
+void WorkerManager::addEnemyMain(const Unit *unit)
+{
+	for (auto location : blinkerBot.Observation()->GetGameInfo().enemy_start_locations)
+	{
+		if (Distance2D(location, unit->pos) < 2)
+		{
+			enemyMain = unit;
+		}
+	}
+}
+
+/*
+commands the assigned scout to harras enemy workers
+*/
+void WorkerManager::harassWorkers()
+{
+	const Unit *target = getClosestEnemyWorker(scout);
+
+	if (!enemyMain)
+	{
+		return;
+	}
+	else
+	{
+		//if the scout still has shields, keep fighting
+		if (scout->shield > 5)
+		{
+			if (target)
+			{
+				if (!scout->orders.empty() && scout->orders.front().ability_id != ABILITY_ID::ATTACK)
+				{
+					blinkerBot.Actions()->UnitCommand(scout, ABILITY_ID::ATTACK, target->pos);
+				}
+			}
+			else
+			{
+				if (!scout->orders.empty() && scout->orders.front().ability_id != ABILITY_ID::MOVE)
+				{
+					blinkerBot.Actions()->UnitCommand(scout, ABILITY_ID::MOVE, enemyMain->pos);
+				}
+			}
+		}
+		//if the scout is getting hurt, then let's run away
+		else
+		{
+			//find a mineral node in our main
+			const Unit *mineral = *blinkerBot.Observation()->GetUnits().begin();
+			for (auto unit : blinkerBot.Observation()->GetUnits())
+			{
+				if (UnitData::isMinerals(unit) && unit->display_type == Unit::DisplayType::Visible
+					&& Distance2D(unit->pos, blinkerBot.Observation()->GetStartLocation()) < 15)
+				{
+					mineral = unit;
+				}
+			}
+			//right click the mineral (so the scout can move through other units)
+			if (mineral->display_type == Unit::DisplayType::Visible)
+			{
+				if (!scout->orders.empty() && scout->orders.front().ability_id != ABILITY_ID::HARVEST_GATHER)
+				{
+					blinkerBot.Actions()->UnitCommand(scout, ABILITY_ID::SMART, mineral);
+				}
+			}
+			//if we can't do the mineral trick because no minerals are visible, then just right click back home
+			else
+			{
+				if (!scout->orders.empty() && scout->orders.front().ability_id != ABILITY_ID::MOVE)
+				{
+					blinkerBot.Actions()->UnitCommand(scout, ABILITY_ID::MOVE, blinkerBot.Observation()->GetStartLocation());
+				}
+			}
+		}
+	}
+}
+
+/*
+find the closest enemy worker to a given unit
+*/
+const Unit *WorkerManager::getClosestEnemyWorker(const Unit *ourUnit)
+{
+	const Unit *closestEnemy = nullptr;
+
+	for (auto enemy : blinkerBot.Observation()->GetUnits())
+	{
+		//if the unit is an enemy worker, we can see it now, and it's not going too far from the enemy base (we don't wanna chase a scout)
+		if (UnitData::isWorker(enemy) && !UnitData::isOurs(enemy) && enemy->last_seen_game_loop == blinkerBot.Observation()->GetGameLoop()
+			&& enemyMain && Distance2D(enemyMain->pos, enemy->pos) < 30)
+		{
+			//make this enemy worker the closest if we don't have a closest or if it's closer than our previously recorded one
+			if (!closestEnemy || (Distance2D(enemy->pos, ourUnit->pos) < Distance2D(closestEnemy->pos, ourUnit->pos)))
+			{
+				closestEnemy = enemy;
+			}
+		}
+	}
+
+	return closestEnemy;
 }
