@@ -45,6 +45,7 @@ class ArmyManager
 	float calculateSupply(std::vector<ArmyUnit> army);
 	float calculateSupplyInRadius(Point2D centre, std::set<const Unit *> army);
 	float calculateSupplyInRadius(Point2D centre, std::vector<ArmyUnit> army);
+	float calculateSupplyAndWorkersInRadius(Point2D centre, std::set<const Unit *> army);
 	const Unit *getClosestEnemy(const Unit *ourUnit);
 	const Unit *getClosestEnemy(Point2D point);
 	const Unit *getClosestEnemyBase(const Unit *ourUnit);

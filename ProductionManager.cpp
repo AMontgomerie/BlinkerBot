@@ -183,6 +183,10 @@ void ProductionManager::trainUnits()
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_ZEALOT);
 			}
 		}
+		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY && structure->orders.size() == 0)
+		{
+			blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_COLOSSUS);
+		}
 		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE)
 		{
 			Point2D location = Point2D(rallyPoint.x + GetRandomScalar() * 7.0f, rallyPoint.y + GetRandomScalar() * 7.0f);
@@ -195,10 +199,6 @@ void ProductionManager::trainUnits()
 			{
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAINWARP_ZEALOT, location);
 			}
-		}
-		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY)
-		{
-			blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_COLOSSUS);
 		}
 	}
 }
@@ -766,7 +766,7 @@ void ProductionManager::checkSupply()
 	{
 		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
 		//add an extra pylon for each base we have
-		for (auto base : baseManager.getOurBases())
+		for (int i = 0; i < baseManager.getOurBases().size() - 1; i++)
 		{
 			productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
 		}

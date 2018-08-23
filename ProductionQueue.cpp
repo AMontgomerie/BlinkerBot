@@ -175,7 +175,7 @@ void ProductionQueue::generateMoreItems(std::vector<ProductionGoal> buildOrderGo
 	{
 		for (int i = 0; i != item.quantity; i++)
 		{
-			if (i % 5 == 0)
+			if (i % 6 == 0)
 			{
 				productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 			}

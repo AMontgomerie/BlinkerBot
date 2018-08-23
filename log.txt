@@ -3,16 +3,18 @@ high priority:
 - figure out the control flow of onStep in ArmyManager; it's a mess
 
 later:
+- deactivate expensive methods based on framerate performance
 - check our erase methods
 - somehow deal with level2+ upgrades that require extra tech (perhaps a vector to show they require multiple?)
 - builds way too many pylons
 - pylon occasionally unbuildable causing build order deadlock
 - got a weird random number out of bounds error
-- there's also a pointer/iterator issue with both a set and a vector
+- there's also a pointer/iterator issue a vector
 - some weird behaviour around tanks and ramps
 - reduce kite blocking by checking stalkers that are closer to retreat point and moving those out of the way (maybe if they are out of range)
 - continue implementing UnitData
-- expand before mining out may or may not work (possibly working too fast and cutting our max worker count too)
-- bases might not be readded to available locations after a nexus destruction
 
 DONE FOR NEXT UPLOAD:
+- fixed a bug causing crashes when no workers are available
+- fixed readding base bug
+- fixed a bug preventing reactions to worker harass

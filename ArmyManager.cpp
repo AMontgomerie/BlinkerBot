@@ -111,27 +111,15 @@ pulls workers to defend in the event that there are not enough fighting units
 */
 void ArmyManager::workerDefence()
 {
+	const Unit *threatenedStructure = underAttack();
 	//if we don't have enough fighting units then we need to pull some workers
-	if (underAttack() && (calculateSupply(enemyArmy) > calculateSupply(army) * 1.2))
+	if (threatenedStructure && (calculateSupplyAndWorkersInRadius(threatenedStructure->pos, enemyArmy) > 
+		calculateSupplyInRadius(threatenedStructure->pos, army) * 1.2))
 	{
-		const Unit *threatenedStructure = underAttack();
 		//if we don't have any workers then let's find some
 		if (pulledWorkers.empty())
 		{
-			/*
-			//calculate the size of the enemy army
-			int threatLevel = 2 * int(calculateSupply(enemyArmy));
-			*/
-			//calculate the threat level of the nearby enemy units
-			std::set<const Unit *> enemies;
-			for (auto enemy : enemyArmy)
-			{
-				if (Distance2D(enemy->pos, threatenedStructure->pos) < 20)
-				{
-					enemies.insert(enemy);
-				}
-			}
-			int threatLevel = 2 * int(calculateSupply(enemies));
+			int threatLevel = 2 * int(calculateSupplyAndWorkersInRadius(threatenedStructure->pos, enemyArmy));
 
 			//find nearby workers
 			for (auto unit : blinkerBot.Observation()->GetUnits())
@@ -453,6 +441,9 @@ int ArmyManager::calculateEnemyStaticDefence()
 	return total;
 }
 
+/*
+returns true if we have enough units to attack
+*/
 bool ArmyManager::canAttack()
 {
 	if (calculateSupply(army) > 1 
@@ -467,6 +458,9 @@ bool ArmyManager::canAttack()
 	}
 }
 
+/*
+returns true if we are attacking
+*/
 bool ArmyManager::sendAttackSignal()
 {
 	if (currentStatus == Attack)
@@ -508,6 +502,23 @@ float ArmyManager::calculateSupplyInRadius(Point2D centre, std::vector<ArmyUnit>
 			&& Distance2D(armyUnit.unit->pos, centre) < LOCALRADIUS)
 		{
 			total += blinkerBot.Observation()->GetUnitTypeData()[armyUnit.unit->unit_type].food_required;
+		}
+	}
+	return total;
+}
+
+/*
+calculates the supply of an army and workers within the radius of a given point (Unit * version)
+*/
+float ArmyManager::calculateSupplyAndWorkersInRadius(Point2D centre, std::set<const Unit *> army)
+{
+	float total = 0;
+	for (auto unit : army)
+	{
+		if (unit->last_seen_game_loop + 30 > blinkerBot.Observation()->GetGameLoop()
+			&& Distance2D(unit->pos, centre) < LOCALRADIUS)
+		{
+			total += blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].food_required;
 		}
 	}
 	return total;

@@ -137,11 +137,11 @@ const Unit *WorkerManager::getBuilder()
 	if (workers.size() > 0)
 	{
 		std::set<const Unit *>::const_iterator builder = workers.begin();
-		while (!isAvailableWorker(*builder) && builder != workers.end())
+		while (builder != workers.end() && !isAvailableWorker(*builder))
 		{
-			builder++;
+			++builder;
 		}
-		if (builder == workers.end() && !isAvailableWorker(*builder))
+		if (builder == workers.end() || !isAvailableWorker(*builder))
 		{
 			std::cerr << "WorkerManager::getBuilder(): No workers Available." << std::endl;
 			return nullptr;
@@ -391,7 +391,6 @@ void WorkerManager::assignScout()
 {
 	if (workers.empty())
 	{
-		std::cerr << "no workers to scout with" << std::endl;
 		return;
 	}
 	else

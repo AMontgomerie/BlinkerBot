@@ -89,7 +89,7 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 	}
 
 	//add extra gateways at a 3:1 gateway to base ratio as our economy improves
-	int extraProductionFacilities = (currentBases * 3) - currentProductionFacilities;
+	int extraProductionFacilities = (currentBases * 2) - currentProductionFacilities;
 	if (extraProductionFacilities > 0)
 	{
 
@@ -276,6 +276,9 @@ void BuildOrderManager::receiveCloakSignal(bool signal)
 	enemyHasCloak = signal;
 }
 
+/*
+returns a set of our bases
+*/
 std::set<const Unit *> BuildOrderManager::getBases()
 {
 	std::set<const Unit *> bases;
@@ -297,6 +300,9 @@ void BuildOrderManager::receiveMiningOutSignal(bool signal)
 	miningOut = signal;
 }
 
+/*
+creates an ordered list of important upgrades that need to be researched throughout the game
+*/
 void BuildOrderManager::initialiseKeyTechs()
 {
 	keyTechs.push_back(ABILITY_ID::RESEARCH_WARPGATE);
@@ -314,6 +320,9 @@ void BuildOrderManager::initialiseKeyTechs()
 	keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSSHIELDSLEVEL3);
 }
 
+/*
+add an upgrade to the set of completed ones
+*/
 void BuildOrderManager::addCompletedTech(UpgradeID upgrade)
 {
 	completedTechs.insert(upgrade);

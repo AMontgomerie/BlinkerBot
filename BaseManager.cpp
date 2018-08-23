@@ -402,23 +402,6 @@ std::vector<Base> BaseManager::getAvailableBaseLocations()
 
 Point2D BaseManager::getNextBaseLocation()
 {
-	/*
-	Base nextBase = *availableBases.begin();
-
-	//if we haven't calculated the base location yet, we need to do it before we pass it to production manager
-	//if (nextBase.getBuildLocation() == (*nextBase.getMinerals().begin())->pos)
-	if (nextBase.getBuildLocation() == calculateGasAverage(nextBase.getGeysers()))
-	{
-		//make a new base with the same minerals and gas and an accurate location
-		Base accurateBase = Base(nextBase.getMinerals(), nextBase.getGeysers(), calculateBuildLocation(nextBase));
-		//throw away the old version
-		removeNextBaseLocation();
-		//put the new base at the front
-		availableBases.insert(availableBases.begin(), accurateBase);
-	}
-	return (*availableBases.begin()).getBuildLocation();
-	*/
-
 	if (availableBases.empty())
 	{
 		std::cerr << "BaseManager::getNextBaseLocation(): No available expansions." << std::endl;
@@ -524,7 +507,7 @@ void BaseManager::addAvailableBaseLocation(const Unit * unit)
 {
 	for (auto base : bases)
 	{
-		if (base.getTownhall() == unit)
+		if (Distance2D(base.getBuildLocation(), unit->pos) < 10)
 		{
 			availableBases.push_back(base);
 		}
