@@ -17,6 +17,8 @@ class ArmyManager
 
 	enum ArmyStatus { Defend, Attack, Retreat, Regroup };
 
+	const int LOCALRADIUS = 15;
+
 	struct ArmyUnit
 	{
 		const Unit *unit;
@@ -31,6 +33,7 @@ class ArmyManager
 	std::set<const Unit *> enemyStructures;
 	bool regroupComplete;
 	bool enemyBaseExplored;
+	bool warpgate;
 	Point2D rallyPoint;
 
 	bool regroup();
@@ -40,10 +43,13 @@ class ArmyManager
 	bool canAttack();
 	float calculateSupply(std::set<const Unit *> army);
 	float calculateSupply(std::vector<ArmyUnit> army);
+	float calculateSupplyInRadius(Point2D centre, std::set<const Unit *> army);
+	float calculateSupplyInRadius(Point2D centre, std::vector<ArmyUnit> army);
 	const Unit *getClosestEnemy(const Unit *ourUnit);
 	const Unit *getClosestEnemy(Point2D point);
 	const Unit *getClosestEnemyBase(const Unit *ourUnit);
 	bool inRange(const Unit *attacker, const Unit *target);
+	bool inRange(const Unit *attacker, Point2D target);
 	bool shieldsCritical(const Unit *unit, const Unit *attacker);
 	bool blink(const Unit *unit);
 	void printDebug();
@@ -70,5 +76,6 @@ public:
 	bool detectionRequired();
 	void initialise();
 	const Unit *underAttack();
+	void warpgateComplete();
 };
 

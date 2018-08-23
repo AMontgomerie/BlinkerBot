@@ -1,7 +1,8 @@
 #include "ArmyManager.h"
 #include "Blinkerbot.h"
 
-ArmyManager::ArmyManager(BlinkerBot & bot) : blinkerBot(bot), currentStatus(Defend), regroupComplete(true), enemyBaseExplored(false)
+ArmyManager::ArmyManager(BlinkerBot & bot) : blinkerBot(bot), currentStatus(Defend), 
+regroupComplete(true), enemyBaseExplored(false), warpgate(false)
 {
 }
 
@@ -256,13 +257,15 @@ void ArmyManager::attack()
 			{
 				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::SMART, (*army.begin()).unit);
 			}
-			else if (retreating) //|| getClosestEnemyBase(armyUnit.unit) &&
-				//Distance2D(armyUnit.unit->pos, getClosestEnemyBase(armyUnit.unit)->pos) + 20 < averageUnitDistanceToEnemyBase())
+			//we want our unit to run away if either:
+			//- nearby retreating units have triggered the retreating flag
+			//- or we don't have warpgate and our units are spread out causing some units to arrive much earlier than others
+			//(this is turned off after warpgate because the constant army supply comparisons become expensive with large armies)
+			else if (retreating || !warpgate && ((armyUnit.unit->weapon_cooldown > 0 || 
+				getClosestEnemy(armyUnit.unit) && !inRange(armyUnit.unit, getClosestEnemy(armyUnit.unit))) && 
+				calculateSupplyInRadius(armyUnit.unit->pos, enemyArmy) > calculateSupplyInRadius(armyUnit.unit->pos, army)))
 			{
-				//if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::MOVE)
-				//{
-					blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, getRetreatPoint(armyUnit.unit));
-				//}
+				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, rallyPoint);
 			}
 			else
 			{
@@ -476,6 +479,40 @@ bool ArmyManager::sendAttackSignal()
 	}
 }
 
+/*
+calculates the supply of a given army within the radius of a given point (Unit * version)
+*/
+float ArmyManager::calculateSupplyInRadius(Point2D centre, std::set<const Unit *> army)
+{
+	float total = 0;
+	for (auto unit : army)
+	{
+		if (!UnitData::isWorker(unit) && unit->last_seen_game_loop + 30 > blinkerBot.Observation()->GetGameLoop() 
+			&& Distance2D(unit->pos, centre) < LOCALRADIUS)
+		{
+			total += blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].food_required;
+		}
+	}
+	return total;
+}
+
+/*
+calculates the supply of a given army within the radius of a given point (ArmyUnit version)
+*/
+float ArmyManager::calculateSupplyInRadius(Point2D centre, std::vector<ArmyUnit> army)
+{
+	float total = 0;
+	for (auto armyUnit : army)
+	{
+		if (!UnitData::isWorker(armyUnit.unit) && armyUnit.unit->last_seen_game_loop + 30 > blinkerBot.Observation()->GetGameLoop()
+			&& Distance2D(armyUnit.unit->pos, centre) < LOCALRADIUS)
+		{
+			total += blinkerBot.Observation()->GetUnitTypeData()[armyUnit.unit->unit_type].food_required;
+		}
+	}
+	return total;
+}
+
 float ArmyManager::calculateSupply(std::set<const Unit *> army)
 {
 	float total = 0;
@@ -655,7 +692,30 @@ const Unit *ArmyManager::getClosestEnemyBase(const Unit *ourUnit)
 	}
 }
 
-//returns true when attacker is in range of target
+/*
+returns true when the attacker is in range of the target point
+*/
+bool ArmyManager::inRange(const Unit *attacker, Point2D target)
+{
+	//make sure we have an attacker and a target
+	if (!attacker || blinkerBot.Observation()->GetUnitTypeData()[attacker->unit_type].weapons.size() == 0)
+	{
+		return false;
+	}
+	//check if the attacker is in range with their main weapon
+	else if (blinkerBot.Observation()->GetUnitTypeData()[attacker->unit_type].weapons.front().range >= Distance2D(attacker->pos, target))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
+returns true when the attacker is in range of the target unit
+*/
 bool ArmyManager::inRange(const Unit *attacker, const Unit *target)
 {
 	//make sure we have an attacker and a target
@@ -876,4 +936,9 @@ const Unit *ArmyManager::getClosestBase(Point2D point)
 		}
 	}
 	return closestBase;
+}
+
+void ArmyManager::warpgateComplete()
+{
+	warpgate = true;
 }

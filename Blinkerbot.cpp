@@ -125,6 +125,7 @@ void BlinkerBot::OnUnitCreated(const sc2::Unit *unit)
 
 void BlinkerBot::OnUnitIdle(const sc2::Unit *unit)
 {
+	//redundant
 	if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
 	{
 		productionManager.returnToMining(unit);
@@ -134,5 +135,9 @@ void BlinkerBot::OnUnitIdle(const sc2::Unit *unit)
 void BlinkerBot::OnUpgradeCompleted(UpgradeID upgrade)
 {
 	productionManager.onUpgradeComplete(upgrade);
+	if (upgrade == UPGRADE_ID::WARPGATERESEARCH)
+	{
+		armyManager.warpgateComplete();
+	}
 }
 

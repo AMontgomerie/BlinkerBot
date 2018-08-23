@@ -1,7 +1,5 @@
 high priority:
-- sortMineralLine only returns half of the minerals
-- turned off the conga line preventer: need an alternative solution with less spazzing
-- if a unit's dist to enemy is much closer than the avg, he should wait until the others catch up
+- deal with surrounds
 - figure out the control flow of onStep in ArmyManager; it's a mess
 
 later:
@@ -18,6 +16,3 @@ later:
 - bases might not be readded to available locations after a nexus destruction
 
 DONE FOR NEXT UPLOAD:
-- improved expansion location calculation so bot no longer takes 3rd before natural on some maps
-- improved scouting to include worker harass
-- baseManager now removes unplaceable bases rather than getting stuck like a bitch
