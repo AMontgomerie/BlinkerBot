@@ -19,69 +19,41 @@ void ArmyManager::initialise()
 
 void ArmyManager::onStep()
 {
-	/*
 	//timer stuff
 	std::clock_t start;
 	double duration;
 	start = std::clock();
 	//timer stuff
-	*/
 
+	//printDebug();
+	darkTemplarHarass();
+	moveObservers();
 	workerDefence();
-	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0 && underAttack())
+
+	const Unit *threatened = underAttack();
+	if (threatened)
 	{
-		//std::cerr << "under attack" << std::endl;
-		attack(underAttack()->pos);
+		attack(threatened->pos);
+		currentStatus = Defend;
 	}
-	else if (blinkerBot.Observation()->GetGameLoop() % 30 == 0 && canAttack() && regroupComplete)
+	else if (canAttack() && regroupComplete)
 	{
-		//std::cerr << "attacking" << std::endl;
+		attack();
 		currentStatus = Attack;
 	}
 	else
 	{
-		if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
-		{
-			//std::cerr << "regrouping" << std::endl;
-			regroupComplete = regroup();
-			currentStatus = Regroup;
-		}
+		regroupComplete = regroup();
+		currentStatus = Regroup;
 	}
 
-	switch (currentStatus)
-	{
-	case Attack:
-		if (blinkerBot.Observation()->GetGameLoop() % 120 == 0)
-		{
-			//std::cerr << "attack!" << std::endl;
-		}
-		attack();
-		break;
-	case Retreat:
-		if (blinkerBot.Observation()->GetGameLoop() % 120 == 0)
-		{
-			//std::cerr << "retreat!" << std::endl;
-		}
-		retreat();
-		break;
-	case Defend:
-		if (blinkerBot.Observation()->GetGameLoop() % 120 == 0)
-		{
-			//std::cerr << "defend!" << std::endl;
-		}
-		//nothing here
-		break;
-	}
-
-	/*
 	//timer stuff
 	duration = (std::clock() - start) / (double)CLOCKS_PER_SEC * 1000;
-	if (duration > 20)
+	if (duration > 30)
 	{
 		std::cout << "ArmyManager duration: " << duration << '\n';
 	}
 	//timer stuff
-	*/
 }
 
 /*
@@ -163,17 +135,16 @@ void ArmyManager::workerDefence()
 
 bool ArmyManager::regroup()
 {
-	if (army.size() > 0)
+	if (blinkerBot.Observation()->GetGameLoop() % 100 == 0 && army.size() > 0)
 	{
 		//tell units to go to the regroup point
-		Point2D regroupPoint = rallyPoint;
 		bool unitsCloseEnough = true;
 		for (auto armyUnit : army)
 		{
-			if (Distance2D(armyUnit.unit->pos, regroupPoint) > 10.0f)
+			if (Distance2D(armyUnit.unit->pos, rallyPoint) > 10.0f)
 			{
 				unitsCloseEnough = false;
-				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, regroupPoint);
+				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, rallyPoint);
 			}
 		}
 		return unitsCloseEnough;
@@ -228,30 +199,23 @@ void ArmyManager::attack()
 		else
 		{
 			bool retreating = false;
-			if (calculateSupply(army) < 50)
+			//if any nearby units are trying to kite, let's run back too so we don't get in their way
+			for (auto otherUnit : army)
 			{
-				//if any nearby units are trying to kite, let's run back too so we don't get in their way
-				for (auto otherUnit : army)
+				if (otherUnit.unit != armyUnit.unit && otherUnit.status == Retreat
+					&& Distance2D(armyUnit.unit->pos, otherUnit.unit->pos) < 8 && armyUnit.unit->weapon_cooldown > 0)
 				{
-					if (otherUnit.unit != armyUnit.unit && otherUnit.status == Retreat
-						&& Distance2D(armyUnit.unit->pos, otherUnit.unit->pos) < 8 && armyUnit.unit->weapon_cooldown > 0)
-					{
-						retreating = true;
-					}
+					retreating = true;
 				}
-			}
-			//we don't want to attack-move observers, so let's tell them to follow one of our units instead
-			if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
-			{
-				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::SMART, (*army.begin()).unit);
 			}
 			//we want our unit to run away if either:
 			//- nearby retreating units have triggered the retreating flag
 			//- or we don't have warpgate and our units are spread out causing some units to arrive much earlier than others
 			//(this is turned off after warpgate because the constant army supply comparisons become expensive with large armies)
-			else if (retreating || !warpgate && ((armyUnit.unit->weapon_cooldown > 0 || 
+			if (retreating || !warpgate && ((armyUnit.unit->weapon_cooldown > 0 || 
 				getClosestEnemy(armyUnit.unit) && !inRange(armyUnit.unit, getClosestEnemy(armyUnit.unit))) && 
-				calculateSupplyInRadius(armyUnit.unit->pos, enemyArmy) > calculateSupplyInRadius(armyUnit.unit->pos, army)))
+				(calculateSupplyInRadius(armyUnit.unit->pos, enemyArmy) + calculateEnemyStaticDefenceInRadius(armyUnit.unit->pos)) > 
+				calculateSupplyInRadius(armyUnit.unit->pos, army)))
 			{
 				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, rallyPoint);
 			}
@@ -349,40 +313,68 @@ void ArmyManager::retreat()
 	}
 }
 
+/*
+adds newly created units to the appropriate group
+*/
 void ArmyManager::addUnit(const Unit *unit)
 {
-	for (auto armyUnit : army)
+	if (unit->unit_type == UNIT_TYPEID::PROTOSS_DARKTEMPLAR)
 	{
-		if (armyUnit.unit == unit)
-		{
-			return;
-		}
+		darkTemplars.insert(unit);
 	}
-	army.push_back(ArmyUnit(unit, Attack));
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
+	{
+		observers.insert(unit);
+	}
+	else
+	{
+		for (auto armyUnit : army)
+		{
+			if (armyUnit.unit == unit)
+			{
+				return;
+			}
+		}
+		army.push_back(ArmyUnit(unit, Attack));
+	}
 }
 
+/*
+removes dead units from their groups
+*/
 void ArmyManager::removeUnit(const Unit *unit)
 {
-	for (std::vector<ArmyUnit>::iterator armyUnit = army.begin(); armyUnit != army.end();)
+	if (unit->unit_type == UNIT_TYPEID::PROTOSS_DARKTEMPLAR)
 	{
-		if ((*armyUnit).unit == unit)
-		{
-			armyUnit = army.erase(armyUnit);
-		}
-		else
-		{
-			++armyUnit;
-		}
+		darkTemplars.erase(unit);
 	}
-	for (std::set<const Unit*>::iterator worker = pulledWorkers.begin(); worker != pulledWorkers.end();)
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
 	{
-		if (*worker == unit)
+		observers.erase(unit);
+	}
+	else
+	{
+		for (std::vector<ArmyUnit>::iterator armyUnit = army.begin(); armyUnit != army.end();)
 		{
-			pulledWorkers.erase(worker++);
+			if ((*armyUnit).unit == unit)
+			{
+				armyUnit = army.erase(armyUnit);
+			}
+			else
+			{
+				++armyUnit;
+			}
 		}
-		else
+		for (std::set<const Unit*>::iterator worker = pulledWorkers.begin(); worker != pulledWorkers.end();)
 		{
-			++worker;
+			if (*worker == unit)
+			{
+				pulledWorkers.erase(worker++);
+			}
+			else
+			{
+				++worker;
+			}
 		}
 	}
 }
@@ -431,7 +423,7 @@ int ArmyManager::calculateEnemyStaticDefence()
 			structure->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON ||
 			structure->unit_type == UNIT_TYPEID::ZERG_SPINECRAWLER)
 		{
-			total += 8;
+			total += 6;
 		}
 		else if (structure->unit_type == UNIT_TYPEID::TERRAN_PLANETARYFORTRESS)
 		{
@@ -446,9 +438,9 @@ returns true if we have enough units to attack
 */
 bool ArmyManager::canAttack()
 {
-	if (calculateSupply(army) > 1 
+	if (calculateSupply(army) > 1
 		&& (calculateSupply(army) >= calculateSupply(enemyArmy) + calculateEnemyStaticDefence() || 
-			blinkerBot.Observation()->GetFoodCap() <= blinkerBot.Observation()->GetFoodUsed() + 30))
+			blinkerBot.Observation()->GetFoodUsed() + 30 >= 200))
 	{
 		return true;
 	}
@@ -459,18 +451,11 @@ bool ArmyManager::canAttack()
 }
 
 /*
-returns true if we are attacking
+returns our current ArmyStatus
 */
-bool ArmyManager::sendAttackSignal()
+ArmyStatus ArmyManager::getArmyStatus()
 {
-	if (currentStatus == Attack)
-	{
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+	return currentStatus;
 }
 
 /*
@@ -481,7 +466,7 @@ float ArmyManager::calculateSupplyInRadius(Point2D centre, std::set<const Unit *
 	float total = 0;
 	for (auto unit : army)
 	{
-		if (!UnitData::isWorker(unit) && unit->last_seen_game_loop + 30 > blinkerBot.Observation()->GetGameLoop() 
+		if (!UnitData::isWorker(unit) && unit->last_seen_game_loop + 200 > blinkerBot.Observation()->GetGameLoop() 
 			&& Distance2D(unit->pos, centre) < LOCALRADIUS)
 		{
 			total += blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].food_required;
@@ -498,7 +483,7 @@ float ArmyManager::calculateSupplyInRadius(Point2D centre, std::vector<ArmyUnit>
 	float total = 0;
 	for (auto armyUnit : army)
 	{
-		if (!UnitData::isWorker(armyUnit.unit) && armyUnit.unit->last_seen_game_loop + 30 > blinkerBot.Observation()->GetGameLoop()
+		if (!UnitData::isWorker(armyUnit.unit) && armyUnit.unit->last_seen_game_loop + 200 > blinkerBot.Observation()->GetGameLoop()
 			&& Distance2D(armyUnit.unit->pos, centre) < LOCALRADIUS)
 		{
 			total += blinkerBot.Observation()->GetUnitTypeData()[armyUnit.unit->unit_type].food_required;
@@ -776,15 +761,16 @@ bool ArmyManager::shieldsCritical(const Unit *unit, const Unit *attacker)
 
 void ArmyManager::printDebug()
 {
-	/*
+
 	std::ostringstream ourArmy;
 	ourArmy << "Current army supply: " << calculateSupply(army) << std::endl;
-	blinkerBot.Debug()->DebugTextOut(ourArmy.str(), Point2D(0.1f, 0.5f));
+	blinkerBot.Debug()->DebugTextOut(ourArmy.str());
 	std::ostringstream theirArmy;
 	theirArmy << "Known enemy army supply: " << calculateSupply(enemyArmy) << std::endl;
-	blinkerBot.Debug()->DebugTextOut(theirArmy.str(), Point2D(0.1f, 0.6f));
+	blinkerBot.Debug()->DebugTextOut(theirArmy.str());
 	blinkerBot.Debug()->SendDebug();
 
+	/*
 	std::string armyStatus;
 	switch (currentStatus)
 	{
@@ -949,7 +935,80 @@ const Unit *ArmyManager::getClosestBase(Point2D point)
 	return closestBase;
 }
 
+/*
+let's Army Manager know when we have finished the warpgate upgrade
+*/
 void ArmyManager::warpgateComplete()
 {
 	warpgate = true;
+}
+
+/*
+returns true if the enemy army is much larger than ours
+*/
+bool ArmyManager::behind()
+{
+	if (warpgate && calculateSupply(army) * 2 < calculateSupply(enemyArmy))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
+tells any dark templars we have to attack the enemy
+*/
+void ArmyManager::darkTemplarHarass()
+{
+	for (auto dt : darkTemplars)
+	{
+		if (dt->orders.empty())
+		{
+			blinkerBot.Actions()->UnitCommand(dt, ABILITY_ID::ATTACK, getClosestEnemyBase(dt)->pos);
+		}
+	}
+}
+
+/*
+finds idle observers and makes them follow one of our units
+*/
+void ArmyManager::moveObservers()
+{
+	for (auto observer : observers)
+	{
+		if (observer->orders.empty() && !army.empty())
+		{
+			const Unit *unitToFollow = GetRandomEntry(army).unit;
+			blinkerBot.Actions()->UnitCommand(observer, ABILITY_ID::SMART, unitToFollow);
+		}
+	}
+}
+
+/*
+returns a value representing the threat level posed by static defence within a local radius. 
+The threat level is compared against supply counts.
+*/
+float ArmyManager::calculateEnemyStaticDefenceInRadius(Point2D centre)
+{
+	float total = 0;
+	for (auto structure : enemyStructures)
+	{
+		if (Distance2D(structure->pos, centre) < LOCALRADIUS)
+		{
+			if (structure->unit_type == UNIT_TYPEID::TERRAN_BUNKER ||
+				structure->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON ||
+				structure->unit_type == UNIT_TYPEID::ZERG_SPINECRAWLER)
+			{
+				total += 6;
+			}
+			else if (structure->unit_type == UNIT_TYPEID::TERRAN_PLANETARYFORTRESS)
+			{
+				total += 20;
+			}
+		}
+	}
+	return total;
 }

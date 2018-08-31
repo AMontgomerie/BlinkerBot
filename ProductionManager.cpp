@@ -3,7 +3,7 @@
 
 ProductionManager::ProductionManager(BlinkerBot & bot): 
 	blinkerBot(bot), baseManager(bot), productionQueue(bot), workerManager(bot), buildOrderManager(bot), 
-	forwardPylon(nullptr), nextPylonLocation(Point2D(-1.0,-1.0)), attacking(false), enemyHasCloak(false), lastProductionFrame(0)
+	forwardPylon(nullptr), nextPylonLocation(Point2D(-1.0,-1.0)), enemyHasCloak(false), lastProductionFrame(0)
 {
 	productionQueue.initialiseQueue();
 }
@@ -34,13 +34,11 @@ void ProductionManager::initialise()
 
 void ProductionManager::onStep()
 {
-	/*
 	//timer stuff
 	std::clock_t start;
 	double duration;
 	start = std::clock();
 	//timer stuff
-	*/
 
 	if (blinkerBot.Observation()->GetGameLoop() - lastProductionFrame > DEADLOCK
 		&& uint32_t(blinkerBot.Observation()->GetMinerals()) > DEADLOCK)
@@ -68,26 +66,31 @@ void ProductionManager::onStep()
 	{
 		chronoBoost();
 
-		//let's stop production briefly to make sure the next base actually gets started
-		if (!(productionQueue.getNextItem().item == ABILITY_ID::BUILD_NEXUS && 
-			blinkerBot.Observation()->GetGameLoop() - lastProductionFrame < DEADLOCK))
+		//let's stop regular production briefly to make sure the next base gets started or a key unit gets trained
+		if (!isBlocking(productionQueue.getNextItem().item) || armyStatus == Defend)
 		{
 			trainUnits();
+			if (workerManager.getWorkerCount() > 30)
+			{
+				trainColossus();
+			}
+		}
+		else
+		{
+			//std::cerr << "cutting production for important item" << std::endl;
 		}
 
 		//if worker manager sends a warning that a base is mining out, build order manager needs to be informed
 		buildOrderManager.receiveMiningOutSignal(workerManager.miningOut());
 	}
 
-	/*
 	//timer stuff
 	duration = (std::clock() - start) / (double)CLOCKS_PER_SEC * 1000;
-	if (duration > 20)
+	if (duration > 30)
 	{
 		std::cout << "ProductionManager duration: " << duration << '\n';
 	}
 	//timer stuff
-	*/
 }
 
 /*
@@ -150,14 +153,6 @@ void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 //trains units automatically (independent of productionQueue)
 void ProductionManager::trainUnits()
 {
-	bool haveCyberneticscore = false;
-	for (auto structure : structures)
-	{
-		if (structure->unit_type == UNIT_TYPEID::PROTOSS_CYBERNETICSCORE && structure->build_progress == 1.0)
-		{
-			haveCyberneticscore = true;
-		}
-	}
 	for (auto structure : structures)
 	{
 		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->orders.size() == 0 
@@ -171,10 +166,10 @@ void ProductionManager::trainUnits()
 			if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY)
 			{
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::MORPH_WARPGATE);
+				warpGates.insert(structure);
 			}
 			//otherwise train some units
-			if (haveCyberneticscore &&
-				blinkerBot.Observation()->GetVespene() > blinkerBot.Observation()->GetUnitTypeData()[UnitTypeID(UNIT_TYPEID::PROTOSS_STALKER)].vespene_cost)
+			if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) && canAffordGas(UNIT_TYPEID::PROTOSS_STALKER))
 			{
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_STALKER);
 			}
@@ -183,21 +178,23 @@ void ProductionManager::trainUnits()
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_ZEALOT);
 			}
 		}
-		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY && structure->orders.size() == 0)
-		{
-			blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_COLOSSUS);
-		}
 		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE)
 		{
 			Point2D location = Point2D(rallyPoint.x + GetRandomScalar() * 7.0f, rallyPoint.y + GetRandomScalar() * 7.0f);
-			if (haveCyberneticscore &&
-				blinkerBot.Observation()->GetVespene() > blinkerBot.Observation()->GetUnitTypeData()[UnitTypeID(UNIT_TYPEID::PROTOSS_STALKER)].vespene_cost)
+			if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) && canAffordGas(UNIT_TYPEID::PROTOSS_STALKER))
 			{
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAINWARP_STALKER, location);
 			}
 			else
 			{
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAINWARP_ZEALOT, location);
+			}
+		}
+		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY)
+		{
+			if (structure->orders.size() == 0 && canAffordGas(UNIT_TYPEID::PROTOSS_IMMORTAL))
+			{
+				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_IMMORTAL);
 			}
 		}
 	}
@@ -239,11 +236,10 @@ void ProductionManager::build(BuildOrderItem item)
 	else
 	{
 		//if we have the tech, then let's check if we have the necessary resources
-		if ((blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].mineral_cost)
-			&& (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].vespene_cost))
-		{
+		//if (canAfford(UnitData::getUnitTypeID(item.item)))
+		//{
 			buildStructure(item.item);
-		}
+		//}
 	}
 }
 
@@ -253,8 +249,6 @@ void ProductionManager::train(BuildOrderItem item)
 	bool isStarted = false;
 	bool isTrainable = false;
 	const Unit *productionFacility = nullptr;
-	//UnitTypeID requiredStructure = blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].tech_requirement;
-
 	UnitTypeID requiredStructure = UnitData::requiredStructure(item.item);
 
 	//search our buildings
@@ -278,21 +272,50 @@ void ProductionManager::train(BuildOrderItem item)
 			isTrainable = true;
 		}
 	}
+	//if we are trying to build a colossus, we need to set the production facility to the robo facility rather than robo bay
+	if (item.item == ABILITY_ID::TRAIN_COLOSSUS)
+	{
+		for (auto structure : structures)
+		{
+			if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY)
+			{
+				productionFacility = structure;
+			}
+		}
+	}
 	//if we don't have what we need, place what we need at the front of the production queue
 	if (!isTrainable)
 	{
 		//std::cerr << UnitTypeToName(requiredStructure) << std::endl;
 		productionQueue.addItemHighPriority(blinkerBot.Observation()->GetUnitTypeData()[requiredStructure].ability_id);
 	}
-	
 	//if we haven't started it yet, then let's try
 	else if (isTrainable && !isStarted)
 	{
 		//check if we have the necessary resources
-		if ((blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].mineral_cost)
-			&& (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUnitTypeData()[UnitData::getUnitTypeID(item.item)].vespene_cost))
+		if (canAfford(UnitData::getUnitTypeID(item.item)))
 		{
-			blinkerBot.Actions()->UnitCommand(productionFacility, item.item);
+			//warp it in if possible
+			if (UnitData::canWarpIn(item.item))
+			{
+				Point2D location = Point2D(rallyPoint.x + GetRandomScalar() * 7.0f, rallyPoint.y + GetRandomScalar() * 7.0f);
+				//const Unit *warpGate = *GetRandomEntry(warpGates);
+				if (warpGates.empty())
+				{
+					std::cerr << "ProductionManager::train(): No warp gates found." << std::endl;
+					productionQueue.removeItem();
+				}
+				else
+				{
+					const Unit *warpGate = *warpGates.begin();
+					blinkerBot.Actions()->UnitCommand(warpGate, item.item, location);
+				}
+			}
+			//otherwise just train it
+			else
+			{
+				blinkerBot.Actions()->UnitCommand(productionFacility, item.item);
+			}
 		}
 	}
 }
@@ -346,12 +369,7 @@ void ProductionManager::research(BuildOrderItem item)
 	//if we haven't started it yet, then let's try
 	else if (!isStarted)
 	{
-		//check if we have the necessary resources (these techs don't seem to be in upgrade data)
-		//if ((blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUpgradeData()[item.item].mineral_cost)
-		//	&& (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUpgradeData()[item.item].vespene_cost))
-		//{
-			blinkerBot.Actions()->UnitCommand(researchStructure, item.item);
-		//}
+		blinkerBot.Actions()->UnitCommand(researchStructure, item.item);
 	}
 }
 
@@ -493,7 +511,7 @@ const Unit *ProductionManager::getLeastArtosisPylon()
 void ProductionManager::setNextPylonLocation()
 {
 	//if we need a forward pylon then build the pylon there
-	if (forwardPylon == nullptr && attacking)
+	if (forwardPylon == nullptr && armyStatus == Attack)
 	{
 		nextPylonLocation = forwardPylonPoint;
 	}
@@ -513,6 +531,12 @@ void ProductionManager::setNextPylonLocation()
 
 		//get the grid of buildable locations for the area around that base
 		std::vector<Point2D> buildGrid = getBuildGrid(buildLocation);
+
+		//if there aren't any available locations at our current base, let's move on to the next one
+		if (buildGrid.empty())
+		{
+			buildGrid = getBuildGrid(baseManager.getNextBaseLocation());
+		}
 
 		//select a random location from the available ones
 		buildLocation = GetRandomEntry(buildGrid);
@@ -549,11 +573,15 @@ updates the relevant sets and vectors when a new unit is created
 */
 void ProductionManager::addNewUnit(const Unit *unit)
 {
-	if (blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].ability_id == productionQueue.getNextItem().item)
+	//if the new unit matches the thing at the front of our queue, remove the front element
+	//ability_id doesn't work for TRAINWARP units, so we need to check that separately
+	if (blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].ability_id == productionQueue.getNextItem().item
+		|| UnitData::getTrainWarpAbilityID(unit->unit_type) == productionQueue.getNextItem().item)
 	{
 		productionQueue.removeItem();
 		lastProductionFrame = blinkerBot.Observation()->GetGameLoop();
 	}
+	//depending on the unit type, let's add it to the relevant group
 	if (UnitData::isOurs(unit) && UnitData::isStructure(unit))
 	{
 		addStructure(unit);
@@ -567,19 +595,27 @@ void ProductionManager::addNewUnit(const Unit *unit)
 		}
 		setNextPylonLocation();
 	}
-	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
+	else if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
 	{
 		workerManager.addWorker(unit);
 	}
-	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
+	else if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
 	{
 		workerManager.addGas(unit);
 		baseManager.addGas(unit);
 	}
-	if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && blinkerBot.Observation()->GetGameLoop() > 1)
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && blinkerBot.Observation()->GetGameLoop() > 1)
 	{
 		
 		baseManager.removeNextBaseLocation();
+	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_DARKTEMPLAR)
+	{
+		dts.insert(unit);
+	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
+	{
+		observers.insert(unit);
 	}
 }
 
@@ -591,6 +627,18 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 	if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
 	{
 		workerManager.removeWorker(unit);
+	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_DARKTEMPLAR)
+	{
+		dts.erase(unit);
+	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
+	{
+		observers.erase(unit);
+	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE)
+	{
+		warpGates.erase(unit);
 	}
 	else
 	{	
@@ -638,22 +686,11 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 }
 
 /*
-lets the production manager know whether we are attacking or not. The value is supplied by the army manager.
+receives the current ArmyStatus from ArmyManager.
 */
-void ProductionManager::receiveAttackSignal(bool attack)
+void ProductionManager::receiveArmyStatus(ArmyStatus status)
 {
-	attacking = attack;
-	/*
-	//if (attack && forwardPylon == NULL)
-	if (attack && pylons.size() > 0 && Distance2D(getClosestPylon(forwardPylonPoint)->pos, forwardPylonPoint) > 50.0f)
-	{
-		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
-	}
-	else if (pylons.size() > 0 && Distance2D(getClosestPylon(forwardPylonPoint)->pos, forwardPylonPoint) < 50.0f)
-	{
-		//std::cerr << "we've already got a forward pylon" << std::endl;
-	}
-	*/
+	armyStatus = status;
 }
 
 /*
@@ -675,7 +712,9 @@ void ProductionManager::locateForwardPylonPoint()
 				proxyBase = base;
 			}
 		}
-		forwardPylonPoint = proxyBase.getBuildLocation();
+		//forwardPylonPoint = proxyBase.getBuildLocation();
+		forwardPylonPoint = Point2D(proxyBase.getBuildLocation().x + GetRandomScalar() * 5.0f, 
+			proxyBase.getBuildLocation().y + GetRandomScalar() * 5.0f);
 	}
 	//if we don't know where the bases on the map are, or we don't know where the enemy base is, just put the pylon somewhere near the middle
 	else
@@ -938,36 +977,37 @@ void ProductionManager::receiveCloakSignal(bool signal)
 {
 	buildOrderManager.receiveCloakSignal(signal);
 
+	//check if we have the ability to produce detectors
+	bool detectionProducable = false;
+	for (auto structure : structures)
+	{
+		if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY && structure->build_progress == 1.0)
+		{
+			detectionProducable = true;
+		}
+	}
+
+	//check if we already started producing
+	bool alreadyConstructing = false;
+	bool alreadyTraining = false;
+	for (auto item : getCurrentlyInProduction())
+	{
+		if (item.first == ABILITY_ID::TRAIN_OBSERVER)
+		{
+			alreadyTraining = true;
+		}
+		else if (item.first == ABILITY_ID::BUILD_ROBOTICSFACILITY)
+		{
+			alreadyConstructing = true;
+		}
+	}
+
+	//(signal is passed via Army Manager)
 	if (signal)
 	{
 		enemyHasCloak = true;
-		//check if we have the ability to produce detectors
-		bool detectionProducable = false;
-		for (auto structure : structures)
-		{
-			if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY) //||
-				//structure->unit_type == UNIT_TYPEID::PROTOSS_FORGE)
-			{
-				detectionProducable = true;
-			}
-		}
 
-		//check if we already started producing
-		bool alreadyConstructing = false;
-		bool alreadyTraining = false;
-		for (auto item : getCurrentlyInProduction())
-		{
-			if (item.first == ABILITY_ID::TRAIN_OBSERVER)
-			{
-				alreadyTraining = true;
-			}
-			if (item.first == ABILITY_ID::BUILD_ROBOTICSFACILITY)
-			{
-				alreadyConstructing = true;
-			}
-		}
-
-		//build or train if necessary
+		//if we don't already have a robo facility on the way, let's start one
 		if (!detectionProducable && !alreadyConstructing)
 		{
 			if (!productionQueue.includes(ABILITY_ID::BUILD_ROBOTICSFACILITY))
@@ -975,12 +1015,14 @@ void ProductionManager::receiveCloakSignal(bool signal)
 				productionQueue.addItemHighPriority(ABILITY_ID::BUILD_ROBOTICSFACILITY);
 			}
 		}
-		else if (detectionProducable && !alreadyTraining)
+	}
+
+	//if we can make observers but we don't have one, make one
+	if (detectionProducable && !alreadyTraining && observers.empty())
+	{
+		if (!productionQueue.includes(ABILITY_ID::TRAIN_OBSERVER))
 		{
-			if (!productionQueue.includes(ABILITY_ID::TRAIN_OBSERVER))
-			{
-				productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_OBSERVER);
-			}
+			productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_OBSERVER);
 		}
 	}
 }
@@ -1241,6 +1283,7 @@ void ProductionManager::breakDeadlock()
 	//if we were trying to build a pylon, then get a new random location
 	if (productionQueue.getNextItem().item == ABILITY_ID::BUILD_PYLON)
 	{
+		locateForwardPylonPoint();
 		setNextPylonLocation();
 	}
 	//let's delete whatever was in our current queue, and generate a new one
@@ -1250,39 +1293,134 @@ void ProductionManager::breakDeadlock()
 }
 
 /*
-tells a worker to mine minerals (called by BlinkerBot::OnUnitIdle)
-REDUNDANT: now handled by WorkerManager
+returns true if we already have one of this type of structure (completed or in progress)
 */
-void ProductionManager::returnToMining(const Unit *unit)
+bool ProductionManager::structureExists(UnitTypeID structure)
 {
-	/*
-	//first let's check if there's any visible minerals nearby
-	bool nextToMineral = false;
-	for (auto mineral : blinkerBot.Observation()->GetUnits())
+	for (auto ourStructure : structures)
 	{
-		//if we find some nearby visible minerals, let's right click 'em
-		if (mineral->mineral_contents > 0 && Distance2D(mineral->pos, unit->pos) < 10 && mineral->display_type == Unit::DisplayType::Visible)
+		if (ourStructure->unit_type == structure)
 		{
-			nextToMineral = true;
-			blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::SMART, mineral);
+			return true;
 		}
 	}
-	//if there's no visible minerals nearby, issue a move command towards the minerals at the closest base
-	//we issue move rather than smart here because smart can't right click on units with a display_type of snapshot (which might be the case here)
-	if (!nextToMineral)
+	return false;
+}
+
+/*
+returns true if we already have one of this type of structure completed
+*/
+bool ProductionManager::completedStructureExists(UnitTypeID structure)
+{
+	for (auto ourStructure : structures)
 	{
-		//find the closest base
-		Base closestBase = *baseManager.getOurBases().begin();
-		for (auto base : baseManager.getOurBases())
+		if (ourStructure->unit_type == structure && ourStructure->build_progress == 1.0)
 		{
-			if (Distance2D(unit->pos, base.getBuildLocation()) < Distance2D(unit->pos, closestBase.getBuildLocation()))
-			{
-				closestBase = base;
-			}
+			return true;
 		}
-		const Unit * mineral = *closestBase.getMinerals().begin();
-		//move towards the minerals
-		blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::MOVE, mineral);
 	}
-	*/
+	return false;
+}
+
+/*
+makes a dark shrine and dts if we don't have them already
+*/
+void ProductionManager::darkShrine(bool signal)
+{
+	//signal is passed via Army Manager telling us when we need to start a dark shrine
+	if (signal)
+	{
+		//if we haven't yet started a dark shrine, let's do that and add a dt to the end of the queue for later
+		if (!structureExists(UNIT_TYPEID::PROTOSS_DARKSHRINE) && !productionQueue.includes(ABILITY_ID::BUILD_DARKSHRINE))
+		{
+			productionQueue.addItemHighPriority(ABILITY_ID::BUILD_DARKSHRINE);
+			productionQueue.addItemLowPriority(ABILITY_ID::TRAINWARP_DARKTEMPLAR);
+		}
+	}
+
+	//if we already have a dark shrine, then just queue up a dt if don't have one
+	if (completedStructureExists(UNIT_TYPEID::PROTOSS_DARKSHRINE) && dts.empty() 
+		&& !productionQueue.includes(ABILITY_ID::TRAINWARP_DARKTEMPLAR))
+	{
+		productionQueue.addItemHighPriority(ABILITY_ID::TRAINWARP_DARKTEMPLAR);
+	}
+}
+
+/*
+returns true if we have enough minerals and gas to make the given unit type
+*/
+bool ProductionManager::canAfford(UnitTypeID unit)
+{
+	if (blinkerBot.Observation()->GetVespene() > blinkerBot.Observation()->GetUnitTypeData()[unit].vespene_cost &&
+		blinkerBot.Observation()->GetMinerals() > blinkerBot.Observation()->GetUnitTypeData()[unit].mineral_cost)
+	{
+		return true;
+	}
+	else
+	{
+		//std::cerr << "we can't afford a " << UnitTypeToName(unit) << std::endl;
+		return false;
+	}
+}
+
+/*
+returns true if we have enough gas to make the given unit type
+*/
+bool ProductionManager::canAffordGas(UnitTypeID unit)
+{
+	if (blinkerBot.Observation()->GetVespene() > blinkerBot.Observation()->GetUnitTypeData()[unit].vespene_cost)
+	{
+		return true;
+	}
+	else
+	{
+		//std::cerr << "we can't afford a " << UnitTypeToName(unit) << std::endl;
+		return false;
+	}
+}
+
+/*
+returns true if the ability is a high priority ability (so that we know to block other production until it starts)
+*/
+bool ProductionManager::isBlocking(AbilityID ability)
+{
+	//some important buildings and units are blocking
+	if (ability == ABILITY_ID::BUILD_NEXUS || ability == ABILITY_ID::BUILD_ROBOTICSFACILITY ||
+		(completedStructureExists(UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY) && 
+			completedStructureExists(UNIT_TYPEID::PROTOSS_ROBOTICSBAY) && ability == ABILITY_ID::TRAIN_COLOSSUS) ||
+		(completedStructureExists(UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY) && ability == ABILITY_ID::BUILD_ROBOTICSBAY) ||
+		(completedStructureExists(UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL) && ability == ABILITY_ID::BUILD_DARKSHRINE) ||
+		(completedStructureExists(UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY) && ability == ABILITY_ID::TRAIN_OBSERVER) ||
+		(completedStructureExists(UNIT_TYPEID::PROTOSS_DARKSHRINE) && ability == ABILITY_ID::TRAINWARP_DARKTEMPLAR))
+	{
+		return true;
+	}
+	//key technologies are also blocking as long as we have the necessary tech to start them
+	else if (buildOrderManager.isKeyTech(ability) && completedStructureExists(UnitData::requiredStructure(ability)))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
+adds colossuses to the production queue
+*/
+void ProductionManager::trainColossus()
+{
+	for (auto structure : structures)
+	{
+		//if we have an idle completed robo facility and can train colossus, add one to the queue
+		if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY &&
+			structure->build_progress == 1.0 &&
+			structure->orders.empty() &&
+			completedStructureExists(UNIT_TYPEID::PROTOSS_ROBOTICSBAY) &&
+			!productionQueue.includes(ABILITY_ID::TRAIN_COLOSSUS))
+		{
+			productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_COLOSSUS);
+		}
+	}
 }

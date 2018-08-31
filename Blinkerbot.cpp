@@ -26,7 +26,7 @@ void BlinkerBot::OnStep()
 	*/
 
 	productionManager.onStep();
-	productionManager.receiveAttackSignal(armyManager.sendAttackSignal());
+	productionManager.receiveArmyStatus(armyManager.getArmyStatus());
 	productionManager.receiveCloakSignal(armyManager.detectionRequired());
 	armyManager.onStep();
 
@@ -50,6 +50,9 @@ void BlinkerBot::OnStep()
 	}
 	productionManager.setRallyPoint(rallyPoint);
 	armyManager.setRallyPoint(rallyPoint);
+
+	//when behind, dark shrine!
+	productionManager.darkShrine(armyManager.behind());
 
 	/*
 	//timer stuff
@@ -108,28 +111,22 @@ void BlinkerBot::OnBuildingConstructionComplete(const sc2::Unit* unit)
 
 void BlinkerBot::OnUnitCreated(const sc2::Unit *unit)
 {
-	if ((unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT) 
-		|| (unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER) 
-		|| (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
-		|| (unit->unit_type == UNIT_TYPEID::PROTOSS_COLOSSUS)
-		|| (unit->unit_type == UNIT_TYPEID::PROTOSS_IMMORTAL))
+	productionManager.addNewUnit(unit);
+
+	if (unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT || 
+			 unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER || 
+			 unit->unit_type == UNIT_TYPEID::PROTOSS_COLOSSUS || 
+			 unit->unit_type == UNIT_TYPEID::PROTOSS_DARKTEMPLAR ||
+			 unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER ||
+			 unit->unit_type == UNIT_TYPEID::PROTOSS_IMMORTAL)
 	{
 		armyManager.addUnit(unit);
 	}
-	else
-	{
-		productionManager.addNewUnit(unit);
-	}
-	
 }
 
 void BlinkerBot::OnUnitIdle(const sc2::Unit *unit)
 {
-	//redundant
-	if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
-	{
-		productionManager.returnToMining(unit);
-	}
+
 }
 
 void BlinkerBot::OnUpgradeCompleted(UpgradeID upgrade)

@@ -14,10 +14,12 @@
 using namespace sc2;
 
 class BlinkerBot;
+enum ArmyStatus;
 
 class ProductionManager
 {
 	const uint32_t DEADLOCK = 1000;
+	//enum ArmyStatus { Defend, Attack, Retreat, Regroup };
 
 	BlinkerBot & blinkerBot;
 	ProductionQueue productionQueue;
@@ -27,13 +29,16 @@ class ProductionManager
 
 	std::set<const Unit *> structures;
 	std::set<const Unit *> pylons;
+	std::set<const Unit *> warpGates;
 	std::set<const Unit *> enemyBases;
-	std::set<const Unit*> miningBases;
+	std::set<const Unit *> miningBases;
+	std::set<const Unit *> dts;
+	std::set<const Unit *> observers;
 	Point2D nextPylonLocation;
 	const Unit *forwardPylon;
 	Point2D rallyPoint;
 	Point2D forwardPylonPoint;
-	bool attacking;
+	ArmyStatus armyStatus;
 	bool enemyHasCloak;
 	int lastProductionFrame;
 
@@ -61,6 +66,12 @@ class ProductionManager
 	const Unit *getClosestEnemyBase(Point2D point);
 	void breakDeadlock();
 	float calculateSupplyCapacity();
+	bool structureExists(UnitTypeID structure);
+	bool completedStructureExists(UnitTypeID structure);
+	bool canAfford(UnitTypeID unit);
+	bool canAffordGas(UnitTypeID unit);
+	bool isBlocking(AbilityID ability);
+	void trainColossus();
 public:
 	ProductionManager(BlinkerBot & bot);
 	~ProductionManager();
@@ -69,7 +80,7 @@ public:
 	void onUnitDestroyed(const Unit *unit);
 	void addStructure(const Unit *unit);
 	void addNewUnit(const Unit *unit);
-	void receiveAttackSignal(bool attack);
+	void receiveArmyStatus(ArmyStatus status);
 	void addEnemyBase(const Unit *unit);
 	void removeEnemyBase(const Unit *unit);
 	void receiveCloakSignal(bool signal);
@@ -78,6 +89,6 @@ public:
 	const Unit *getClosestPylonToEnemyBase();
 	const Unit *getClosestPylon(Point2D point);
 	void setRallyPoint(Point2D point);
-	void returnToMining(const Unit *unit);
+	void darkShrine(bool signal);
 };
 

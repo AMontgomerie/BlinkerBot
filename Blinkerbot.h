@@ -11,7 +11,7 @@
 #include <ctime>
 
 using namespace sc2;
-
+enum ArmyStatus { Defend, Attack, Retreat, Regroup };
 
 class BlinkerBot : public sc2::Agent
 {

@@ -72,6 +72,24 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 	//first let's count the number of things we currently have
 	updateStructureCounts();
 
+	//next let's calculate how many extra things we want
+	int extraCannons = currentBases - currentCannons;
+	int extraProductionFacilities = (currentBases * 2) - currentProductionFacilities;
+	int extraGases = (currentBases * 2) - currentGases;
+	/*
+	int readyToMineBases = 0;
+	for (auto base : getBases())
+	{
+		if (base->build_progress > 0.5)
+		{
+			readyToMineBases++;
+		}
+	}
+	*/
+
+	//int extraGases = (readyToMineBases * 2) - currentGases;
+
+	//if there are any necessary techs, let's add the next one to the queue
 	AbilityID tech = getNextTech();
 	if (tech != ABILITY_ID::INVALID)
 	{
@@ -79,20 +97,17 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 	}
 
 	//if the enemy has cloaked units, we want to make sure we have cannons at each base
-	if (enemyHasCloak || currentBases > 1)
+	if (enemyHasCloak || currentBases > 2)
 	{
-		int extraCannons = currentBases - currentCannons;
 		if (extraCannons > 0)
 		{
 			buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_PHOTONCANNON, extraCannons));
 		}
 	}
 
-	//add extra gateways at a 3:1 gateway to base ratio as our economy improves
-	int extraProductionFacilities = (currentBases * 2) - currentProductionFacilities;
+	//add extra gateways at a 2:1 gateway to base ratio as our economy improves
 	if (extraProductionFacilities > 0)
 	{
-
 		//we don't wanna add too many extra production facilities at one time as this will slow down our production
 		if (extraProductionFacilities > 2)
 		{
@@ -104,27 +119,17 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 		}
 	}
 
-	//if we've alreadygot plenty of production facilities then we want to think about expanding
-	if (extraProductionFacilities < 1 || miningOut)
+	//calculate any additional gases we want to take
+	if (extraGases > 0)
+	{
+		//buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_ASSIMILATOR, extraGases));
+		buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_ASSIMILATOR, 1));
+	}
+
+	//if we've already got plenty of production facilities then we want to think about expanding
+	if ((extraProductionFacilities < 1 && extraGases < 1) || miningOut)
 	{
 		buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_NEXUS, 1));
-	}
-
-	//count bases excluding those that only recently started being produced (we don't wanna take gas too early)
-	int readyToMineBases = 0;
-	for (auto base : getBases())
-	{
-		if (base->build_progress > 0.8)
-		{
-			readyToMineBases++;
-		}
-	}
-
-	//calculate any additional gases we want to take
-	int additionalGases = (readyToMineBases * 2) - currentGases;
-	if (additionalGases > 0)
-	{
-		buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_ASSIMILATOR, additionalGases));
 	}
 
 	if (buildOrderGoal.empty())
@@ -307,10 +312,10 @@ void BuildOrderManager::initialiseKeyTechs()
 {
 	keyTechs.push_back(ABILITY_ID::RESEARCH_WARPGATE);
 	keyTechs.push_back(ABILITY_ID::RESEARCH_BLINK);
+	keyTechs.push_back(ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE);
 	keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL1);
 	keyTechs.push_back(ABILITY_ID::RESEARCH_CHARGE);
 	keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL2);
-	keyTechs.push_back(ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE);
 	keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL3);
 	keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDARMORLEVEL1);
 	keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDARMORLEVEL2);
@@ -326,4 +331,19 @@ add an upgrade to the set of completed ones
 void BuildOrderManager::addCompletedTech(UpgradeID upgrade)
 {
 	completedTechs.insert(upgrade);
+}
+
+/*
+returns true if the ability is one of our key techs
+*/
+bool BuildOrderManager::isKeyTech(AbilityID ability)
+{
+	for (auto tech : keyTechs)
+	{
+		if (tech == ability)
+		{
+			return true;
+		}
+	}
+	return false;
 }

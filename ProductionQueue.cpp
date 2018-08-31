@@ -21,10 +21,34 @@ void ProductionQueue::initialiseQueue()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_WARPGATE));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TWILIGHTCOUNCIL));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ROBOTICSFACILITY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+
+	/*
+	//dt rush
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_CYBERNETICSCORE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_WARPGATE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TWILIGHTCOUNCIL));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_DARKSHRINE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::TRAINWARP_DARKTEMPLAR));
+	*/
 
 	/*
 	//3 gate
@@ -216,13 +240,13 @@ prints the current production queue in the top left of the screen
 */
 void ProductionQueue::printDebug()
 {
-	/*
+	
 	for (auto item : productionQueue)
 	{
 		blinkerBot.Debug()->DebugTextOut(AbilityTypeToName(item.item));
 	}
 	blinkerBot.Debug()->SendDebug();
-	*/
+	
 }
 
 /*

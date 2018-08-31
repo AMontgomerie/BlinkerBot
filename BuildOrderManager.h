@@ -50,5 +50,6 @@ public:
 	~BuildOrderManager();
 	void receiveCloakSignal(bool signal);
 	void receiveMiningOutSignal(bool signal);
+	bool isKeyTech(AbilityID ability);
 };
 

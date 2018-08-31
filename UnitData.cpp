@@ -255,10 +255,16 @@ UnitTypeID UnitData::requiredStructure(AbilityID ability)
 		required = UNIT_TYPEID::PROTOSS_FORGE;
 		break;
 	case ABILITY_ID::TRAIN_ZEALOT:
+	case ABILITY_ID::TRAINWARP_ZEALOT:
 		required = UNIT_TYPEID::PROTOSS_GATEWAY;
 		break;
 	case ABILITY_ID::TRAIN_STALKER:
+	case ABILITY_ID::TRAINWARP_STALKER:
 		required = UNIT_TYPEID::PROTOSS_CYBERNETICSCORE;
+		break;
+	case ABILITY_ID::TRAIN_DARKTEMPLAR:
+	case ABILITY_ID::TRAINWARP_DARKTEMPLAR:
+		required = UNIT_TYPEID::PROTOSS_DARKSHRINE;
 		break;
 	case ABILITY_ID::TRAIN_OBSERVER:
 	case ABILITY_ID::TRAIN_IMMORTAL:
@@ -630,5 +636,76 @@ bool UnitData::compareUpgrades(AbilityID abilityA, AbilityID abilityB)
 	else
 	{
 		return false;
+	}
+}
+
+/*
+returns true for TRAINWARP abilities
+*/
+bool UnitData::canWarpIn(AbilityID ability)
+{
+	if (ability == ABILITY_ID::TRAINWARP_ADEPT ||
+		ability == ABILITY_ID::TRAINWARP_DARKTEMPLAR ||
+		ability == ABILITY_ID::TRAINWARP_HIGHTEMPLAR ||
+		ability == ABILITY_ID::TRAINWARP_SENTRY ||
+		ability == ABILITY_ID::TRAINWARP_STALKER ||
+		ability == ABILITY_ID::TRAINWARP_ZEALOT)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
+returns true if the given unit can be trained from a warpgate
+*/
+bool UnitData::isWarpGateUnit(const Unit *unit)
+{
+	if (unit->unit_type == UNIT_TYPEID::PROTOSS_ADEPT ||
+		unit->unit_type == UNIT_TYPEID::PROTOSS_DARKTEMPLAR ||
+		unit->unit_type == UNIT_TYPEID::PROTOSS_HIGHTEMPLAR ||
+		unit->unit_type == UNIT_TYPEID::PROTOSS_SENTRY ||
+		unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER ||
+		unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
+returns the TRAINWARP ability ID for a given unit type, or INVALID if it doesn't have one
+*/
+AbilityID UnitData::getTrainWarpAbilityID(UnitTypeID unitType)
+{
+	switch (UNIT_TYPEID(unitType))
+	{
+	case UNIT_TYPEID::PROTOSS_ADEPT:
+		return ABILITY_ID::TRAINWARP_ADEPT;
+		break;
+	case UNIT_TYPEID::PROTOSS_DARKTEMPLAR:
+		return ABILITY_ID::TRAINWARP_DARKTEMPLAR;
+		break;
+	case UNIT_TYPEID::PROTOSS_HIGHTEMPLAR:
+		return ABILITY_ID::TRAINWARP_HIGHTEMPLAR;
+		break;
+	case UNIT_TYPEID::PROTOSS_SENTRY:
+		return ABILITY_ID::TRAINWARP_SENTRY;
+		break;
+	case UNIT_TYPEID::PROTOSS_STALKER: 
+		return ABILITY_ID::TRAINWARP_STALKER;
+		break;
+	case UNIT_TYPEID::PROTOSS_ZEALOT:
+		return ABILITY_ID::TRAINWARP_ZEALOT;
+		break;
+	default:
+		return ABILITY_ID::INVALID;
+		break;
 	}
 }

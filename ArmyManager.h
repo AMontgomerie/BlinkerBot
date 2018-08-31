@@ -10,12 +10,13 @@
 using namespace sc2;
 
 class BlinkerBot;
+enum ArmyStatus;
 
 class ArmyManager
 {
 	BlinkerBot & blinkerBot;
 
-	enum ArmyStatus { Defend, Attack, Retreat, Regroup };
+	//enum ArmyStatus { Defend, Attack, Retreat, Regroup };
 
 	const int LOCALRADIUS = 15;
 
@@ -28,6 +29,8 @@ class ArmyManager
 
 	ArmyStatus currentStatus;
 	std::vector<ArmyUnit> army;
+	std::set<const Unit *> darkTemplars;
+	std::set<const Unit *> observers;
 	std::set<const Unit *> pulledWorkers;
 	std::set<const Unit *> enemyArmy;
 	std::set<const Unit *> enemyStructures;
@@ -46,6 +49,7 @@ class ArmyManager
 	float calculateSupplyInRadius(Point2D centre, std::set<const Unit *> army);
 	float calculateSupplyInRadius(Point2D centre, std::vector<ArmyUnit> army);
 	float calculateSupplyAndWorkersInRadius(Point2D centre, std::set<const Unit *> army);
+	float calculateEnemyStaticDefenceInRadius(Point2D centre);
 	const Unit *getClosestEnemy(const Unit *ourUnit);
 	const Unit *getClosestEnemy(Point2D point);
 	const Unit *getClosestEnemyBase(const Unit *ourUnit);
@@ -62,6 +66,8 @@ class ArmyManager
 	float averageUnitDistanceToEnemyBase();
 	const Unit *getClosestBase(const Unit *unit);
 	const Unit *getClosestBase(Point2D point);
+	void darkTemplarHarass();
+	void moveObservers();
 public:
 	ArmyManager(BlinkerBot & bot);
 	~ArmyManager();
@@ -72,11 +78,12 @@ public:
 	void removeEnemyUnit(const Unit *unit);
 	void addEnemyStructure(const Unit *structure);
 	void removeEnemyStructure(const Unit *structure);
-	bool sendAttackSignal();
+	ArmyStatus getArmyStatus();
 	void setRallyPoint(Point2D point);
 	bool detectionRequired();
 	void initialise();
 	const Unit *underAttack();
 	void warpgateComplete();
+	bool behind();
 };
 

@@ -1,20 +1,28 @@
 high priority:
-- deal with surrounds
-- figure out the control flow of onStep in ArmyManager; it's a mess
+- debug colossus blocking
+- fix lag caused by army manager
 
 later:
+- use scout to hide a pylon on the map after enemy has units
+- aggressive blink under flying units
+- improve cannon placement
+- make train() able to switch between TRAIN and TRAINWARP
+- implement more sophisticated DT control (avoid detectors and prioritise targets)
+- remove duplicate tech structures
+- deal with surrounds
+- train only works for units that are trained from their own tech structure
 - deactivate expensive methods based on framerate performance
 - check our erase methods
 - somehow deal with level2+ upgrades that require extra tech (perhaps a vector to show they require multiple?)
-- builds way too many pylons
-- pylon occasionally unbuildable causing build order deadlock
-- got a weird random number out of bounds error
-- there's also a pointer/iterator issue a vector
 - some weird behaviour around tanks and ramps
 - reduce kite blocking by checking stalkers that are closer to retreat point and moving those out of the way (maybe if they are out of range)
 - continue implementing UnitData
 
 DONE FOR NEXT UPLOAD:
-- fixed a bug causing crashes when no workers are available
-- fixed readding base bug
-- fixed a bug preventing reactions to worker harass
+- builds a dt when behind (and replaces it when it dies)
+- improved handling of observers slightly
+- fixed a bug with attacklogic and simplified control flow
+- improved deadlock to re-randomize forward pylon
+- dts and observers should continue to be rebuilt if the tech exists, regardless of game state
+- some key units and structures are now blocking
+- colossus are now trained separately

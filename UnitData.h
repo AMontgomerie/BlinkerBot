@@ -27,11 +27,14 @@ public:
 	static bool isResearch(AbilityID ability);
 	static bool isTrainableUnitType(AbilityID ability);
 	static bool isGasStructure(const Unit *unit);
+	static bool isWarpGateUnit(const Unit *unit);
 	static bool canCloak(const Unit *unit);
+	static bool canWarpIn(AbilityID ability);
 	static bool isComparableUpgrade(AbilityID abilityA, AbilityID abilityB);
 	static UnitTypeID getUnitTypeID(AbilityID ability);
 	static AbilityID getAbilityID(UpgradeID upgrade);
 	static UnitTypeID requiredStructure(AbilityID ability);
+	static AbilityID getTrainWarpAbilityID(UnitTypeID unitType);
 private:
 	static bool compareUpgrades(AbilityID abilityA, AbilityID abilityB);
 };
