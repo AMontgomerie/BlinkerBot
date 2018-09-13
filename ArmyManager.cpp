@@ -2,7 +2,19 @@
 #include "Blinkerbot.h"
 
 ArmyManager::ArmyManager(BlinkerBot & bot) : blinkerBot(bot), currentStatus(Defend), 
-regroupComplete(true), enemyBaseExplored(false), warpgate(false){}
+regroupComplete(true), enemyBaseExplored(false), warpgate(false), beingRushed(false){}
+
+void ArmyManager::initialise()
+{
+	//find the enemy race
+	for (auto player : blinkerBot.Observation()->GetGameInfo().player_info)
+	{
+		if (player.player_id != blinkerBot.Observation()->GetPlayerID())
+		{
+			enemyRace = player.race_requested;
+		}
+	}
+}
 
 void ArmyManager::onStep()
 {
@@ -372,6 +384,11 @@ void ArmyManager::addUnit(const Unit *unit)
 		}
 		army.push_back(ArmyUnit(unit, Attack));
 	}
+
+	if (currentStatus == Regroup || currentStatus == Retreat)
+	{
+		blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::MOVE, rallyPoint);
+	}
 }
 
 /*
@@ -480,7 +497,7 @@ returns true if we have enough units to attack
 */
 bool ArmyManager::canAttack()
 {
-	if (currentArmyValue > 1 && ((currentArmyValue >= currentEnemyArmyValue)  || currentArmyValue > 80))
+	if (!beingRushed && currentArmyValue > 1 && ((currentArmyValue >= currentEnemyArmyValue)  || currentArmyValue > 80))
 	{
 		return true;
 	}
@@ -1085,4 +1102,78 @@ void ArmyManager::updateArmyValues()
 {
 	currentArmyValue = calculateSupply(army);
 	currentEnemyArmyValue = calculateSupply(enemyArmy) + calculateEnemyStaticDefence();
+}
+
+/*
+returns true if the enemy appears to be doing a rush
+*/
+bool ArmyManager::rushDetected()
+{
+	if (!enemyStructures.empty() && blinkerBot.Observation()->GetGameLoop() < 6000)
+	{
+		//if the enemy is terran or protoss, we can use building position and number to determine their strategy
+		if (enemyRace != Race::Zerg)
+		{
+			//if they still don't have anything in their main, they must be proxying us
+			if (blinkerBot.Observation()->GetGameLoop() > 1500 && enemyStructures.size() < 3)
+			{
+				std::cerr << "can't see anything in the main, reacting to proxy" << std::endl;
+				beingRushed = true;
+				return true;
+			}
+			else
+			{
+				//let's count what we can see
+				int productionFacilities = 0;
+				int bases = 0;
+				int gases = 0;
+
+				for (auto structure : enemyStructures)
+				{
+					if (structure->unit_type == UNIT_TYPEID::TERRAN_BARRACKS || 
+						structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY)
+					{
+						productionFacilities++;
+					}
+					else if (structure->unit_type == UNIT_TYPEID::TERRAN_COMMANDCENTER || 
+						structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
+					{
+						bases++;
+					}
+					else if (structure->unit_type == UNIT_TYPEID::TERRAN_REFINERY ||
+						structure->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
+					{
+						gases++;
+					}
+					//if they have structures close to our base, then they're proxying us
+					if (Distance2D(structure->pos, blinkerBot.Observation()->GetStartLocation()) < 35)
+					{
+						std::cerr << "proxy scouted" << std::endl;
+						beingRushed = true;
+						return true;
+					}
+				}
+
+				//if our enemy is going mass barracks or mass gateway, let's play defensive
+				if (bases < 2 && productionFacilities > 2 && gases == 0)
+				{
+					std::cerr << "possible 1 base aggression scouted" << std::endl;
+					beingRushed = true;
+					return true;
+				}
+			}
+		}
+		//for zergs
+		else
+		{
+			beingRushed = false;
+			//not worried about rushes tbh
+			return false;
+		}
+	}
+	else
+	{
+		beingRushed = false;
+		return false;
+	}
 }

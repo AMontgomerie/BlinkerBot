@@ -51,5 +51,6 @@ public:
 	void receiveCloakSignal(bool signal);
 	void receiveMiningOutSignal(bool signal);
 	bool isKeyTech(AbilityID ability);
+	std::vector<ProductionGoal> generateRushDefenceGoal();
 };
 

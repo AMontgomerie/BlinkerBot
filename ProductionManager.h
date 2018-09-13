@@ -26,11 +26,13 @@ class ProductionManager
 	WorkerManager workerManager;
 	BuildOrderManager buildOrderManager;
 
+	Race enemyRace;
 	ArmyStatus armyStatus;
 	Point2D nextPylonLocation;
 	Point2D rallyPoint;
 	Point2D forwardPylonPoint;
 	bool enemyHasCloak;
+	bool reactedToRush;
 	int lastProductionFrame;
 	const Unit *forwardPylon;
 
@@ -38,6 +40,7 @@ class ProductionManager
 	std::set<const Unit *> enemyBases;
 	std::set<const Unit *> miningBases;
 	std::set<const Unit *> observers;
+	std::set<const Unit *> shieldBatteries;
 	std::set<const Unit *> pylons;
 	std::set<const Unit *> structures;
 	std::set<const Unit *> warpGates;
@@ -49,15 +52,16 @@ public:
 	void addStructure(const Unit *unit);
 	void checkMineralVisibility();
 	void darkShrine(bool signal);
+	Point2D getDefensivePosition();
 	const Unit *getClosestPylon(Point2D point);
 	const Unit *getClosestPylonToEnemyBase();
-	const Unit *getDefensivePylon();
 	void initialise();
 	void onStep();
 	void onUnitDestroyed(const Unit *unit);
 	void onUpgradeComplete(UpgradeID upgrade);
 	void receiveArmyStatus(ArmyStatus status);
 	void receiveCloakSignal(bool signal);
+	void receiveRushSignal(bool signal);
 	void removeEnemyBase(const Unit *unit);
 	void setRallyPoint(Point2D point);
 

@@ -25,6 +25,8 @@ class ArmyManager
 		ArmyUnit(const Unit *armyUnit, ArmyStatus unitStatus): unit(armyUnit), status(unitStatus){};
 	};
 
+	Race enemyRace;
+	bool beingRushed;
 	bool regroupComplete;
 	bool enemyBaseExplored;
 	bool warpgate;
@@ -47,10 +49,12 @@ public:
 	bool behind();
 	bool detectionRequired();
 	ArmyStatus getArmyStatus();
+	void initialise();
 	void onStep();
 	void removeEnemyUnit(const Unit *unit);
 	void removeEnemyStructure(const Unit *structure);
 	void removeUnit(const Unit *unit);
+	bool rushDetected();
 	void setRallyPoint(Point2D point);
 	const Unit *underAttack();
 	void warpgateComplete();

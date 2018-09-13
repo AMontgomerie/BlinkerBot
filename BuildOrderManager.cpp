@@ -76,23 +76,17 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 	int extraCannons = currentBases - currentCannons;
 	int extraProductionFacilities = (currentBases * 2) - currentProductionFacilities;
 	int extraGases = (currentBases * 2) - currentGases;
-	/*
-	int readyToMineBases = 0;
-	for (auto base : getBases())
-	{
-		if (base->build_progress > 0.5)
-		{
-			readyToMineBases++;
-		}
-	}
-	*/
-
-	//int extraGases = (readyToMineBases * 2) - currentGases;
 
 	//if there are any necessary techs, let's add the next one to the queue
+	//if we only have one base then we don't want to start teching to colossus yet
 	AbilityID tech = getNextTech();
-	if (tech != ABILITY_ID::INVALID)
+	if (tech != ABILITY_ID::INVALID && !(currentBases == 1 && getNextTech() == ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE))
 	{
+		if (currentBases == 1 && extraGases > 0)
+		{
+			buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_ASSIMILATOR, 1));
+			extraGases--;
+		}
 		buildOrderGoal.push_back(ProductionGoal(tech, 1));
 	}
 
@@ -346,4 +340,46 @@ bool BuildOrderManager::isKeyTech(AbilityID ability)
 		}
 	}
 	return false;
+}
+
+/*
+alters our build order to deal with rushes
+*/
+std::vector<ProductionGoal> BuildOrderManager::generateRushDefenceGoal()
+{
+	std::vector<ProductionGoal> buildOrderGoal;
+
+	//first count what we have
+	updateStructureCounts();
+
+	int extraProductionFacilities = 4 - currentProductionFacilities;
+	int extraGases = 1 - currentGases;
+
+	//if we don't have any gas yet, then we want to add one
+	if (extraGases > 0)
+	{
+		buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_ASSIMILATOR, extraGases));
+	}
+
+	//we wanna get warpgate if we don't have it, but don't tech any further than that yet
+	AbilityID tech = getNextTech();
+	if (tech == ABILITY_ID::RESEARCH_WARPGATE)
+	{
+		//put in an extra gateway first so we don't get stuck on 1 gate while teching
+		if (extraProductionFacilities > 0)
+		{
+			int earlyGates = 2 - currentProductionFacilities;
+			buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_GATEWAY, earlyGates));
+			extraProductionFacilities -= earlyGates;
+		}
+		buildOrderGoal.push_back(ProductionGoal(tech, 1));
+	}
+
+	//we can go up to 4 gateways to make sure we can defend
+	if (extraProductionFacilities > 0)
+	{
+		buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_GATEWAY, extraProductionFacilities));
+	}
+
+	return buildOrderGoal;
 }

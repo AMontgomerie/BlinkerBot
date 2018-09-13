@@ -3,13 +3,22 @@
 
 ProductionManager::ProductionManager(BlinkerBot & bot): 
 	blinkerBot(bot), baseManager(bot), productionQueue(bot), workerManager(bot), buildOrderManager(bot), 
-	forwardPylon(nullptr), nextPylonLocation(Point2D(-1.0,-1.0)), enemyHasCloak(false), lastProductionFrame(0)
+	forwardPylon(nullptr), nextPylonLocation(Point2D(-1.0,-1.0)), enemyHasCloak(false), reactedToRush(false), lastProductionFrame(0)
 {
 	productionQueue.initialiseQueue();
 }
 
 void ProductionManager::initialise()
 {
+	//find the enemy race
+	for (auto player : blinkerBot.Observation()->GetGameInfo().player_info)
+	{
+		if (player.player_id != blinkerBot.Observation()->GetPlayerID())
+		{
+			enemyRace = player.race_requested;
+		}
+	}
+
 	for (auto unit : blinkerBot.Observation()->GetUnits())
 	{
 		if (UnitData::isWorker(unit))
@@ -446,7 +455,28 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 					Point2D(nextPylonLocation.x + GetRandomScalar() * 2, nextPylonLocation.y + GetRandomScalar() * 2));
 			}
 		}
+		//shield batteries should be build in a location where they're likely to be used
+		else if (structureToBuild == ABILITY_ID::BUILD_SHIELDBATTERY)
+		{
+			Point2D buildLocation;
 
+			if (baseManager.getOurBases().empty())
+			{
+				buildLocation = blinkerBot.Observation()->GetStartLocation();
+			}
+			//if we only have one base then let's put them at the top of the ramp
+			if (baseManager.getOurBases().size() == 1)
+			{
+				buildLocation = baseManager.getFirstPylonPosition();
+			}
+			//otherwise let's choose the closest base to the enemy
+			else
+			{
+				buildLocation = getClosestPylon(getClosestBaseToEnemy()->pos)->pos;
+			}
+			buildLocation = Point2D(buildLocation.x + GetRandomScalar() * 4.0f, buildLocation.y + GetRandomScalar() * 4.0f);
+			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
+		}
 		//we want to make sure we have a cannon at each base for detection purposes
 		else if (structureToBuild == ABILITY_ID::BUILD_PHOTONCANNON)
 		{
@@ -493,24 +523,23 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 			Point2D buildLocation;
 			const Unit *targetPylon = getLeastArtosisPylon();
 
-			/*
-			//if we're walling in, we need to find an appropriate location
-			if (wallIn && !baseManager.getWallInPoints().empty())
-			{
-				buildLocation = GetRandomEntry(baseManager.getWallInPoints());
-				buildLocation = Point2D(buildLocation.x + GetRandomScalar(), buildLocation.y + GetRandomScalar());
-			}
-			*/
 			//otherwise find a pylon with some space and choose a random location within its power radius
 			if (targetPylon)
 			{
-				if (!baseManager.firstWallInPositionExists())
+				if (enemyRace != Race::Terran)
 				{
-					buildLocation = baseManager.getFirstWallInPosition();
-				}
-				else if (!baseManager.secondWallInPositionExists())
-				{
-					buildLocation = baseManager.getSecondWallInPosition();
+					if (!baseManager.firstWallInPositionExists())
+					{
+						buildLocation = baseManager.getFirstWallInPosition();
+					}
+					else if (!baseManager.secondWallInPositionExists())
+					{
+						buildLocation = baseManager.getSecondWallInPosition();
+					}
+					else
+					{
+						buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 6.5f, targetPylon->pos.y + GetRandomScalar() * 6.5f);
+					}
 				}
 				else
 				{
@@ -707,6 +736,10 @@ void ProductionManager::addNewUnit(const Unit *unit)
 	{
 		observers.insert(unit);
 	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_SHIELDBATTERY)
+	{
+		shieldBatteries.insert(unit);
+	}
 }
 
 /*
@@ -721,6 +754,10 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_DARKTEMPLAR)
 	{
 		dts.erase(unit);
+	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_SHIELDBATTERY)
+	{
+		shieldBatteries.erase(unit);
 	}
 	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
 	{
@@ -1554,16 +1591,69 @@ const Unit *ProductionManager::getClosestBaseToEnemy()
 /*
 returns the closest pylon to whichever of our bases is closest to the enemy
 */
-const Unit *ProductionManager::getDefensivePylon()
+Point2D ProductionManager::getDefensivePosition()
 {
-	const Unit *base = getClosestBaseToEnemy();
-	
-	if (base)
+	//if we have only one base, let's defend the top of our ramp
+	if (baseManager.getOurBases().size() == 1)
 	{
-		return getClosestPylon(base->pos);
+		return baseManager.getMainRampTop();
 	}
 	else
 	{
-		return getClosestPylonToEnemyBase();
+		//otherwise let's find a pylon near our most vulnerable base and rally to that
+		const Unit *base = getClosestBaseToEnemy();
+		const Unit *target;
+
+		if (base)
+		{
+			target = getClosestPylon(base->pos);
+		}
+		else
+		{
+			//if we don't have any bases then just use the closest pylon
+			target = getClosestPylonToEnemyBase();
+		}
+		
+		if (target)
+		{
+			return target->pos;
+		}
+		else
+		{
+			//if there's no pylon to rally to, just use the start location
+			return blinkerBot.Observation()->GetStartLocation();
+		}
+	}
+}
+
+/*
+if it seems like we're being rushed, alter our build order and add shield batteries if possible
+*/
+void ProductionManager::receiveRushSignal(bool signal)
+{
+	if (signal)
+	{
+		//if this is the first we've heard about it, cancel the current build order and get a defensive one
+		if (!reactedToRush)
+		{
+			productionQueue.clearQueue();
+			productionQueue.generateMoreItems(buildOrderManager.generateRushDefenceGoal());
+			reactedToRush = true;
+		}
+
+		//if we can make shield batteries, let's do it
+		if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE))
+		{
+			int extraShieldBatteries = 2 - shieldBatteries.size();
+			bool shieldBatteryInProduction = false;
+
+			if (extraShieldBatteries > 0 && !productionQueue.includes(ABILITY_ID::BUILD_SHIELDBATTERY))
+			{
+				for (int i = 0; i < extraShieldBatteries; i++)
+				{
+					productionQueue.addItemHighPriority(ABILITY_ID::BUILD_SHIELDBATTERY);
+				}
+			}
+		}
 	}
 }

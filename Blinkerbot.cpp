@@ -12,6 +12,7 @@ void BlinkerBot::OnGameStart()
 {
 	rallyPoint = Observation()->GetStartLocation();
 	productionManager.initialise();
+	armyManager.initialise();
 }
 
 void BlinkerBot::OnStep()
@@ -27,13 +28,14 @@ void BlinkerBot::OnStep()
 	productionManager.onStep();
 	productionManager.receiveArmyStatus(armyManager.getArmyStatus());
 	productionManager.receiveCloakSignal(armyManager.detectionRequired());
+	productionManager.receiveRushSignal(armyManager.rushDetected());
 	armyManager.onStep();
 
 
 	//determine the location of our rally point
 	ArmyStatus currentStatus = armyManager.getArmyStatus();
 	const Unit *aggressivePylon = productionManager.getClosestPylonToEnemyBase();
-	const Unit *defensivePylon = productionManager.getDefensivePylon();
+	Point2D defensivePosition = productionManager.getDefensivePosition();
 	const Unit *threatenedStructure = armyManager.underAttack();
 
 	//if we are attacking then let's use whichever pylon is closest to the enemy
@@ -42,16 +44,15 @@ void BlinkerBot::OnStep()
 		rallyPoint = aggressivePylon->pos;
 	}
 	//if we aren't attacking then we want to rally to nearby one of our bases
-	else if (currentStatus != Attack && defensivePylon && !threatenedStructure)
+	else if (currentStatus != Attack  && !threatenedStructure)
 	{
-		rallyPoint = defensivePylon->pos;
+		rallyPoint = defensivePosition;
 	}
 	//if we're under attack then rally towards that location
-	else if (defensivePylon && threatenedStructure)
+	else if (threatenedStructure)
 	{
 		rallyPoint = productionManager.getClosestPylon(threatenedStructure->pos)->pos;
 	}
-	//if we don't have any pylons then just rally to our main
 	else
 	{
 		rallyPoint = Observation()->GetStartLocation();
