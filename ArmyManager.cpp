@@ -2,20 +2,7 @@
 #include "Blinkerbot.h"
 
 ArmyManager::ArmyManager(BlinkerBot & bot) : blinkerBot(bot), currentStatus(Defend), 
-regroupComplete(true), enemyBaseExplored(false), warpgate(false)
-{
-}
-
-
-ArmyManager::~ArmyManager()
-{
-}
-
-
-void ArmyManager::initialise()
-{
-	//scout();
-}
+regroupComplete(true), enemyBaseExplored(false), warpgate(false){}
 
 void ArmyManager::onStep()
 {
@@ -29,22 +16,29 @@ void ArmyManager::onStep()
 	darkTemplarHarass();
 	moveObservers();
 	workerDefence();
+	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
+	{
+		updateArmyValues();
+	}
 
-	const Unit *threatened = underAttack();
-	if (threatened)
+	if (blinkerBot.Observation()->GetGameLoop() % 8 == 0)
 	{
-		attack(threatened->pos);
-		currentStatus = Defend;
-	}
-	else if (canAttack() && regroupComplete)
-	{
-		attack();
-		currentStatus = Attack;
-	}
-	else
-	{
-		regroupComplete = regroup();
-		currentStatus = Regroup;
+		const Unit *threatened = underAttack();
+		if (threatened)
+		{
+			attack(threatened->pos);
+			currentStatus = Defend;
+		}
+		else if (canAttack() && regroupComplete)
+		{
+			attack();
+			currentStatus = Attack;
+		}
+		else
+		{
+			regroupComplete = regroup();
+			currentStatus = Regroup;
+		}
 	}
 
 	//timer stuff
@@ -68,7 +62,7 @@ const Unit *ArmyManager::underAttack()
 			//if there is an enemy in range of one of our structures
 			if (UnitData::isOurs(unit) && UnitData::isStructure(unit) && 
 				(enemy->last_seen_game_loop == blinkerBot.Observation()->GetGameLoop() && 
-				(inRange(enemy, unit) || Distance2D(enemy->pos, unit->pos) < 15)))
+				(inRange(enemy, unit) || Distance2D(enemy->pos, unit->pos) < LOCALRADIUS)))
 			{
 				//std::cerr << UnitTypeToName(unit->unit_type) << " is under attack from " << UnitTypeToName(enemy->unit_type) << std::endl;
 				return unit;
@@ -88,6 +82,17 @@ void ArmyManager::workerDefence()
 	if (threatenedStructure && (calculateSupplyAndWorkersInRadius(threatenedStructure->pos, enemyArmy) > 
 		calculateSupplyInRadius(threatenedStructure->pos, army) * 1.2))
 	{
+		//we need to find a nearby mineral to mineral walk through
+		const Unit *mineral = *blinkerBot.Observation()->GetUnits().begin();
+		for (auto unit : blinkerBot.Observation()->GetUnits())
+		{
+			if (UnitData::isMinerals(unit) && unit->display_type == Unit::DisplayType::Visible
+				&& Distance2D(unit->pos, blinkerBot.Observation()->GetStartLocation()) < 15)
+			{
+				mineral = unit;
+			}
+		}
+
 		//if we don't have any workers then let's find some
 		if (pulledWorkers.empty())
 		{
@@ -107,16 +112,25 @@ void ArmyManager::workerDefence()
 		//if we've already got some workers, then let's make sure they're being pulled
 		for (auto worker : pulledWorkers)
 		{
-			if (worker->orders.empty() || (*worker->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+			const Unit *target = getClosestEnemy(worker);
+			if (target && shieldsCritical(worker, target))
 			{
-				blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::ATTACK, getClosestEnemy(worker));
+				//right click the mineral (so the worker can move through other units)
+				if (mineral->display_type == Unit::DisplayType::Visible)
+				{
+					blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::SMART, mineral);
+				}
+			}
+			else if (worker->orders.empty() || (*worker->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+			{
+				blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::ATTACK, getClosestEnemy(worker->pos));
 			}
 		}
 	}
 	//if we're not under attack then we don't need the workers anymore
 	else if (!pulledWorkers.empty() && 
 		(getClosestEnemy(*pulledWorkers.begin()) == nullptr ||
-		Distance2D(getClosestEnemy(*pulledWorkers.begin())->pos, (*pulledWorkers.begin())->pos) > 20))
+		Distance2D(getClosestEnemy(*pulledWorkers.begin())->pos, (*pulledWorkers.begin())->pos) > LOCALRADIUS))
 	{
 		pulledWorkers.clear();
 	}
@@ -125,26 +139,31 @@ void ArmyManager::workerDefence()
 	for (auto worker : pulledWorkers)
 	{
 		const Unit *closestBase = getClosestBase(worker);
-		if (closestBase && Distance2D(closestBase->pos, worker->pos) > 20)
+		if (closestBase && Distance2D(closestBase->pos, worker->pos) > LOCALRADIUS + 10)
 		{
 			blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::MOVE, closestBase->pos);
 		}
 	}
 }
 
-
+/*
+issues a regroup command to all of our units. Returns true when all units are within a certain distance of the rally point.
+*/
 bool ArmyManager::regroup()
 {
-	if (blinkerBot.Observation()->GetGameLoop() % 100 == 0 && army.size() > 0)
+	if (army.size() > 0)
 	{
 		//tell units to go to the regroup point
 		bool unitsCloseEnough = true;
 		for (auto armyUnit : army)
 		{
-			if (Distance2D(armyUnit.unit->pos, rallyPoint) > 10.0f)
+			if (armyUnit.unit->orders.empty() || armyUnit.unit->orders.front().ability_id != ABILITY_ID::MOVE)
 			{
-				unitsCloseEnough = false;
-				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, rallyPoint);
+				if (Distance2D(armyUnit.unit->pos, rallyPoint) > LOCALRADIUS)
+				{
+					unitsCloseEnough = false;
+					blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, rallyPoint);
+				}
 			}
 		}
 		return unitsCloseEnough;
@@ -156,37 +175,52 @@ bool ArmyManager::regroup()
 	}
 }
 
-//tell all our units to attack move towards the enemy
+/*
+finds an appropriate point for a unit to attack towards. Returns a random location if no enemy bases can be found
+*/
+Point2D ArmyManager::findAttackTarget(const Unit *unit)
+{
+	Point2D target;
+
+	if (enemyStructures.empty())
+	{
+		//if we've been to the enemy main but don't know the location of any enemy bases, set a random location
+		if (enemyBaseExplored)
+		{
+			target = Point2D(float(GetRandomInteger(0, blinkerBot.Observation()->GetGameInfo().width)), float(GetRandomInteger(0, blinkerBot.Observation()->GetGameInfo().height)));
+		}
+		//if we haven't seen any enemy bases yet, let's just attack towards his start location
+		else
+		{
+			target = blinkerBot.Observation()->GetGameInfo().enemy_start_locations.front();
+		}
+	}
+	//otherwise let's find his closest base and go there
+	else
+	{
+		target = getClosestEnemyBase(unit)->pos;
+	}
+
+	return target;
+}
+
+/*
+Issues an attack command for our whole army. Units will attack towards enemy start locations until the enemy base is found.
+If no enemy bases can be found then units will begin searching randomly around the map until one is located.
+When units come into contact with enemies, blink() and kite() will be called.
+*/
 void ArmyManager::attack()
 {
 	for (auto armyUnit : army)
 	{
-		Point2D target;
-
 		//confirms that we have visited the enemy base
 		if (Distance2D(armyUnit.unit->pos, blinkerBot.Observation()->GetGameInfo().enemy_start_locations.front()) < 8)
 		{
 			enemyBaseExplored = true;
 		}
 
-		if (enemyStructures.empty())
-		{
-			//if we've been to the enemy main but don't know the location of any enemy bases, set a random location
-			if (enemyBaseExplored)
-			{
-				target = Point2D(float(GetRandomInteger(0, blinkerBot.Observation()->GetGameInfo().width)), float(GetRandomInteger(0, blinkerBot.Observation()->GetGameInfo().height)));
-			}
-			//if we haven't seen any enemy bases yet, let's just attack towards his start location
-			else
-			{
-				target = blinkerBot.Observation()->GetGameInfo().enemy_start_locations.front();
-			}
-		}
-		//otherwise let's find his closest base and go there
-		else
-		{
-			target = getClosestEnemyBase(armyUnit.unit)->pos;
-		}
+		//find an appropriate target
+		Point2D target = findAttackTarget(armyUnit.unit);
 
 		//if we don't know where the enemy base is, let's search randomly with our idle units
 		if (enemyStructures.empty() && enemyBaseExplored)
@@ -270,26 +304,24 @@ float ArmyManager::averageUnitDistanceToEnemyBase()
 	return distance;
 }
 
-//tell all our units to attack move towards a specific point on the map
+/*
+tells all our units to attack move towards a specific point on the map.
+blink() and kite() will be called when our army comes into contact with enemy units.
+*/
 void ArmyManager::attack(Point2D target)
 {
 	for (auto armyUnit : army)
 	{
-		//we don't want to attack-move observers, so let's tell them to follow one of our units instead
-		if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
+		if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
 		{
-			blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::SMART, (*army.begin()).unit);
-		}
-		else if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
-		{
-		if (!blink(armyUnit.unit) && !kite(armyUnit))
-		{
-			armyUnit.status = Attack;
-			if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+			if (!blink(armyUnit.unit) && !kite(armyUnit))
 			{
-				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+				armyUnit.status = Attack;
+				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+				{
+					blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+				}
 			}
-		}
 		}
 		else
 		{
@@ -305,6 +337,9 @@ void ArmyManager::attack(Point2D target)
 	}
 }
 
+/*
+issues a move command back to our rally point for all army units.
+*/
 void ArmyManager::retreat()
 {
 	for (auto armyUnit : army)
@@ -379,6 +414,10 @@ void ArmyManager::removeUnit(const Unit *unit)
 	}
 }
 
+/*
+When an enemy unit becomes visible, let's check if we've seen it before.
+If not, add it to the set so we can keep track of army size.
+*/
 void ArmyManager::addEnemyUnit(const Unit *unit)
 {
 	bool alreadySeen = false;
@@ -396,6 +435,9 @@ void ArmyManager::addEnemyUnit(const Unit *unit)
 	}
 }
 
+/*
+when we kill an enemy unit, we wanna update the set of active enemies
+*/
 void ArmyManager::removeEnemyUnit(const Unit *unit)
 {
 	for (std::set<const Unit *>::iterator enemyUnit = enemyArmy.begin(); enemyUnit != enemyArmy.end();)
@@ -438,6 +480,15 @@ returns true if we have enough units to attack
 */
 bool ArmyManager::canAttack()
 {
+	if (currentArmyValue > 1 && ((currentArmyValue >= currentEnemyArmyValue)  || currentArmyValue > 80))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+	/*
 	if (calculateSupply(army) > 1
 		&& (calculateSupply(army) >= calculateSupply(enemyArmy) + calculateEnemyStaticDefence() || 
 			blinkerBot.Observation()->GetFoodUsed() + 30 >= 200))
@@ -448,6 +499,7 @@ bool ArmyManager::canAttack()
 	{
 		return false;
 	}
+	*/
 }
 
 /*
@@ -509,6 +561,9 @@ float ArmyManager::calculateSupplyAndWorkersInRadius(Point2D centre, std::set<co
 	return total;
 }
 
+/*
+calculates the supply used by a given set of unit pointers
+*/
 float ArmyManager::calculateSupply(std::set<const Unit *> army)
 {
 	float total = 0;
@@ -522,6 +577,9 @@ float ArmyManager::calculateSupply(std::set<const Unit *> army)
 	return total;
 }
 
+/*
+calculates the supply used by a given set of ArmyUnits
+*/
 float ArmyManager::calculateSupply(std::vector<ArmyUnit> army)
 {
 	float total = 0;
@@ -555,6 +613,9 @@ void ArmyManager::setRallyPoint(Point2D point)
 	}
 }
 
+/*
+checks if a unit can kite vs the closest enemy, and issue a move command if it can
+*/
 bool ArmyManager::kite(ArmyUnit armyUnit)
 {
 	//this function just causes lag and makes units bump into eachother in large fights
@@ -581,6 +642,9 @@ bool ArmyManager::kite(ArmyUnit armyUnit)
 	return false;
 }
 
+/*
+returns true if attacker outranges target, and false otherwise
+*/
 bool ArmyManager::outranges(const Unit *attacker, const Unit *target)
 {
 	if (!attacker || !target || blinkerBot.Observation()->GetUnitTypeData()[attacker->unit_type].weapons.size() == 0 
@@ -599,6 +663,9 @@ bool ArmyManager::outranges(const Unit *attacker, const Unit *target)
 	}
 }
 
+/*
+issues a defensive blink command backwards away from the closest enemy in the event that shields are low
+*/
 bool ArmyManager::blink(const Unit *unit)
 {
 	//check if any enemies are in range of our unit and if they can take out our shields
@@ -738,7 +805,9 @@ bool ArmyManager::inRange(const Unit *attacker, const Unit *target)
 	}
 }
 
-//returns true if the next shot from the enemy will kill our unit's shields
+/*
+returns true if the next shot from the enemy will kill our unit's shields
+*/
 bool ArmyManager::shieldsCritical(const Unit *unit, const Unit *attacker)
 {
 	if (!unit || !attacker || blinkerBot.Observation()->GetUnitTypeData()[attacker->unit_type].weapons.size() == 0)
@@ -759,6 +828,9 @@ bool ArmyManager::shieldsCritical(const Unit *unit, const Unit *attacker)
 	}
 }
 
+/*
+various debug code
+*/
 void ArmyManager::printDebug()
 {
 
@@ -796,6 +868,9 @@ void ArmyManager::printDebug()
 	*/
 }
 
+/*
+upon seeing an enemy structure, add it to the set for attacking purposes
+*/
 void ArmyManager::addEnemyStructure(const Unit *structure)
 {
 	if (UnitData::isStructure(structure))
@@ -804,6 +879,9 @@ void ArmyManager::addEnemyStructure(const Unit *structure)
 	}
 }
 
+/*
+when we kill an enemy structure, remove it from the set
+*/
 void ArmyManager::removeEnemyStructure(const Unit *structure)
 {
 	for (std::set<const Unit *>::iterator enemyStructure = enemyStructures.begin(); enemyStructure != enemyStructures.end();)
@@ -819,6 +897,9 @@ void ArmyManager::removeEnemyStructure(const Unit *structure)
 	}
 }
 
+/*
+returns true if the enemy has either cloaked units, or structures which produce cloaked units
+*/
 bool ArmyManager::detectionRequired()
 {
 	bool canCloak = false;
@@ -843,25 +924,12 @@ bool ArmyManager::detectionRequired()
 		}
 	}
 
-	//check if we already have detection
-	bool detected = false;
-	for (auto armyUnit : army)
-	{
-		if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
-		{
-			detected = true;
-		}
-	}
-	if (!detected)
-	{
-		return canCloak;
-	}
-	else
-	{
-		return false;
-	}
+	return canCloak;
 }
 
+/*
+calculates a Point for a unit to retreat to (based on the closest enemy)
+*/
 Point2D ArmyManager::getRetreatPoint(const Unit *unit)
 {
 	const int RETREATDIST = 5;
@@ -1011,4 +1079,10 @@ float ArmyManager::calculateEnemyStaticDefenceInRadius(Point2D centre)
 		}
 	}
 	return total;
+}
+
+void ArmyManager::updateArmyValues()
+{
+	currentArmyValue = calculateSupply(army);
+	currentEnemyArmyValue = calculateSupply(enemyArmy) + calculateEnemyStaticDefence();
 }

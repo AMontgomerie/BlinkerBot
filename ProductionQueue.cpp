@@ -240,13 +240,13 @@ prints the current production queue in the top left of the screen
 */
 void ProductionQueue::printDebug()
 {
-	
+/*
 	for (auto item : productionQueue)
 	{
 		blinkerBot.Debug()->DebugTextOut(AbilityTypeToName(item.item));
 	}
 	blinkerBot.Debug()->SendDebug();
-	
+	*/
 }
 
 /*

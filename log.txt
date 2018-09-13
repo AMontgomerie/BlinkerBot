@@ -1,9 +1,20 @@
 high priority:
-- debug colossus blocking
+- fix infinite loop/crash bug
+- improve worker micro
+- race specific builds: need to deal with ling heavy armies
+- movable structure bug
+- do a method breakdown to see whats causing the lag
+- reorganised methods and delete redundant or commented code
 - fix lag caused by army manager
+- wall in bugs:
+	- pylon occasionally unplacable
+	- gateways placed corner to corner block stalkers in (use building radius to place them next to each other?
+	- turn of box debug
 
 later:
-- use scout to hide a pylon on the map after enemy has units
+- army splitting (dont pull everything back every time a scout comes in your base)
+- built 3 robo facilities in response to banshees
+- eventually go voidray
 - aggressive blink under flying units
 - improve cannon placement
 - make train() able to switch between TRAIN and TRAINWARP
@@ -12,17 +23,11 @@ later:
 - deal with surrounds
 - train only works for units that are trained from their own tech structure
 - deactivate expensive methods based on framerate performance
-- check our erase methods
 - somehow deal with level2+ upgrades that require extra tech (perhaps a vector to show they require multiple?)
 - some weird behaviour around tanks and ramps
 - reduce kite blocking by checking stalkers that are closer to retreat point and moving those out of the way (maybe if they are out of range)
 - continue implementing UnitData
 
 DONE FOR NEXT UPLOAD:
-- builds a dt when behind (and replaces it when it dies)
-- improved handling of observers slightly
-- fixed a bug with attacklogic and simplified control flow
-- improved deadlock to re-randomize forward pylon
-- dts and observers should continue to be rebuilt if the tech exists, regardless of game state
-- some key units and structures are now blocking
-- colossus are now trained separately
+- improved rally point logic
+- walls in

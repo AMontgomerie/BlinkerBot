@@ -16,8 +16,6 @@ class ArmyManager
 {
 	BlinkerBot & blinkerBot;
 
-	//enum ArmyStatus { Defend, Attack, Retreat, Regroup };
-
 	const int LOCALRADIUS = 15;
 
 	struct ArmyUnit
@@ -27,63 +25,68 @@ class ArmyManager
 		ArmyUnit(const Unit *armyUnit, ArmyStatus unitStatus): unit(armyUnit), status(unitStatus){};
 	};
 
-	ArmyStatus currentStatus;
-	std::vector<ArmyUnit> army;
-	std::set<const Unit *> darkTemplars;
-	std::set<const Unit *> observers;
-	std::set<const Unit *> pulledWorkers;
-	std::set<const Unit *> enemyArmy;
-	std::set<const Unit *> enemyStructures;
 	bool regroupComplete;
 	bool enemyBaseExplored;
 	bool warpgate;
+	int currentArmyValue;
+	int currentEnemyArmyValue;
+	ArmyStatus currentStatus;
 	Point2D rallyPoint;
+	std::vector<ArmyUnit> army;
+	std::set<const Unit *> darkTemplars;
+	std::set<const Unit *> enemyArmy;
+	std::set<const Unit *> enemyStructures;
+	std::set<const Unit *> observers;
+	std::set<const Unit *> pulledWorkers;
 
-	bool regroup();
+public:
+	ArmyManager(BlinkerBot & bot);
+	void addEnemyStructure(const Unit *structure);
+	void addEnemyUnit(const Unit *unit);
+	void addUnit(const Unit *unit);
+	bool behind();
+	bool detectionRequired();
+	ArmyStatus getArmyStatus();
+	void onStep();
+	void removeEnemyUnit(const Unit *unit);
+	void removeEnemyStructure(const Unit *structure);
+	void removeUnit(const Unit *unit);
+	void setRallyPoint(Point2D point);
+	const Unit *underAttack();
+	void warpgateComplete();
+
+private:
 	void attack();
 	void attack(Point2D target);
-	void retreat();
-	bool canAttack();
+	float averageUnitDistanceToEnemyBase();
+	bool blink(const Unit *unit);
+	int calculateEnemyStaticDefence();
+	float calculateEnemyStaticDefenceInRadius(Point2D centre);
 	float calculateSupply(std::set<const Unit *> army);
 	float calculateSupply(std::vector<ArmyUnit> army);
+	float calculateSupplyAndWorkersInRadius(Point2D centre, std::set<const Unit *> army);
 	float calculateSupplyInRadius(Point2D centre, std::set<const Unit *> army);
 	float calculateSupplyInRadius(Point2D centre, std::vector<ArmyUnit> army);
-	float calculateSupplyAndWorkersInRadius(Point2D centre, std::set<const Unit *> army);
-	float calculateEnemyStaticDefenceInRadius(Point2D centre);
+	bool canAttack();
+	void darkTemplarHarass();
+	Point2D findAttackTarget(const Unit *unit);
+	const Unit *getClosestBase(const Unit *unit);
+	const Unit *getClosestBase(Point2D point);
 	const Unit *getClosestEnemy(const Unit *ourUnit);
 	const Unit *getClosestEnemy(Point2D point);
 	const Unit *getClosestEnemyBase(const Unit *ourUnit);
+	Point2D getRetreatPoint(const Unit *unit);
 	bool inRange(const Unit *attacker, const Unit *target);
 	bool inRange(const Unit *attacker, Point2D target);
-	bool shieldsCritical(const Unit *unit, const Unit *attacker);
-	bool blink(const Unit *unit);
-	void printDebug();
 	bool kite(ArmyUnit armyUnit);
-	bool outranges(const Unit *attacker, const Unit *target);
-	Point2D getRetreatPoint(const Unit *unit);
-	void workerDefence();
-	int calculateEnemyStaticDefence();
-	float averageUnitDistanceToEnemyBase();
-	const Unit *getClosestBase(const Unit *unit);
-	const Unit *getClosestBase(Point2D point);
-	void darkTemplarHarass();
 	void moveObservers();
-public:
-	ArmyManager(BlinkerBot & bot);
-	~ArmyManager();
-	void onStep();
-	void addUnit(const Unit *unit);
-	void removeUnit(const Unit *unit);
-	void addEnemyUnit(const Unit *unit);
-	void removeEnemyUnit(const Unit *unit);
-	void addEnemyStructure(const Unit *structure);
-	void removeEnemyStructure(const Unit *structure);
-	ArmyStatus getArmyStatus();
-	void setRallyPoint(Point2D point);
-	bool detectionRequired();
-	void initialise();
-	const Unit *underAttack();
-	void warpgateComplete();
-	bool behind();
+	bool outranges(const Unit *attacker, const Unit *target);
+	void printDebug();
+	bool regroup();
+	void retreat();
+	bool shieldsCritical(const Unit *unit, const Unit *attacker);
+	void updateArmyValues();
+	void workerDefence();
+
 };
 

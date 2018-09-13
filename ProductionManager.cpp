@@ -8,11 +8,6 @@ ProductionManager::ProductionManager(BlinkerBot & bot):
 	productionQueue.initialiseQueue();
 }
 
-
-ProductionManager::~ProductionManager()
-{
-}
-
 void ProductionManager::initialise()
 {
 	for (auto unit : blinkerBot.Observation()->GetUnits())
@@ -34,11 +29,15 @@ void ProductionManager::initialise()
 
 void ProductionManager::onStep()
 {
+	/*
 	//timer stuff
 	std::clock_t start;
 	double duration;
 	start = std::clock();
 	//timer stuff
+	*/
+
+	//printDebug();
 
 	if (blinkerBot.Observation()->GetGameLoop() - lastProductionFrame > DEADLOCK
 		&& uint32_t(blinkerBot.Observation()->GetMinerals()) > DEADLOCK)
@@ -70,6 +69,8 @@ void ProductionManager::onStep()
 		if (!isBlocking(productionQueue.getNextItem().item) || armyStatus == Defend)
 		{
 			trainUnits();
+
+			//colossus take priority over regular production, so we don't want to kill our macro if our economy is weak
 			if (workerManager.getWorkerCount() > 30)
 			{
 				trainColossus();
@@ -84,6 +85,7 @@ void ProductionManager::onStep()
 		buildOrderManager.receiveMiningOutSignal(workerManager.miningOut());
 	}
 
+	/*
 	//timer stuff
 	duration = (std::clock() - start) / (double)CLOCKS_PER_SEC * 1000;
 	if (duration > 30)
@@ -91,10 +93,11 @@ void ProductionManager::onStep()
 		std::cout << "ProductionManager duration: " << duration << '\n';
 	}
 	//timer stuff
+	*/
 }
 
 /*
-determines an appropriate rally point
+returns the closest pylon to the enemy base (used for warp ins)
 */
 const Unit *ProductionManager::getClosestPylonToEnemyBase()
 {
@@ -116,11 +119,17 @@ const Unit *ProductionManager::getClosestPylonToEnemyBase()
 	return rallyPylon;
 }
 
+/*
+sets our rally point for warp ins
+*/
 void ProductionManager::setRallyPoint(Point2D point)
 {
 	rallyPoint = point;
 }
 
+/*
+determines the type of thing we have at the front of the production queue and passes it to the appropriate function
+*/
 void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 {
 	//check if the queue is empty. If it is, then let's generate a new goal and queue up some items
@@ -150,13 +159,15 @@ void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 	}
 }
 
-//trains units automatically (independent of productionQueue)
+/*
+trains units automatically (independent of productionQueue)
+*/
 void ProductionManager::trainUnits()
 {
 	for (auto structure : structures)
 	{
 		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->orders.size() == 0 
-			&& workerManager.getWorkerCount() <= (calculateMiningBases() * 22))
+			&& workerManager.getWorkerCount() <= (calculateMiningBases() * 22) && workerManager.getWorkerCount() <= 88)
 		{
 			blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_PROBE);
 		}
@@ -235,11 +246,7 @@ void ProductionManager::build(BuildOrderItem item)
 	}
 	else
 	{
-		//if we have the tech, then let's check if we have the necessary resources
-		//if (canAfford(UnitData::getUnitTypeID(item.item)))
-		//{
-			buildStructure(item.item);
-		//}
+		buildStructure(item.item);
 	}
 }
 
@@ -373,9 +380,13 @@ void ProductionManager::research(BuildOrderItem item)
 	}
 }
 
+/*
+let's the relevant managers know when a new structure is created
+*/
 void ProductionManager::addStructure(const Unit *unit)
 {
 	structures.insert(unit);
+
 	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
 	{
 		baseManager.addBase(unit);
@@ -425,8 +436,15 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 	{
 		if (structureToBuild == ABILITY_ID::BUILD_PYLON)
 		{
-			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, 
-				Point2D(nextPylonLocation.x + GetRandomScalar() * 2, nextPylonLocation.y + GetRandomScalar() * 2));
+			if (pylons.empty())
+			{
+				blinkerBot.Actions()->UnitCommand(builder, structureToBuild, nextPylonLocation);
+			}
+			else
+			{
+				blinkerBot.Actions()->UnitCommand(builder, structureToBuild,
+					Point2D(nextPylonLocation.x + GetRandomScalar() * 2, nextPylonLocation.y + GetRandomScalar() * 2));
+			}
 		}
 
 		//we want to make sure we have a cannon at each base for detection purposes
@@ -436,7 +454,11 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 			
 			if (baseManager.getOurBases().empty())
 			{
-				buildLocation = Point2D(getLeastArtosisPylon()->pos.x + GetRandomScalar() * 6.5f, getLeastArtosisPylon()->pos.y + GetRandomScalar() * 6.5f);
+				const Unit *targetPylon = getLeastArtosisPylon();
+				if (targetPylon)
+				{
+					buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 6.5f, targetPylon->pos.y + GetRandomScalar() * 6.5f);
+				}
 			}
 			else
 			{
@@ -446,7 +468,7 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 					bool hasCannon = false;
 					for (auto structure : structures)
 					{
-						if (Distance2D(base.getBuildLocation(), structure->pos) < 10 && structure->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
+						if (Distance2D(base.getBuildLocation(), structure->pos) < 8 && structure->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
 						{
 							hasCannon = true;
 						}
@@ -468,11 +490,33 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 		}
 		else
 		{
-
-			//find a pylon with some space and choose a random location within its power radius
 			Point2D buildLocation;
 			const Unit *targetPylon = getLeastArtosisPylon();
-			buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 6.5f, targetPylon->pos.y + GetRandomScalar() * 6.5f);
+
+			/*
+			//if we're walling in, we need to find an appropriate location
+			if (wallIn && !baseManager.getWallInPoints().empty())
+			{
+				buildLocation = GetRandomEntry(baseManager.getWallInPoints());
+				buildLocation = Point2D(buildLocation.x + GetRandomScalar(), buildLocation.y + GetRandomScalar());
+			}
+			*/
+			//otherwise find a pylon with some space and choose a random location within its power radius
+			if (targetPylon)
+			{
+				if (!baseManager.firstWallInPositionExists())
+				{
+					buildLocation = baseManager.getFirstWallInPosition();
+				}
+				else if (!baseManager.secondWallInPositionExists())
+				{
+					buildLocation = baseManager.getSecondWallInPosition();
+				}
+				else
+				{
+					buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 6.5f, targetPylon->pos.y + GetRandomScalar() * 6.5f);
+				}
+			}
 			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
 		}
 	}
@@ -481,6 +525,11 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 //returns the pylon powering the least number of structures
 const Unit *ProductionManager::getLeastArtosisPylon()
 {
+	if (pylons.empty())
+	{
+		return nullptr;
+	}
+
 	//set some default values
 	const Unit *leastArtosisPylon = *pylons.begin();
 	int lowestPowering = int(structures.size());
@@ -508,11 +557,58 @@ const Unit *ProductionManager::getLeastArtosisPylon()
 	return leastArtosisPylon;
 }
 
+/*
+determines the location of the next pylon to be constructed
+*/
 void ProductionManager::setNextPylonLocation()
 {
-	//if we need a forward pylon then build the pylon there
-	if (forwardPylon == nullptr && armyStatus == Attack)
+	//if this is our first pylon, then let's build it at the top of the ramp
+	if (pylons.empty() && baseManager.getFirstPylonPosition() != Point2D(0, 0))
 	{
+		nextPylonLocation = baseManager.getFirstPylonPosition();
+
+		/*
+		Point2D ramp = baseManager.getMainRamp();
+		Point2D main = blinkerBot.Observation()->GetStartLocation();
+		Point2D top = ramp;
+		int count = 0;
+
+		while (!blinkerBot.Observation()->IsPlacable(top) && count < 15)
+		{
+			if (top.x > main.x)
+			{
+				top = Point2D(top.x - 1, top.y);
+			}
+			else if (top.x < main.x)
+			{
+				top = Point2D(top.x + 1, top.y);
+			}
+			if (top.y > main.y)
+			{
+				top = Point2D(top.x, top.y - 1);
+			}
+			else if (top.y < main.y)
+			{
+				top = Point2D(top.x, top.y + 1);
+			}
+			count++;
+		}
+
+		if (blinkerBot.Observation()->IsPlacable(top))
+		{
+			nextPylonLocation = top;
+		}
+		else
+		{
+			std::cerr << "couldn't find the top of the ramp" << std::endl;
+		}
+		*/
+
+	}
+	//if we need a forward pylon then build the pylon there
+	else if (!pylons.empty() && forwardPylon == nullptr && armyStatus == Attack)
+	{
+		std::cerr << "making a forward pylon" << std::endl;
 		nextPylonLocation = forwardPylonPoint;
 	}
 	//otherwise find an appropriate location
@@ -543,12 +639,6 @@ void ProductionManager::setNextPylonLocation()
 
 		nextPylonLocation = buildLocation;
 	}
-	/*
-	Point3D point = Point3D(nextPylonLocation.x, nextPylonLocation.y, blinkerBot.Observation()->GetStartLocation().z + 1);
-	blinkerBot.Debug()->DebugBoxOut(point, Point3D(point.x + 1, point.y + 1, point.z));
-	blinkerBot.Debug()->SendDebug();
-	std::cerr << nextPylonLocation.x << ":" << nextPylonLocation.y << std::endl;
-	*/
 }
 
 /*
@@ -954,18 +1044,24 @@ int ProductionManager::checkPriority(ABILITY_ID ability)
 		return 100;
 		break;
 	case ABILITY_ID::RESEARCH_WARPGATE:
+	case ABILITY_ID::RESEARCH_BLINK:
+	case ABILITY_ID::TRAIN_OBSERVER:
 		return 1;
 		break;
-	case ABILITY_ID::RESEARCH_BLINK:
-	case ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE:
-	case ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONS:
+	case ABILITY_ID::TRAIN_COLOSSUS:
+	case ABILITY_ID::TRAIN_IMMORTAL:
 		return 2;
 		break;
-	case ABILITY_ID::TRAIN_STALKER:
+	case ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE:
+	case ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONS:
+	case ABILITY_ID::RESEARCH_PROTOSSGROUNDARMOR:
+	case ABILITY_ID::RESEARCH_PROTOSSSHIELDS:
 		return 3;
 		break;
-	default:
+	case ABILITY_ID::TRAIN_STALKER:
 		return 4;
+	default:
+		return 5;
 		break;
 	}
 }
@@ -1106,11 +1202,9 @@ void ProductionManager::checkMineralVisibility()
 	}
 }
 
-/*
-prints a build grid of the whole map (causes extreme FPS drop)
-*/
 void ProductionManager::printDebug()
 {
+	/*
 	for (int w = 0; w != int(blinkerBot.Observation()->GetGameInfo().width); w++)
 	{
 		for (int h = 0; h != int(blinkerBot.Observation()->GetGameInfo().height); h++)
@@ -1122,6 +1216,9 @@ void ProductionManager::printDebug()
 			}
 		}
 	}
+	*/
+	blinkerBot.Debug()->DebugBoxOut(Point3D(nextPylonLocation.x, nextPylonLocation.y, blinkerBot.Observation()->GetStartLocation().z + 1),
+		Point3D(nextPylonLocation.x + 2, nextPylonLocation.y + 2, blinkerBot.Observation()->GetStartLocation().z - 3));
 	blinkerBot.Debug()->SendDebug();
 
 }
@@ -1422,5 +1519,51 @@ void ProductionManager::trainColossus()
 		{
 			productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_COLOSSUS);
 		}
+	}
+}
+
+/*
+finds the base with the shortest distance to an enemy base
+*/
+const Unit *ProductionManager::getClosestBaseToEnemy()
+{
+	if (baseManager.getOurBases().empty())
+	{
+		return nullptr;
+	}
+
+	const Unit *closestBase = GetRandomEntry(baseManager.getOurBases()).getTownhall();
+
+	if (enemyBases.empty())
+	{
+		return closestBase;
+	}
+
+	for (auto base : baseManager.getOurBases())
+	{
+		if (Distance2D(base.getBuildLocation(), getClosestEnemyBase(base.getBuildLocation())->pos) < 
+			Distance2D(closestBase->pos, getClosestEnemyBase(closestBase->pos)->pos))
+		{
+			closestBase = base.getTownhall();
+		}
+	}
+
+	return closestBase;
+}
+
+/*
+returns the closest pylon to whichever of our bases is closest to the enemy
+*/
+const Unit *ProductionManager::getDefensivePylon()
+{
+	const Unit *base = getClosestBaseToEnemy();
+	
+	if (base)
+	{
+		return getClosestPylon(base->pos);
+	}
+	else
+	{
+		return getClosestPylonToEnemyBase();
 	}
 }

@@ -2,21 +2,13 @@
 #include "Blinkerbot.h"
 
 
-BaseManager::BaseManager(BlinkerBot & bot): blinkerBot(bot)
-{
-}
+BaseManager::BaseManager(BlinkerBot & bot): blinkerBot(bot){}
 
+BaseManager::~BaseManager(){}
 
-BaseManager::~BaseManager()
-{
-}
+Base::Base(){}
 
-Base::Base()
-{
-}
-Base::~Base()
-{
-}
+Base::~Base(){}
 
 Base::Base(std::set<const Unit *> minerals, std::set<const Unit *> geysers, Point2D buildLocation)
 {
@@ -39,6 +31,10 @@ Base::Base(std::set<const Unit *> minerals, std::set<const Unit *> geysers, Poin
 void BaseManager::initialise()
 {
 	findBases();
+	findRamp();
+	//calculateWallInOpening();
+	calculateFirstPylonPosition();
+	calculateWallInPositions();
 	printDebug();
 }
 
@@ -137,7 +133,26 @@ void BaseManager::printDebug()
 		}
 		n++;
 	}*/
+	/*
+	blinkerBot.Debug()->DebugBoxOut(Point3D(mainRampTop.x, mainRampTop.y, blinkerBot.Observation()->GetStartLocation().z + 1),
+		Point3D(mainRampTop.x + 2, mainRampTop.y + 2, blinkerBot.Observation()->GetStartLocation().z - 3), Colors::Blue);
 
+	blinkerBot.Debug()->DebugBoxOut(Point3D(mainRampBottom.x, mainRampBottom.y, blinkerBot.Observation()->GetStartLocation().z + 1),
+		Point3D(mainRampBottom.x + 2, mainRampBottom.y + 2, blinkerBot.Observation()->GetStartLocation().z - 3), Colors::Red);
+
+	for (auto point : wallInPoints)
+	{
+		blinkerBot.Debug()->DebugBoxOut(Point3D(point.x, point.y, blinkerBot.Observation()->GetStartLocation().z + 1),
+			Point3D(point.x + 1, point.y + 1, blinkerBot.Observation()->GetStartLocation().z - 1), Colors::Black);
+	}
+
+	blinkerBot.Debug()->DebugBoxOut(Point3D(firstWallinPosition.x, firstWallinPosition.y, blinkerBot.Observation()->GetStartLocation().z + 1),
+		Point3D(firstWallinPosition.x + 2, firstWallinPosition.y + 2, blinkerBot.Observation()->GetStartLocation().z - 1), Colors::Green);
+
+
+	blinkerBot.Debug()->DebugBoxOut(Point3D(secondWallinPosition.x, secondWallinPosition.y, blinkerBot.Observation()->GetStartLocation().z + 1),
+		Point3D(secondWallinPosition.x + 2, secondWallinPosition.y + 2, blinkerBot.Observation()->GetStartLocation().z - 1), Colors::Yellow);
+	*/
 	//blinkerBot.Debug()->DebugShowMap();
 	//blinkerBot.Debug()->SendDebug();
 }
@@ -165,9 +180,9 @@ std::vector<Point2D> BaseManager::getBuildGrid(Point2D centre)
 	{
 		maxX = float(blinkerBot.Observation()->GetGameInfo().width);
 	}
-	if (maxY > blinkerBot.Observation()->GetGameInfo().width)
+	if (maxY > blinkerBot.Observation()->GetGameInfo().height)
 	{
-		maxY = float(blinkerBot.Observation()->GetGameInfo().width);
+		maxY = float(blinkerBot.Observation()->GetGameInfo().height);
 	}
 
 	//load up the vector with a query for each point
@@ -176,10 +191,7 @@ std::vector<Point2D> BaseManager::getBuildGrid(Point2D centre)
 		for (float y = minY; y <= maxY; y++)
 		{
 			queries.push_back(QueryInterface::PlacementQuery(ABILITY_ID::BUILD_NEXUS, Point2D(x, y)));
-			//if (blinkerBot.Observation()->IsPlacable(Point2D(x, y)))
-			//{
 			buildGrid.push_back(Point2D(x, y));
-			//}
 		}
 	}
 
@@ -866,4 +878,478 @@ void BaseManager::updateCompletedBase(const Unit *unit)
 
 	//std::cerr << "adding a completed base to vector" << std::endl;
 	ourBases.push_back(Base(minerals, geysers, unit->pos, unit));
+}
+
+/*
+finds a point representing the top of our main ramp, or coordinate 0,0 if no ramp is found
+*/
+void BaseManager::findRamp()
+{
+	std::vector<Point2D> grid = calculateGrid(blinkerBot.Observation()->GetStartLocation(), 20);
+	std::vector<Point2D> rampPoints;
+
+	//check each point on the grid. If it's pathable but not placable then we'll count it as a ramp
+	for (auto point : grid)
+	{
+		if (blinkerBot.Observation()->IsPathable(point) && !blinkerBot.Observation()->IsPlacable(point))
+		{
+			rampPoints.push_back(point);
+		}
+	}
+
+	//let's calculate an average point and remove anomalies
+	float averageX = 0;
+	float averageY = 0;
+	for (auto point : rampPoints)
+	{
+		averageX += point.x;
+		averageY += point.y;
+	}
+	averageX = averageX / rampPoints.size();
+	averageY = averageY / rampPoints.size();
+	for (std::vector<Point2D>::iterator point = rampPoints.begin(); point != rampPoints.end();)
+	{
+		if (Distance2D(*point, Point2D(averageX, averageY)) > 8)
+		{
+			point = rampPoints.erase(point);
+		}
+		else
+		{
+			++point;
+		}
+	}
+
+	//if we didn't find anything then return 0,0 to signal failure
+	if (rampPoints.empty())
+	{
+		std::cerr << "didn't find a ramp" << std::endl;
+		mainRampTop = Point2D(0, 0);
+		mainRampBottom = Point2D(0, 0);
+	}
+	//otherwise we can calculate the closest and furthest points on the ramp representing the top and bottom
+	else
+	{
+		Point2D closestPoint = GetRandomEntry(rampPoints);
+		Point2D furthestPoint = GetRandomEntry(rampPoints);
+		Point2D start = blinkerBot.Observation()->GetStartLocation();
+		for (auto point : rampPoints)
+		{
+			if (Distance2D(point, start) < Distance2D(closestPoint, start))
+			{
+				closestPoint = point;
+			}
+		}
+		mainRampTop = closestPoint;
+
+		for (auto point : rampPoints)
+		{
+			if (Distance2D(point, start) > Distance2D(furthestPoint, start) && Distance2D(point, mainRampTop) < 6)
+			{
+				furthestPoint = point;
+			}
+		}
+		mainRampBottom = furthestPoint;
+	}
+
+	//now that we've found the ramp, let's find the closest placable points to the top so we can wall-in
+	calculatePlacableRampTop(mainRampTop);
+}
+
+/*
+calculates the points which are placable and closest to the top of the ramp
+*/
+void BaseManager::calculatePlacableRampTop(Point2D ramp)
+{
+	std::vector<Point2D> grid = calculateGrid(ramp, 4);
+	
+	for (auto point : grid)
+	{
+		if (blinkerBot.Observation()->GetStartLocation().z - blinkerBot.Observation()->TerrainHeight(point) < 0.5 &&
+			blinkerBot.Observation()->IsPlacable(point) && isNextToRamp(point))
+		{
+			wallInPoints.push_back(point);
+		}
+	}
+
+}
+
+/*
+returns true if any of the adjacent or diagonal points are unplacable
+*/
+bool BaseManager::isNextToRamp(Point2D point)
+{
+	if (!blinkerBot.Observation()->IsPlacable(Point2D(point.x + 1, point.y)) && 
+		blinkerBot.Observation()->IsPathable(Point2D(point.x + 1, point.y)))
+	{
+		return true;
+	}
+	else if (!blinkerBot.Observation()->IsPlacable(Point2D(point.x - 1, point.y)) &&
+		blinkerBot.Observation()->IsPathable(Point2D(point.x - 1, point.y)))
+	{
+		return true;
+	}
+	else if (!blinkerBot.Observation()->IsPlacable(Point2D(point.x, point.y + 1)) &&
+		blinkerBot.Observation()->IsPathable(Point2D(point.x, point.y + 1)))
+	{
+		return true;
+	}
+	else if (!blinkerBot.Observation()->IsPlacable(Point2D(point.x, point.y - 1)) &&
+		blinkerBot.Observation()->IsPathable(Point2D(point.x, point.y - 1)))
+	{
+		return true;
+	}
+	else if (!blinkerBot.Observation()->IsPlacable(Point2D(point.x + 1, point.y + 1))
+		&&
+		blinkerBot.Observation()->IsPathable(Point2D(point.x + 1, point.y + 1)))
+	{
+		return true;
+	}
+	else if (!blinkerBot.Observation()->IsPlacable(Point2D(point.x - 1, point.y + 1)) &&
+		blinkerBot.Observation()->IsPathable(Point2D(point.x - 1, point.y + 1)))
+	{
+		return true;
+	}
+	else if (!blinkerBot.Observation()->IsPlacable(Point2D(point.x + 1, point.y - 1)) &&
+		blinkerBot.Observation()->IsPathable(Point2D(point.x + 1, point.y - 1)))
+	{
+		return true;
+	}
+	else if (!blinkerBot.Observation()->IsPlacable(Point2D(point.x - 1, point.y - 1)) &&
+		blinkerBot.Observation()->IsPathable(Point2D(point.x - 1, point.y - 1)))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
+returns a grid of Point2Ds with int values with a given centre and extending in positive and negative directions to a given limit.
+*/
+std::vector<Point2D> BaseManager::calculateGrid(Point2D centre, int size)
+{
+	std::vector<Point2D> grid;
+
+	//first we set the minimum and maximum values for the search area
+	float minX = centre.x - size;
+	float minY = centre.y - size;
+	float maxX = centre.x + size;
+	float maxY = centre.y + size;
+
+	if (minX < 0)
+	{
+		minX = 0;
+	}
+	if (minY < 0)
+	{
+		minY = 0;
+	}
+	if (maxX > blinkerBot.Observation()->GetGameInfo().width)
+	{
+		maxX = float(blinkerBot.Observation()->GetGameInfo().width);
+	}
+	if (maxY > blinkerBot.Observation()->GetGameInfo().height)
+	{
+		maxY = float(blinkerBot.Observation()->GetGameInfo().height);
+	}
+
+	//make a vector of points within range
+	for (float x = minX; x <= maxX; x++)
+	{
+		for (float y = minY; y <= maxY; y++)
+		{
+			grid.push_back(Point2D(x, y));
+		}
+	}
+	return grid;
+}
+
+/*
+returns the location of the top of our main ramp, 0,0 represents a situation where there is no ramp
+*/
+Point2D BaseManager::getMainRampTop()
+{
+	return mainRampTop;
+}
+
+
+/*
+calculates a point to use as an opening in our wall-off
+*/
+/*
+void BaseManager::calculateWallInOpening()
+{
+	//if we don't know where the wall-off is, just return 0, 0
+	if (wallInPoints.empty())
+	{
+		return;
+	}
+
+	for (auto point : wallInPoints)
+	{
+		//count the number of adjacent wall-in points for each point
+		int adjacent = 0;
+		for (auto adjacentPoint : wallInPoints)
+		{
+			if (!(point.x == adjacentPoint.x && point.y == adjacentPoint.y) && Distance2D(point, adjacentPoint) < 2)
+			{
+				adjacent++;
+			}
+		}
+		//if there's only one adjacent wall-in point, then this is a suitable opening
+		if (adjacent == 1)
+		{
+			wallInOpening = point;
+		}
+	}
+}
+*/
+/*
+returns the location of the opening in our wall-in
+*/
+/*
+Point2D BaseManager::getWallInOpening()
+{
+	return wallInOpening;
+}
+*/
+
+void BaseManager::calculateWallInPositions()
+{
+	std::vector<Point2D> edges;
+	int wallType = 0;
+
+	for (auto point : wallInPoints)
+	{
+		//count the number of adjacent wall-in points for each point
+		int adjacent = 0;
+		for (auto adjacentPoint : wallInPoints)
+		{
+			if (!(point.x == adjacentPoint.x && point.y == adjacentPoint.y) && Distance2D(point, adjacentPoint) < 2)
+			{
+				adjacent++;
+			}
+		}
+		//if there's only one adjacent wall-in point, then this an edge
+		if (adjacent <= 2)
+		{
+			wallType = adjacent; //walls edges can either have 1 or 2 adjacent points, this affects placement
+			edges.push_back(point);
+		}
+	}
+	if (edges.size() != 2)
+	{
+		std::cerr << "wall-in calculation error" << std::endl;
+		return;
+	}
+	firstWallinPosition = edges[0];
+	secondWallinPosition = edges[1];
+
+	if (wallType == 1)
+	{
+		//first building offset from ramp to account for gateway size
+		if (firstWallinPosition.x > firstPylonPosition.x)
+		{
+			firstWallinPosition = Point2D(firstWallinPosition.x - 1, firstWallinPosition.y);
+		}
+		else if (firstWallinPosition.x < firstPylonPosition.x)
+		{
+			firstWallinPosition = Point2D(firstWallinPosition.x + 1, firstWallinPosition.y);
+		}
+		if (firstWallinPosition.y > firstPylonPosition.y)
+		{
+			firstWallinPosition = Point2D(firstWallinPosition.x, firstWallinPosition.y - 1);
+		}
+		else if (firstWallinPosition.y < firstPylonPosition.y)
+		{
+			firstWallinPosition = Point2D(firstWallinPosition.x, firstWallinPosition.y + 1);
+		}
+
+		//second building offset from ramp to account for gateway size
+		if (secondWallinPosition.x > firstPylonPosition.x)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x - 1, secondWallinPosition.y);
+		}
+		else if (secondWallinPosition.x < firstPylonPosition.x)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x + 1, secondWallinPosition.y);
+		}
+		if (secondWallinPosition.y > firstPylonPosition.y)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y - 1);
+		}
+		else if (secondWallinPosition.y < firstPylonPosition.y)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y + 1);
+		}
+
+		//second building move towards first building to make tight wall
+		if (secondWallinPosition.x > firstWallinPosition.x)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x - 1, secondWallinPosition.y);
+		}
+		else if (secondWallinPosition.x < firstWallinPosition.x)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x + 1, secondWallinPosition.y);
+		}
+		if (secondWallinPosition.y > firstWallinPosition.y)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y - 1);
+		}
+		else if (secondWallinPosition.y < firstWallinPosition.y)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y + 1);
+		}
+
+		//second building offset to avoid corner overlap
+		if (secondWallinPosition.x > mainRampTop.x)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x + 1, secondWallinPosition.y);
+		}
+		else if (secondWallinPosition.x < mainRampTop.x)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x - 1, secondWallinPosition.y);
+		}
+		if (secondWallinPosition.y > mainRampTop.y)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y + 1);
+		}
+		else if (secondWallinPosition.y < mainRampTop.y)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y - 1);
+		}
+	}
+	//NOTE: this one doesn't correctly wall-in on DreamCatcherLE
+	else if (wallType == 2)
+	{
+		//first building offset from ramp to account for gateway size
+		if (firstWallinPosition.x > firstPylonPosition.x)
+		{
+			firstWallinPosition = Point2D(firstWallinPosition.x - 1, firstWallinPosition.y);
+		}
+		else if (firstWallinPosition.x < firstPylonPosition.x)
+		{
+			firstWallinPosition = Point2D(firstWallinPosition.x + 1, firstWallinPosition.y);
+		}
+		if (firstWallinPosition.y > firstPylonPosition.y)
+		{
+			firstWallinPosition = Point2D(firstWallinPosition.x, firstWallinPosition.y - 1);
+		}
+		else if (firstWallinPosition.y < firstPylonPosition.y)
+		{
+			firstWallinPosition = Point2D(firstWallinPosition.x, firstWallinPosition.y + 1);
+		}
+		//second building offset from ramp to account for gateway size
+		if (secondWallinPosition.x > firstPylonPosition.x)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x - 2, secondWallinPosition.y);
+		}
+		else if (secondWallinPosition.x < firstPylonPosition.x)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x + 2, secondWallinPosition.y);
+		}
+		if (secondWallinPosition.y > firstPylonPosition.y)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y - 2);
+		}
+		else if (secondWallinPosition.y < firstPylonPosition.y)
+		{
+			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y + 2);
+		}
+	}
+	else
+	{
+		std::cerr << "unknown ramp type; cannot wall" << std::endl;
+	}
+}
+
+/*
+calculates the position of our first pylon for wall-in purposes
+*/
+void BaseManager::calculateFirstPylonPosition()
+{
+	if (wallInPoints.empty())
+	{
+		firstPylonPosition = Point2D(0, 0);
+	}
+	else
+	{
+		const int PYLONDIST = 4;
+		Point2D pylonPoint = *wallInPoints.begin();
+		Point2D main = blinkerBot.Observation()->GetStartLocation();
+
+		if (mainRampBottom.x > mainRampTop.x)
+		{
+			pylonPoint = Point2D(pylonPoint.x - PYLONDIST, pylonPoint.y);
+		}
+		else if (mainRampBottom.x < mainRampTop.x)
+		{
+			pylonPoint = Point2D(pylonPoint.x + PYLONDIST, pylonPoint.y);
+		}
+		if (mainRampBottom.y > mainRampTop.y)
+		{
+			pylonPoint = Point2D(pylonPoint.x, pylonPoint.y - PYLONDIST);
+		}
+		else if (mainRampBottom.y < mainRampTop.y)
+		{
+			pylonPoint = Point2D(pylonPoint.x, pylonPoint.y + PYLONDIST);
+		}
+		firstPylonPosition = pylonPoint;
+	}
+}
+
+/*
+returns the position of the first pylon, for wall-in purposes
+*/
+Point2D BaseManager::getFirstPylonPosition()
+{
+	return firstPylonPosition;
+}
+
+/*
+returns the placement position of our first wall-in structure
+*/
+Point2D BaseManager::getFirstWallInPosition()
+{
+	return firstWallinPosition;
+}
+
+/*
+returns the placement position of our second wall-in structure
+*/
+Point2D BaseManager::getSecondWallInPosition()
+{
+	return secondWallinPosition;
+}
+
+/*
+returns true if there is a building in the first wall-in position
+*/
+bool BaseManager::firstWallInPositionExists()
+{
+	for (auto unit : blinkerBot.Observation()->GetUnits())
+	{
+		if (UnitData::isOurs(unit) && UnitData::isStructure(unit) && Distance2D(unit->pos, firstWallinPosition) < 2)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+/*
+returns true if there is a building in the second wall-in position
+*/
+bool BaseManager::secondWallInPositionExists()
+{
+	for (auto unit : blinkerBot.Observation()->GetUnits())
+	{
+		if (UnitData::isOurs(unit) && UnitData::isStructure(unit) && Distance2D(unit->pos, secondWallinPosition) < 2)
+		{
+			return true;
+		}
+	}
+	return false;
 }

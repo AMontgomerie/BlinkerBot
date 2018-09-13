@@ -6,11 +6,6 @@ WorkerManager::WorkerManager(BlinkerBot & bot) : blinkerBot(bot), scout(nullptr)
 {
 }
 
-
-WorkerManager::~WorkerManager()
-{
-}
-
 /*
 perform one-time only actions at the start of the game
 */
@@ -58,39 +53,43 @@ size_t WorkerManager::getWorkerCount()
 }
 
 /*
-checks that all our gases are being mined by the ideal number of harvesters
+checks that a gasis being mined by the ideal number of harvesters
 */
 void WorkerManager::checkGas(const Unit *gas)
 {
 	//check how many workers are mining at the geyser
 	int toAdd = gas->ideal_harvesters - gas->assigned_harvesters;
-	std::set<const Unit *>::const_iterator worker = workers.begin();
 
-	//if we don't have enough, then put some more in
-	while (toAdd > 0 && worker != workers.end())
+	if (workers.size() > toAdd)
 	{
-		//get a worker that isn't already mining gas or building a structure
-		if (isAvailableWorker(*worker) &&
-			((*worker)->orders.empty() || !UnitData::isBuildAbility((*(*worker)->orders.begin()).ability_id)))
+		std::set<const Unit *>::const_iterator worker = workers.begin();
+
+		//if we don't have enough, then put some more in
+		while (toAdd > 0 && worker != workers.end())
 		{
-			blinkerBot.Actions()->UnitCommand(*worker, ABILITY_ID::SMART, gas);
-			toAdd--;
-		}
-		worker++;
-	}
-	worker = workers.begin();
-	//if we have too many then take some out
-	while (toAdd < 0 && worker != workers.end())
-	{
-		for (auto order : (*worker)->orders)
-		{
-			if (order.target_pos == gas->pos || Distance2D((*worker)->pos, gas->pos) < 2)
+			//get a worker that isn't already mining gas or building a structure
+			if (isAvailableWorker(*worker) &&
+				((*worker)->orders.empty() || !UnitData::isBuildAbility((*(*worker)->orders.begin()).ability_id)))
 			{
-				returnToMining(*worker);
-				toAdd++;
+				blinkerBot.Actions()->UnitCommand(*worker, ABILITY_ID::SMART, gas);
+				toAdd--;
 			}
+			worker++;
 		}
-		worker++;
+		worker = workers.begin();
+		//if we have too many then take some out
+		while (toAdd < 0 && worker != workers.end())
+		{
+			for (auto order : (*worker)->orders)
+			{
+				if (order.target_pos == gas->pos || Distance2D((*worker)->pos, gas->pos) < 2)
+				{
+					returnToMining(*worker);
+					toAdd++;
+				}
+			}
+			worker++;
+		}
 	}
 }
 
@@ -198,22 +197,24 @@ void WorkerManager::transferWorkers(int numOfWorkers, const Unit *overSaturatedB
 					//find the nexus for this base
 					if (Distance2D(base->pos, structure->pos) < 4 && structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
 					{
-						//std::cerr << "we found another nexus" << std::endl;
 						//calculate how many workers we can take on
 						int freeSpace = structure->ideal_harvesters - structure->assigned_harvesters;
-						std::set<const Unit *>::iterator worker = workers.begin();
-						while (freeSpace > 0 && numOfWorkers > 0 && worker != workers.end())
+						if (!workers.empty())
 						{
-							//std::cerr << "found an undersaturated nexus" << std::endl;
-							if (Distance2D((*worker)->pos, overSaturatedBase->pos) < 5 && isAvailableWorker(*worker))
+							std::set<const Unit *>::iterator worker = workers.begin();
+							while (freeSpace > 0 && numOfWorkers > 0 && worker != workers.end())
 							{
-								//std::cerr << "transferring a worker" << std::endl;
+								//std::cerr << "found an undersaturated nexus" << std::endl;
+								if (Distance2D((*worker)->pos, overSaturatedBase->pos) < 5 && isAvailableWorker(*worker))
+								{
+									//std::cerr << "transferring a worker" << std::endl;
 
-								blinkerBot.Actions()->UnitCommand((*worker), ABILITY_ID::MOVE, base->pos);
-								freeSpace--;
-								numOfWorkers--;
+									blinkerBot.Actions()->UnitCommand((*worker), ABILITY_ID::MOVE, base->pos);
+									freeSpace--;
+									numOfWorkers--;
+								}
+								worker++;
 							}
-							worker++;
 						}
 					}
 				}
@@ -295,9 +296,14 @@ checks the number of workers harvesting from each gas
 */
 void WorkerManager::checkGases()
 {
+	int availableWorkers = int(workers.size());
 	for (auto gas : gases)
 	{
-		checkGas(gas);
+		if (availableWorkers > 9)
+		{
+			checkGas(gas);
+		}
+		availableWorkers -= 3;
 	}
 }
 
@@ -457,7 +463,7 @@ void WorkerManager::harassWorkers()
 			{
 				if (!scout->orders.empty() && scout->orders.front().ability_id != ABILITY_ID::ATTACK)
 				{
-					blinkerBot.Actions()->UnitCommand(scout, ABILITY_ID::ATTACK, target->pos);
+					blinkerBot.Actions()->UnitCommand(scout, ABILITY_ID::ATTACK, target);
 				}
 			}
 			else

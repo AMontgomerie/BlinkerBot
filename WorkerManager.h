@@ -46,6 +46,5 @@ public:
 	const Unit *getScout();
 	void addEnemyMain(const Unit *unit);
 	WorkerManager(BlinkerBot & bot);
-	~WorkerManager();
 };
 

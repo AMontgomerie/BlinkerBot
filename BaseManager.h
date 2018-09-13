@@ -33,6 +33,13 @@ class BaseManager
 {
 	BlinkerBot & blinkerBot;
 
+	Point2D mainRampTop;
+	Point2D mainRampBottom;
+	Point2D wallInOpening;
+	Point2D firstWallinPosition;
+	Point2D secondWallinPosition;
+	Point2D firstPylonPosition;
+	std::vector<Point2D> wallInPoints;
 	std::vector<Base> bases;
 	std::vector<Base> availableBases;
 	std::vector<Base> ourBases;
@@ -46,12 +53,18 @@ class BaseManager
 	Color getDebugColor(int num);
 	void printBuildGrid(std::vector<Point2D> buildGrid);
 	std::vector<Point2D> getBuildGrid(Point2D centre);
-	//std::vector<Point2D> getPreliminaryBuildGrid(Point2D centre);
 	Point2D calculateBuildLocation(Base base);
 	Point2D calculateAveragePoint(std::set<const Unit *> nodes);
 	Point2D calculateAveragePoint(std::vector<const Unit *> nodes);
 	std::vector<const Unit *> sortMineralLine(std::set<const Unit *> line, Point2D baseLocation);
 	std::set<const Unit *> findTwoClosestGeysers(std::set<const Unit *> geysers, Point2D baseLocation);
+	void findRamp();
+	void calculatePlacableRampTop(Point2D ramp);
+	std::vector<Point2D> calculateGrid(Point2D centre, int size);
+	bool isNextToRamp(Point2D point);
+	//void calculateWallInOpening();
+	void calculateWallInPositions();
+	void calculateFirstPylonPosition();
 public:
 	BaseManager(BlinkerBot & bot);
 	~BaseManager();
@@ -67,5 +80,11 @@ public:
 	void addGas(const Unit *unit);
 	void removeGas(const Unit *unit);
 	std::vector<Base> getOurBases();
+	Point2D getMainRampTop();
+	Point2D getFirstPylonPosition();
+	Point2D getFirstWallInPosition();
+	Point2D getSecondWallInPosition();
+	bool firstWallInPositionExists();
+	bool secondWallInPositionExists();
 };
 
