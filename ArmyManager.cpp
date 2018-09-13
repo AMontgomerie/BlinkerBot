@@ -2,7 +2,8 @@
 #include "Blinkerbot.h"
 
 ArmyManager::ArmyManager(BlinkerBot & bot) : blinkerBot(bot), currentStatus(Defend), 
-regroupComplete(true), enemyBaseExplored(false), warpgate(false), beingRushed(false){}
+regroupComplete(true), enemyBaseExplored(false), warpgateTech(false), beingRushed(false), zerglingSpeed(false), blinkTech(false),
+zerglingTimer(nullptr, 0, 0, Point2D(0, 0), false){}
 
 void ArmyManager::initialise()
 {
@@ -28,6 +29,8 @@ void ArmyManager::onStep()
 	darkTemplarHarass();
 	moveObservers();
 	workerDefence();
+	checkForZerglingSpeed();
+
 	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
 	{
 		updateArmyValues();
@@ -125,7 +128,7 @@ void ArmyManager::workerDefence()
 		for (auto worker : pulledWorkers)
 		{
 			const Unit *target = getClosestEnemy(worker);
-			if (target && shieldsCritical(worker, target))
+			if (worker->shield <= 5)
 			{
 				//right click the mineral (so the worker can move through other units)
 				if (mineral->display_type == Unit::DisplayType::Visible)
@@ -258,7 +261,7 @@ void ArmyManager::attack()
 			//- nearby retreating units have triggered the retreating flag
 			//- or we don't have warpgate and our units are spread out causing some units to arrive much earlier than others
 			//(this is turned off after warpgate because the constant army supply comparisons become expensive with large armies)
-			if (retreating || !warpgate && ((armyUnit.unit->weapon_cooldown > 0 || 
+			if (retreating || !warpgateTech && ((armyUnit.unit->weapon_cooldown > 0 || 
 				getClosestEnemy(armyUnit.unit) && !inRange(armyUnit.unit, getClosestEnemy(armyUnit.unit))) && 
 				(calculateSupplyInRadius(armyUnit.unit->pos, enemyArmy) + calculateEnemyStaticDefenceInRadius(armyUnit.unit->pos)) > 
 				calculateSupplyInRadius(armyUnit.unit->pos, army)))
@@ -497,7 +500,9 @@ returns true if we have enough units to attack
 */
 bool ArmyManager::canAttack()
 {
-	if (!beingRushed && currentArmyValue > 1 && ((currentArmyValue >= currentEnemyArmyValue)  || currentArmyValue > 80))
+	//attack can be delayed by zergling speed (until blink), rushes (until early game timer runs out), or army size
+	if (!(zerglingSpeed && !blinkTech) && !beingRushed && currentArmyValue > 1 && 
+		((currentArmyValue >= currentEnemyArmyValue)  || currentArmyValue > 80))
 	{
 		return true;
 	}
@@ -635,11 +640,14 @@ checks if a unit can kite vs the closest enemy, and issue a move command if it c
 */
 bool ArmyManager::kite(ArmyUnit armyUnit)
 {
+	/*
 	//this function just causes lag and makes units bump into eachother in large fights
 	if (calculateSupply(army) > 40)
 	{
 		return false;
 	}
+	*/
+
 	//check if we are in range and if we outrange the enemy
 	bool canKite = false;
 	for (auto enemy : enemyArmy)
@@ -954,7 +962,8 @@ Point2D ArmyManager::getRetreatPoint(const Unit *unit)
 	const Unit *closestEnemy = getClosestEnemy(unit);
 
 	//if enemies are closer to our rally point than us, then let's run away from the enemy rather than to the rally point
-	if (closestEnemy && Distance2D(closestEnemy->pos, rallyPoint) < Distance2D(unit->pos, rallyPoint))
+	if (closestEnemy && Distance2D(closestEnemy->pos, rallyPoint) < Distance2D(unit->pos, rallyPoint) ||
+		Distance2D(unit->pos, rallyPoint) < RETREATDIST)
 	{
 		if (closestEnemy->pos.x > unit->pos.x)
 		{
@@ -1021,11 +1030,18 @@ const Unit *ArmyManager::getClosestBase(Point2D point)
 }
 
 /*
-let's Army Manager know when we have finished the warpgate upgrade
+let's us know if some key upgrades are complete
 */
-void ArmyManager::warpgateComplete()
+void ArmyManager::onUpgradeComplete(UpgradeID upgrade)
 {
-	warpgate = true;
+	if (upgrade == UPGRADE_ID::WARPGATERESEARCH)
+	{
+		warpgateTech = true;
+	}
+	else if (upgrade == UPGRADE_ID::BLINKTECH)
+	{
+		blinkTech = true;
+	}
 }
 
 /*
@@ -1033,7 +1049,7 @@ returns true if the enemy army is much larger than ours
 */
 bool ArmyManager::behind()
 {
-	if (warpgate && calculateSupply(army) * 2 < calculateSupply(enemyArmy))
+	if (blinkTech && calculateSupply(army) * 2 < calculateSupply(enemyArmy))
 	{
 		return true;
 	}
@@ -1161,6 +1177,7 @@ bool ArmyManager::rushDetected()
 					beingRushed = true;
 					return true;
 				}
+				return false;
 			}
 		}
 		//for zergs
@@ -1175,5 +1192,81 @@ bool ArmyManager::rushDetected()
 	{
 		beingRushed = false;
 		return false;
+	}
+}
+
+/*
+uses a timer to check if our enemy has zergling speed or not
+*/
+void ArmyManager::checkForZerglingSpeed()
+{
+	if (enemyRace == Race::Zerg && !zerglingSpeed)
+	{
+		//if we haven't got a zergling, let's find one
+		if (!zerglingTimer.zergling)
+		{
+			//try to find a new zergling
+			const Unit *zergling = nullptr;;
+			for (auto enemy : enemyArmy)
+			{
+				if (enemy->unit_type == UNIT_TYPEID::ZERG_ZERGLING && enemy->last_seen_game_loop == blinkerBot.Observation()->GetGameLoop())
+				{
+					zergling = enemy;
+				}
+			}
+			//when we find a new zergling, store its information
+			if (zergling)
+			{
+				zerglingTimer = ZerglingTimer(zergling,
+					blinkerBot.Observation()->GetGameLoop() / 22.4f,
+					(blinkerBot.Observation()->GetGameLoop() / 22.4f) + 1.0f,
+					zergling->pos,
+					blinkerBot.Observation()->HasCreep(zergling->pos));
+			}
+		}
+		//if we lose sight of the zergling then get rid of it
+		else if (zerglingTimer.zergling->last_seen_game_loop != blinkerBot.Observation()->GetGameLoop())
+		{
+			zerglingTimer = ZerglingTimer(nullptr, 0, 0, Point2D(0, 0), false);
+		}
+		//if we're already timing a zergling, let's check the clock
+		else if(zerglingTimer.startTime != 0 && blinkerBot.Observation()->GetGameLoop() / 22.4 >= zerglingTimer.endTime)
+		{
+			float timeTaken = (blinkerBot.Observation()->GetGameLoop() / 22.4) - zerglingTimer.startTime;
+			//for zerglings on creep
+			if (zerglingTimer.onCreep && blinkerBot.Observation()->HasCreep(zerglingTimer.zergling->pos))
+			{
+				//if it has moved further than a zergling's speed on creep
+				if (zerglingTimer.startPosition.x != 0 && zerglingTimer.startPosition.y != 0 &&
+					Distance2D(zerglingTimer.zergling->pos, zerglingTimer.startPosition) > 6)//3.83903f * timeTaken)
+				{
+					/*
+					std::cerr << "time: " << (blinkerBot.Observation()->GetGameLoop() / 22.4) - zerglingTimer.startTime << std::endl;
+					std::cerr << "on creep dist " << Distance2D(zerglingTimer.zergling->pos, zerglingTimer.startPosition) << std::endl;
+					*/
+					zerglingSpeed = true;
+				}
+			}
+			//off creep
+			else if (!zerglingTimer.onCreep && !blinkerBot.Observation()->HasCreep(zerglingTimer.zergling->pos))
+			{
+				//if it has moved further than a zergling's base speed, it has the speed upgrade
+				if (zerglingTimer.startPosition.x != 0 && zerglingTimer.startPosition.y != 0 && 
+					Distance2D(zerglingTimer.zergling->pos, zerglingTimer.startPosition) >  5)//2.9531f * timeTaken)
+				{
+					/*
+					std::cerr << "time: " << (blinkerBot.Observation()->GetGameLoop() / 22.4) - zerglingTimer.startTime << std::endl;
+					std::cerr << "off creep dist " << Distance2D(zerglingTimer.zergling->pos, zerglingTimer.startPosition) << std::endl;
+					*/
+					zerglingSpeed = true;
+				}
+			}
+
+			//reset the values
+			zerglingTimer.startTime = blinkerBot.Observation()->GetGameLoop() / 22.4f;
+			zerglingTimer.endTime = (blinkerBot.Observation()->GetGameLoop() / 22.4f) + 1.0f;
+			zerglingTimer.startPosition = zerglingTimer.zergling->pos;
+			zerglingTimer.onCreep = blinkerBot.Observation()->HasCreep(zerglingTimer.zergling->pos);
+		}
 	}
 }

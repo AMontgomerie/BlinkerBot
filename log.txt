@@ -1,15 +1,11 @@
 high priority:
-- fix infinite loop/crash bug
-- improve worker micro
-- race specific builds: need to deal with ling heavy armies
+- stop units from retreating ontop of a pylon rather than away from enemies
 - movable structure bug
-- do a method breakdown to see whats causing the lag
+- fix the bug on LostAndFound
+- fix infinite loop/crash bug
+- race specific builds: need to deal with ling heavy armies
 - reorganised methods and delete redundant or commented code
 - fix lag caused by army manager
-- wall in bugs:
-	- pylon occasionally unplacable
-	- gateways placed corner to corner block stalkers in (use building radius to place them next to each other?
-	- turn of box debug
 
 later:
 - army splitting (dont pull everything back every time a scout comes in your base)
@@ -29,5 +25,3 @@ later:
 - continue implementing UnitData
 
 DONE FOR NEXT UPLOAD:
-- improved rally point logic
-- walls in

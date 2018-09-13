@@ -141,9 +141,6 @@ void BlinkerBot::OnUnitIdle(const sc2::Unit *unit)
 void BlinkerBot::OnUpgradeCompleted(UpgradeID upgrade)
 {
 	productionManager.onUpgradeComplete(upgrade);
-	if (upgrade == UPGRADE_ID::WARPGATERESEARCH)
-	{
-		armyManager.warpgateComplete();
-	}
+	armyManager.onUpgradeComplete(upgrade);
 }
 

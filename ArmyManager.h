@@ -25,15 +25,30 @@ class ArmyManager
 		ArmyUnit(const Unit *armyUnit, ArmyStatus unitStatus): unit(armyUnit), status(unitStatus){};
 	};
 
+	struct ZerglingTimer
+	{
+		const Unit *zergling;
+		float startTime;
+		float endTime;
+		bool onCreep;
+		Point2D startPosition;
+		ZerglingTimer(const Unit *ling, float sTime, float eTime, Point2D sPos, bool creep):
+			zergling(ling), startTime(sTime), endTime(eTime), startPosition(sPos), onCreep(creep){};
+	};
+
 	Race enemyRace;
 	bool beingRushed;
 	bool regroupComplete;
 	bool enemyBaseExplored;
-	bool warpgate;
-	int currentArmyValue;
-	int currentEnemyArmyValue;
+	bool zerglingSpeed;
+	bool warpgateTech;
+	bool blinkTech;
+	float currentArmyValue;
+	float currentEnemyArmyValue;
 	ArmyStatus currentStatus;
 	Point2D rallyPoint;
+	ZerglingTimer zerglingTimer;
+
 	std::vector<ArmyUnit> army;
 	std::set<const Unit *> darkTemplars;
 	std::set<const Unit *> enemyArmy;
@@ -51,13 +66,13 @@ public:
 	ArmyStatus getArmyStatus();
 	void initialise();
 	void onStep();
+	void onUpgradeComplete(UpgradeID upgrade);
 	void removeEnemyUnit(const Unit *unit);
 	void removeEnemyStructure(const Unit *structure);
 	void removeUnit(const Unit *unit);
 	bool rushDetected();
 	void setRallyPoint(Point2D point);
 	const Unit *underAttack();
-	void warpgateComplete();
 
 private:
 	void attack();
@@ -72,6 +87,7 @@ private:
 	float calculateSupplyInRadius(Point2D centre, std::set<const Unit *> army);
 	float calculateSupplyInRadius(Point2D centre, std::vector<ArmyUnit> army);
 	bool canAttack();
+	void checkForZerglingSpeed();
 	void darkTemplarHarass();
 	Point2D findAttackTarget(const Unit *unit);
 	const Unit *getClosestBase(const Unit *unit);

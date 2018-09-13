@@ -2,9 +2,7 @@
 #include "Blinkerbot.h"
 
 
-WorkerManager::WorkerManager(BlinkerBot & bot) : blinkerBot(bot), scout(nullptr), enemyMain(nullptr), scouting(false)
-{
-}
+WorkerManager::WorkerManager(BlinkerBot & bot) : blinkerBot(bot), scout(nullptr), enemyMain(nullptr), scouting(false){}
 
 /*
 perform one-time only actions at the start of the game
@@ -461,14 +459,14 @@ void WorkerManager::harassWorkers()
 		{
 			if (target)
 			{
-				if (!scout->orders.empty() && scout->orders.front().ability_id != ABILITY_ID::ATTACK)
+				if (scout->orders.empty() || (!scout->orders.empty() && scout->orders.front().ability_id != ABILITY_ID::ATTACK))
 				{
 					blinkerBot.Actions()->UnitCommand(scout, ABILITY_ID::ATTACK, target);
 				}
 			}
 			else
 			{
-				if (!scout->orders.empty() && scout->orders.front().ability_id != ABILITY_ID::MOVE)
+				if (scout->orders.empty() || (!scout->orders.empty() && scout->orders.front().ability_id != ABILITY_ID::MOVE))
 				{
 					blinkerBot.Actions()->UnitCommand(scout, ABILITY_ID::MOVE, enemyMain->pos);
 				}
