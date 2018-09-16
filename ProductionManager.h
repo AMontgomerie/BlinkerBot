@@ -20,6 +20,13 @@ class ProductionManager
 {
 	const uint32_t DEADLOCK = 1000;
 
+	struct Warpgate {
+		const Unit *warpgate;
+		uint32_t lastWarpInLoop;
+
+		Warpgate(const Unit *newWarpgate, uint32_t currentLoop) : warpgate(newWarpgate), lastWarpInLoop(currentLoop){};
+	};
+
 	BlinkerBot & blinkerBot;
 	ProductionQueue productionQueue;
 	BaseManager baseManager;
@@ -35,15 +42,18 @@ class ProductionManager
 	bool reactedToRush;
 	int lastProductionFrame;
 	const Unit *forwardPylon;
+	const Unit *lastUsedWarpGate;
 
 	std::set<const Unit *> dts;
 	std::set<const Unit *> enemyBases;
 	std::set<const Unit *> miningBases;
 	std::set<const Unit *> observers;
 	std::set<const Unit *> shieldBatteries;
+	std::set<const Unit *> hts;
 	std::set<const Unit *> pylons;
 	std::set<const Unit *> structures;
-	std::set<const Unit *> warpGates;
+	//std::set<const Unit *> warpGates;
+	std::vector<Warpgate> warpGates;
 
 public:
 	ProductionManager(BlinkerBot & bot);
@@ -85,6 +95,7 @@ private:
 	const Unit *getClosestEnemyBase(Point2D point);
 	std::set<std::pair<AbilityID, const Unit *>> getCurrentlyInProduction();
 	const Unit *getHighestPriorityInProduction(std::set<std::pair<AbilityID, const Unit *>> inProduction);
+	const Unit *getIdleWarpgate();
 	const Unit *getLeastArtosisPylon();
 	bool isBlocking(AbilityID ability);
 	void locateForwardPylonPoint();
@@ -96,6 +107,8 @@ private:
 	bool structureExists(UnitTypeID structure);
 	void train(BuildOrderItem item);
 	void trainColossus();
+	void trainHighTemplar();
 	void trainUnits();
+	void trainVoidray();
 };
 

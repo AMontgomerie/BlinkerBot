@@ -31,6 +31,7 @@ public:
 	static bool canCloak(const Unit *unit);
 	static bool canWarpIn(AbilityID ability);
 	static bool isComparableUpgrade(AbilityID abilityA, AbilityID abilityB);
+	static bool isTechStructure(AbilityID ability);
 	static UnitTypeID getUnitTypeID(AbilityID ability);
 	static AbilityID getAbilityID(UpgradeID upgrade);
 	static UnitTypeID requiredStructure(AbilityID ability);

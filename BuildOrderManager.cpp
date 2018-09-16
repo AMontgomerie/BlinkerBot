@@ -2,12 +2,7 @@
 #include "Blinkerbot.h"
 
 BuildOrderManager::BuildOrderManager(BlinkerBot & bot) : blinkerBot(bot), enemyHasCloak(false),
-currentBases(0), currentGases(0), currentProductionFacilities(0), currentCannons(0)
-{
-	initialiseKeyTechs();
-}
-
-BuildOrderManager::~BuildOrderManager()
+currentBases(0), currentGases(0), currentProductionFacilities(0), currentCannons(0), enemyRace(Race::Random)
 {
 }
 
@@ -17,8 +12,9 @@ ProductionGoal::ProductionGoal(AbilityID type, int quantity)
 	this->quantity = quantity;
 }
 
-ProductionGoal::~ProductionGoal()
+void BuildOrderManager::initialise()
 {
+	initialiseKeyTechs();
 }
 
 /*
@@ -74,15 +70,16 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 
 	//next let's calculate how many extra things we want
 	int extraCannons = currentBases - currentCannons;
-	int extraProductionFacilities = (currentBases * 2) - currentProductionFacilities;
+	int extraProductionFacilities = (currentBases * 2) - currentProductionFacilities + 1;
 	int extraGases = (currentBases * 2) - currentGases;
 
 	//if there are any necessary techs, let's add the next one to the queue
-	//if we only have one base then we don't want to start teching to colossus yet
+	//if we don't want to keep adding techs without expanding though
 	AbilityID tech = getNextTech();
-	if (tech != ABILITY_ID::INVALID && !(currentBases == 1 && getNextTech() == ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE))
+	if (tech != ABILITY_ID::INVALID && 
+		!(completedTechs.size() > 1 && currentBases < 2) && !(completedTechs.size() > 3 && currentBases < 3))
 	{
-		if (currentBases == 1 && extraGases > 0)
+		if (extraGases > 0)
 		{
 			buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_ASSIMILATOR, 1));
 			extraGases--;
@@ -225,6 +222,7 @@ void BuildOrderManager::removeKeyTech(UpgradeID upgrade)
 		{
 			//std::cerr << "removing a key tech: " << AbilityTypeToName(*tech) << std::endl;
 			tech = keyTechs.erase(tech);
+			addCompletedTech(upgrade);
 		}
 		else
 		{
@@ -304,12 +302,38 @@ creates an ordered list of important upgrades that need to be researched through
 */
 void BuildOrderManager::initialiseKeyTechs()
 {
+	//initial techs are the same regardless of the situation
 	keyTechs.push_back(ABILITY_ID::RESEARCH_WARPGATE);
 	keyTechs.push_back(ABILITY_ID::RESEARCH_BLINK);
-	keyTechs.push_back(ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE);
-	keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL1);
-	keyTechs.push_back(ABILITY_ID::RESEARCH_CHARGE);
-	keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL2);
+
+	//the mid-game techs vary depending on the match-up
+	switch (enemyRace)
+	{
+	case Race::Terran:
+	case Race::Zerg:
+		keyTechs.push_back(ABILITY_ID::RESEARCH_PSISTORM);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL1);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_CHARGE);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL2);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE);
+		break;
+	case Race::Protoss:
+		keyTechs.push_back(ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL1);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_CHARGE);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL2);
+		break;
+	case Race::Random:
+	default:
+		keyTechs.push_back(ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL1);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_CHARGE);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL2);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_PSISTORM);
+		break;
+	}
+
+	//lategame techs are the same regardless of the situation (just keep the forge goin)
 	keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL3);
 	keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDARMORLEVEL1);
 	keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDARMORLEVEL2);
@@ -382,4 +406,9 @@ std::vector<ProductionGoal> BuildOrderManager::generateRushDefenceGoal()
 	}
 
 	return buildOrderGoal;
+}
+
+void BuildOrderManager::setEnemyRace(Race race)
+{
+	enemyRace = race;
 }

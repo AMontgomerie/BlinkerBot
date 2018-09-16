@@ -403,7 +403,7 @@ const Unit *BaseManager::getNextAvailableGas()
 			}
 		}
 	}
-	std::cerr << "No available geysers" << std::endl;
+	//std::cerr << "No available geysers" << std::endl;
 	return nullptr;
 }
 
@@ -416,7 +416,7 @@ Point2D BaseManager::getNextBaseLocation()
 {
 	if (availableBases.empty())
 	{
-		std::cerr << "BaseManager::getNextBaseLocation(): No available expansions." << std::endl;
+		//std::cerr << "BaseManager::getNextBaseLocation(): No available expansions." << std::endl;
 		return blinkerBot.Observation()->GetStartLocation();
 	}
 
@@ -450,7 +450,7 @@ Point2D BaseManager::getNextBaseLocation()
 		//if we have no reachable bases left, exit
 		if (availableBases.empty())
 		{
-			std::cerr << "BaseManager::getNextBaseLocation(): No available expansions." << std::endl;
+			//std::cerr << "BaseManager::getNextBaseLocation(): No available expansions." << std::endl;
 			return blinkerBot.Observation()->GetStartLocation();
 		}
 	}
@@ -743,12 +743,12 @@ void BaseManager::addBase(const Unit *unit)
 {
 	for (auto base : bases)
 	{
-		if (Distance2D((*base.getMinerals().begin())->pos, unit->pos) < 15)
+		if (Distance2D((*base.getMinerals().begin())->pos, unit->pos) < 8)
 		{
 			bool alreadyFound = false;
 			for (auto ourBase : ourBases)
 			{
-				if (Distance2D(base.getBuildLocation(), ourBase.getBuildLocation()) < 15)
+				if (Distance2D(base.getBuildLocation(), ourBase.getBuildLocation()) < 8)
 				{
 					alreadyFound = true;
 				}
@@ -922,15 +922,15 @@ void BaseManager::findRamp()
 	//if we didn't find anything then return 0,0 to signal failure
 	if (rampPoints.empty())
 	{
-		std::cerr << "didn't find a ramp" << std::endl;
+		//std::cerr << "didn't find a ramp" << std::endl;
 		mainRampTop = Point2D(0, 0);
 		mainRampBottom = Point2D(0, 0);
 	}
-	//otherwise we can calculate the closest and furthest points on the ramp representing the top and bottom
 	else
 	{
+		//let's find the closest point to our start location, this represents the top of the ramp
 		Point2D closestPoint = GetRandomEntry(rampPoints);
-		Point2D furthestPoint = GetRandomEntry(rampPoints);
+		//Point2D furthestPoint = GetRandomEntry(rampPoints);
 		Point2D start = blinkerBot.Observation()->GetStartLocation();
 		for (auto point : rampPoints)
 		{
@@ -941,14 +941,32 @@ void BaseManager::findRamp()
 		}
 		mainRampTop = closestPoint;
 
+		/*
 		for (auto point : rampPoints)
 		{
-			if (Distance2D(point, start) > Distance2D(furthestPoint, start) && Distance2D(point, mainRampTop) < 6)
+			std::cerr << blinkerBot.Observation()->TerrainHeight(point) << " vs " << blinkerBot.Observation()->TerrainHeight(furthestPoint) << std::endl;
+			//if (Distance2D(point, start) > Distance2D(furthestPoint, start) && Distance2D(point, mainRampTop) < 6)
+			if (blinkerBot.Observation()->TerrainHeight(point) < blinkerBot.Observation()->TerrainHeight(furthestPoint))
+				//&& Distance2D(point, mainRampTop) < 6)
 			{
 				furthestPoint = point;
 			}
 		}
-		mainRampBottom = furthestPoint;
+		*/
+
+		//let's use the unbuildable rocks to find the bottom of the ramp
+		for (auto unit : blinkerBot.Observation()->GetUnits())
+		{
+
+			if ((unit->unit_type == UNIT_TYPEID::NEUTRAL_UNBUILDABLEBRICKSDESTRUCTIBLE ||
+				unit->unit_type == UNIT_TYPEID::NEUTRAL_UNBUILDABLEPLATESDESTRUCTIBLE ||
+				unit->unit_type == UNIT_TYPEID(472)) //472 is UNBUILABLEROCKSDESTRUCTIBLE  
+				&& Distance2D(unit->pos, mainRampTop) < 10)
+			{
+				mainRampBottom = unit->pos;
+			}
+		}
+		//mainRampBottom = furthestPoint;
 	}
 
 	//now that we've found the ramp, let's find the closest placable points to the top so we can wall-in
@@ -1141,7 +1159,7 @@ void BaseManager::calculateWallInPositions()
 	}
 	if (edges.size() != 2)
 	{
-		std::cerr << "wall-in calculation error" << std::endl;
+		//std::cerr << "wall-in calculation error" << std::endl;
 		return;
 	}
 	firstWallinPosition = edges[0];
@@ -1261,7 +1279,7 @@ void BaseManager::calculateWallInPositions()
 	}
 	else
 	{
-		std::cerr << "unknown ramp type; cannot wall" << std::endl;
+		//std::cerr << "unknown ramp type; cannot wall" << std::endl;
 	}
 }
 

@@ -17,7 +17,6 @@ public:
 	int quantity;
 
 	ProductionGoal(AbilityID type, int quantity);
-	~ProductionGoal();
 };
 
 class BuildOrderManager
@@ -32,6 +31,7 @@ class BuildOrderManager
 	int currentCannons;
 	bool enemyHasCloak;
 	bool miningOut;
+	Race enemyRace;
 
 private:
 	void initialiseKeyTechs();
@@ -47,10 +47,11 @@ public:
 	std::vector<ProductionGoal> generateGoal();
 	void onUpgradeComplete(UpgradeID upgrade);
 	BuildOrderManager(BlinkerBot & bot);
-	~BuildOrderManager();
 	void receiveCloakSignal(bool signal);
 	void receiveMiningOutSignal(bool signal);
 	bool isKeyTech(AbilityID ability);
 	std::vector<ProductionGoal> generateRushDefenceGoal();
+	void setEnemyRace(Race race);
+	void initialise();
 };
 

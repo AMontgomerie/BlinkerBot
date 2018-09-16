@@ -23,7 +23,11 @@ class ProductionQueue
 {
 	BlinkerBot & blinkerBot;
 	std::vector<BuildOrderItem> productionQueue;
+	Race enemyRace;
 
+	void loadPvPBuildOrder();
+	void loadPvTBuildOrder();
+	void loadPvZBuildOrder();
 	void printDebug();
 public:
 	ProductionQueue(BlinkerBot & bot);
@@ -36,4 +40,6 @@ public:
 	void addItemLowPriority(AbilityID type);
 	bool includes(AbilityID unit);
 	void clearQueue();
+	void setEnemyRace(Race race);
+	void reorderQueue();
 };

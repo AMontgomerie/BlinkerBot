@@ -19,14 +19,17 @@ void ArmyManager::initialise()
 
 void ArmyManager::onStep()
 {
+	/*
 	//timer stuff
 	std::clock_t start;
 	double duration;
 	start = std::clock();
 	//timer stuff
+	*/
 
 	//printDebug();
 	darkTemplarHarass();
+	psistorm();
 	moveObservers();
 	workerDefence();
 	checkForZerglingSpeed();
@@ -56,6 +59,7 @@ void ArmyManager::onStep()
 		}
 	}
 
+	/*
 	//timer stuff
 	duration = (std::clock() - start) / (double)CLOCKS_PER_SEC * 1000;
 	if (duration > 30)
@@ -63,6 +67,7 @@ void ArmyManager::onStep()
 		std::cout << "ArmyManager duration: " << duration << '\n';
 	}
 	//timer stuff
+	*/
 }
 
 /*
@@ -95,7 +100,7 @@ void ArmyManager::workerDefence()
 	const Unit *threatenedStructure = underAttack();
 	//if we don't have enough fighting units then we need to pull some workers
 	if (threatenedStructure && (calculateSupplyAndWorkersInRadius(threatenedStructure->pos, enemyArmy) > 
-		calculateSupplyInRadius(threatenedStructure->pos, army) * 1.2))
+		calculateSupplyInRadius(threatenedStructure->pos, army) * 1.3))
 	{
 		//we need to find a nearby mineral to mineral walk through
 		const Unit *mineral = *blinkerBot.Observation()->GetUnits().begin();
@@ -128,7 +133,9 @@ void ArmyManager::workerDefence()
 		for (auto worker : pulledWorkers)
 		{
 			const Unit *target = getClosestEnemy(worker);
-			if (worker->shield <= 5)
+			
+			//retreat hurt workers so they can regenerate shields
+			if (worker->shield <= 5 && Distance2D(worker->pos, mineral->pos) > 1)
 			{
 				//right click the mineral (so the worker can move through other units)
 				if (mineral->display_type == Unit::DisplayType::Visible)
@@ -136,9 +143,10 @@ void ArmyManager::workerDefence()
 					blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::SMART, mineral);
 				}
 			}
-			else if (worker->orders.empty() || (*worker->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+			//otherwise issue attack commands
+			else if (target && (worker->orders.empty() || (*worker->orders.begin()).ability_id != ABILITY_ID::ATTACK))
 			{
-				blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::ATTACK, getClosestEnemy(worker->pos));
+				blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::ATTACK, target->pos);
 			}
 		}
 	}
@@ -147,6 +155,14 @@ void ArmyManager::workerDefence()
 		(getClosestEnemy(*pulledWorkers.begin()) == nullptr ||
 		Distance2D(getClosestEnemy(*pulledWorkers.begin())->pos, (*pulledWorkers.begin())->pos) > LOCALRADIUS))
 	{
+		for (auto worker : pulledWorkers)
+		{
+			const Unit *closestBase = getClosestBase(worker);
+			if (closestBase)
+			{
+				blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::MOVE, closestBase->pos);
+			}
+		}
 		pulledWorkers.clear();
 	}
 
@@ -178,6 +194,18 @@ bool ArmyManager::regroup()
 				{
 					unitsCloseEnough = false;
 					blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, rallyPoint);
+
+					//blink stalkers out of trouble
+					if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
+					{
+						const Unit *enemy = getClosestEnemy(armyUnit.unit);
+
+						if (enemy && Distance2D(armyUnit.unit->pos, enemy->pos) < LOCALRADIUS
+							&& Distance2D(armyUnit.unit->pos, rallyPoint) > LOCALRADIUS)
+						{
+							blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::EFFECT_BLINK, rallyPoint);
+						}
+					}
 				}
 			}
 		}
@@ -247,8 +275,11 @@ void ArmyManager::attack()
 		}
 		else
 		{
+			
+			float averageDistance = averageUnitDistanceToEnemyBase();
 			bool retreating = false;
 			//if any nearby units are trying to kite, let's run back too so we don't get in their way
+			/*
 			for (auto otherUnit : army)
 			{
 				if (otherUnit.unit != armyUnit.unit && otherUnit.status == Retreat
@@ -257,11 +288,11 @@ void ArmyManager::attack()
 					retreating = true;
 				}
 			}
+			*/
 			//we want our unit to run away if either:
 			//- nearby retreating units have triggered the retreating flag
-			//- or we don't have warpgate and our units are spread out causing some units to arrive much earlier than others
-			//(this is turned off after warpgate because the constant army supply comparisons become expensive with large armies)
-			if (retreating || !warpgateTech && ((armyUnit.unit->weapon_cooldown > 0 || 
+			//- our units are spread out causing some units to arrive much earlier than others
+			if (retreating || ((armyUnit.unit->weapon_cooldown > 0 || 
 				getClosestEnemy(armyUnit.unit) && !inRange(armyUnit.unit, getClosestEnemy(armyUnit.unit))) && 
 				(calculateSupplyInRadius(armyUnit.unit->pos, enemyArmy) + calculateEnemyStaticDefenceInRadius(armyUnit.unit->pos)) > 
 				calculateSupplyInRadius(armyUnit.unit->pos, army)))
@@ -271,30 +302,37 @@ void ArmyManager::attack()
 			else
 			{
 				bool alreadyAttacking = false;
-				if (armyUnit.unit->orders.size() > 0 && armyUnit.unit->orders.front().ability_id == ABILITY_ID::ATTACK)
+				if (armyUnit.unit->orders.size() > 0 && armyUnit.unit->orders.front().ability_id == ABILITY_ID::ATTACK 
+					&& ((*armyUnit.unit->orders.begin()).target_pos.x == target.x && (*armyUnit.unit->orders.begin()).target_pos.y == target.y))
 				{
 					alreadyAttacking = true;
 				}
 				if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
 				{
-					if (!blink(armyUnit.unit) && !kite(armyUnit) && !alreadyAttacking)
+					if (!escapeAOE(armyUnit) && !blink(armyUnit.unit) && !kite(armyUnit) && !alreadyAttacking)
 					{
 						armyUnit.status = Attack;
-						if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+						blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+						/*
+						if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK 
+							|| ((*armyUnit.unit->orders.begin()).target_pos.x != target.x && (*armyUnit.unit->orders.begin()).target_pos.y != target.y))
 						{
 							blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
-						}
+						}*/
 					}
 				}
 				else
 				{
-					if (!kite(armyUnit) && !alreadyAttacking)
+					if (!escapeAOE(armyUnit) && !kite(armyUnit) && !alreadyAttacking)
 					{
 						armyUnit.status = Attack;
-						if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+						blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+						/*
+						if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK
+							|| ((*armyUnit.unit->orders.begin()).target_pos.x != target.x && (*armyUnit.unit->orders.begin()).target_pos.y != target.y))
 						{
 							blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
-						}
+						}*/
 					}
 				}
 			}
@@ -329,10 +367,11 @@ void ArmyManager::attack(Point2D target)
 	{
 		if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
 		{
-			if (!blink(armyUnit.unit) && !kite(armyUnit))
+			if (!escapeAOE(armyUnit) && !blink(armyUnit.unit) && !kite(armyUnit))
 			{
 				armyUnit.status = Attack;
-				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK
+					|| ((*armyUnit.unit->orders.begin()).target_pos.x != target.x && (*armyUnit.unit->orders.begin()).target_pos.y != target.y))
 				{
 					blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
 				}
@@ -340,10 +379,11 @@ void ArmyManager::attack(Point2D target)
 		}
 		else
 		{
-			if (!kite(armyUnit))
+			if (!escapeAOE(armyUnit) && !kite(armyUnit))
 			{
 				armyUnit.status = Attack;
-				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK
+					|| ((*armyUnit.unit->orders.begin()).target_pos.x != target.x && (*armyUnit.unit->orders.begin()).target_pos.y != target.y))
 				{
 					blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
 				}
@@ -360,6 +400,18 @@ void ArmyManager::retreat()
 	for (auto armyUnit : army)
 	{
 		blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, rallyPoint);
+
+		//blink stalkers out of trouble
+		if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
+		{
+			const Unit *enemy = getClosestEnemy(armyUnit.unit);
+
+			if (enemy && Distance2D(armyUnit.unit->pos, enemy->pos) < LOCALRADIUS
+				&& Distance2D(armyUnit.unit->pos, rallyPoint) > LOCALRADIUS)
+			{
+				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::EFFECT_BLINK, rallyPoint);
+			}
+		}
 	}
 }
 
@@ -386,6 +438,11 @@ void ArmyManager::addUnit(const Unit *unit)
 			}
 		}
 		army.push_back(ArmyUnit(unit, Attack));
+
+		if (unit->unit_type == UNIT_TYPEID::PROTOSS_HIGHTEMPLAR)
+		{
+			highTemplars.insert(unit);
+		}
 	}
 
 	if (currentStatus == Regroup || currentStatus == Retreat)
@@ -402,6 +459,10 @@ void ArmyManager::removeUnit(const Unit *unit)
 	if (unit->unit_type == UNIT_TYPEID::PROTOSS_DARKTEMPLAR)
 	{
 		darkTemplars.erase(unit);
+	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_HIGHTEMPLAR)
+	{
+		highTemplars.erase(unit);
 	}
 	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
 	{
@@ -673,7 +734,8 @@ returns true if attacker outranges target, and false otherwise
 bool ArmyManager::outranges(const Unit *attacker, const Unit *target)
 {
 	if (!attacker || !target || blinkerBot.Observation()->GetUnitTypeData()[attacker->unit_type].weapons.size() == 0 
-		|| blinkerBot.Observation()->GetUnitTypeData()[target->unit_type].weapons.size() == 0)
+		|| blinkerBot.Observation()->GetUnitTypeData()[target->unit_type].weapons.size() == 0 || UnitData::isStructure(target)
+		|| target->unit_type == UNIT_TYPEID::ZERG_LARVA || target->unit_type == UNIT_TYPEID::ZERG_EGG)
 	{
 		return false;
 	}
@@ -767,6 +829,7 @@ const Unit *ArmyManager::getClosestEnemyBase(const Unit *ourUnit)
 	}
 	else
 	{
+		//find the closest structure to our unit
 		const Unit *closestStructure = *enemyStructures.begin();
 		for (auto structure : enemyStructures)
 		{
@@ -776,6 +839,25 @@ const Unit *ArmyManager::getClosestEnemyBase(const Unit *ourUnit)
 				closestStructure = structure;
 			}
 		}
+
+		//if the position is within our sight range, let's check that the structure is actually still there
+		if ((Distance2D(ourUnit->pos, closestStructure->pos) < blinkerBot.Observation()->GetUnitTypeData()[ourUnit->unit_type].sight_range))
+		{
+			bool found = false;
+			for (auto unit : blinkerBot.Observation()->GetUnits())
+			{
+				if (unit->tag == closestStructure->tag)
+				{
+					found = true;
+				}
+			}
+			//if we can't find it then remove it from the set (it might've been destroyed or moved)
+			if (!found)
+			{
+				removeEnemyStructure(closestStructure);
+			}
+		}
+
 		return closestStructure;
 	}
 }
@@ -858,7 +940,6 @@ various debug code
 */
 void ArmyManager::printDebug()
 {
-
 	std::ostringstream ourArmy;
 	ourArmy << "Current army supply: " << calculateSupply(army) << std::endl;
 	blinkerBot.Debug()->DebugTextOut(ourArmy.str());
@@ -866,31 +947,6 @@ void ArmyManager::printDebug()
 	theirArmy << "Known enemy army supply: " << calculateSupply(enemyArmy) << std::endl;
 	blinkerBot.Debug()->DebugTextOut(theirArmy.str());
 	blinkerBot.Debug()->SendDebug();
-
-	/*
-	std::string armyStatus;
-	switch (currentStatus)
-	{
-	case Attack:
-		armyStatus = "ATTACK";
-			break;
-	case Defend:
-		armyStatus = "DEFEND";
-		break;
-	case Regroup:
-		armyStatus = "REGROUP";
-		break;
-	case Retreat:
-		armyStatus = "RETREAT";
-		break;
-	default:
-		armyStatus = "UNKNOWN";
-		break;
-	}
-	std::ostringstream statusString;
-	statusString << "Army Status: " << armyStatus << std::endl;
-	blinkerBot.Debug()->DebugTextOut(statusString.str());
-	*/
 }
 
 /*
@@ -1130,10 +1186,25 @@ bool ArmyManager::rushDetected()
 		//if the enemy is terran or protoss, we can use building position and number to determine their strategy
 		if (enemyRace != Race::Zerg)
 		{
+			//if our opponent chose random, we can update its race once we've scouted its base
+			if (enemyRace == Race::Random)
+			{
+				if (!enemyStructures.empty())
+				{
+					enemyRace = blinkerBot.Observation()->GetUnitTypeData()[(*enemyStructures.begin())->unit_type].race;
+					return false; //in case it's zerg
+				}
+				else if (!enemyArmy.empty())
+				{
+					enemyRace = blinkerBot.Observation()->GetUnitTypeData()[(*enemyArmy.begin())->unit_type].race;
+					return false; //in case it's zerg
+				}
+			}
+			
 			//if they still don't have anything in their main, they must be proxying us
 			if (blinkerBot.Observation()->GetGameLoop() > 1500 && enemyStructures.size() < 3)
 			{
-				std::cerr << "can't see anything in the main, reacting to proxy" << std::endl;
+				//std::cerr << "can't see anything in the main, reacting to proxy" << std::endl;
 				beingRushed = true;
 				return true;
 			}
@@ -1164,7 +1235,7 @@ bool ArmyManager::rushDetected()
 					//if they have structures close to our base, then they're proxying us
 					if (Distance2D(structure->pos, blinkerBot.Observation()->GetStartLocation()) < 35)
 					{
-						std::cerr << "proxy scouted" << std::endl;
+						//std::cerr << "proxy scouted" << std::endl;
 						beingRushed = true;
 						return true;
 					}
@@ -1173,7 +1244,7 @@ bool ArmyManager::rushDetected()
 				//if our enemy is going mass barracks or mass gateway, let's play defensive
 				if (bases < 2 && productionFacilities > 2 && gases == 0)
 				{
-					std::cerr << "possible 1 base aggression scouted" << std::endl;
+					//std::cerr << "possible 1 base aggression scouted" << std::endl;
 					beingRushed = true;
 					return true;
 				}
@@ -1268,5 +1339,137 @@ void ArmyManager::checkForZerglingSpeed()
 			zerglingTimer.startPosition = zerglingTimer.zergling->pos;
 			zerglingTimer.onCreep = blinkerBot.Observation()->HasCreep(zerglingTimer.zergling->pos);
 		}
+	}
+}
+
+/*
+finds appropriate targets and issues commands to cast psistorm
+*/
+void ArmyManager::psistorm()
+{
+	std::set<const Unit *> enemiesInRange;
+	float stormRange = blinkerBot.Observation()->GetAbilityData()[AbilityID(ABILITY_ID::EFFECT_PSISTORM)].cast_range;
+	float stormRadius = 1.5f;
+	for (auto ht : highTemplars)
+	{
+		if (ht->energy >= 75)
+		{
+			for (auto enemy : enemyArmy)
+			{
+				if (Distance2D(enemy->pos, ht->pos) < (stormRange + stormRadius))
+				{
+					enemiesInRange.insert(enemy);
+				}
+			}
+			Point2D target = getAOETarget(enemiesInRange, stormRadius);
+			if (Distance2D(target, ht->pos) <= stormRange && 
+				target.x != 0 && target.y != 0 && 
+				(calculateSupplyAndWorkers(enemiesInRange) > 4 || ht->shield == 0))
+			{
+				blinkerBot.Actions()->UnitCommand(ht, ABILITY_ID::EFFECT_PSISTORM, target);
+			}
+		}
+	}
+}
+
+/*
+returns a Point2D representing the optimal target (centred on a unit) for an AOE spell with a given radius
+*/
+Point2D ArmyManager::getAOETarget(std::set<const Unit *> unitsInRange, float radius)
+{
+	//don't waste time calculating if there aren't enough units
+	if (unitsInRange.empty())
+	{
+		return Point2D(0, 0);
+	}
+	else if (unitsInRange.size() == 1)
+	{
+		return (*unitsInRange.begin())->pos;
+	}
+
+	const Unit *bestTarget = nullptr;
+	int highestHitCount = 0;
+
+	for (auto unit : unitsInRange)
+	{
+		//ignore units already under storm
+		if (!isUnderPsistorm(unit->pos))
+		{
+			//check the number of other units within the attack radius of each unit
+			int hitCount = 0;
+			for (auto nearby : unitsInRange)
+			{
+				//count any unit that's in the radius but not under a storm already
+				if (Distance2D(unit->pos, nearby->pos) <= radius && !isUnderPsistorm(nearby->pos))
+				{
+					hitCount++;
+				}
+			}
+			if (hitCount > highestHitCount)
+			{
+				bestTarget = unit;
+				highestHitCount = hitCount;
+			}
+		}
+	}
+
+	if (bestTarget)
+	{
+		return bestTarget->pos;
+	}
+	else
+	{
+		return Point2D(0, 0);
+	}
+}
+
+/*
+calculate the supply of a set of units including workers
+*/
+float ArmyManager::calculateSupplyAndWorkers(std::set<const Unit *> army)
+{
+	float total = 0;
+	for (auto unit : army)
+	{
+		total += blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].food_required;
+	}
+	return total;
+}
+
+/*
+returns true if the given point is currently under a psionic storm
+*/
+bool ArmyManager::isUnderPsistorm(Point2D target)
+{
+	for (auto effect : blinkerBot.Observation()->GetEffects())
+	{
+		if (effect.effect_id == AbilityID(ABILITY_ID::EFFECT_PSISTORM))
+		{
+			//std::cerr << "found a psi storm" << std::endl;
+			for (auto position : effect.positions)
+			{
+				if (position.x == target.x && position.y == target.y)
+				{
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+/*
+checks if a unit is under the effect of a hostile AOE spell. Issues a move command and returns true, or false otherwise
+*/
+bool ArmyManager::escapeAOE(ArmyUnit armyUnit)
+{
+	if (isUnderPsistorm(armyUnit.unit->pos))
+	{
+		blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, getRetreatPoint(armyUnit.unit));
+		return true;
+	}
+	else
+	{
+		return false;
 	}
 }

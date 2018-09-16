@@ -90,10 +90,10 @@ bool UnitData::isStructure(const Unit *unit)
 			(unit->unit_type == UNIT_TYPEID::ZERG_ROACHWARREN) ||
 			(unit->unit_type == UNIT_TYPEID::ZERG_SPAWNINGPOOL) ||
 			(unit->unit_type == UNIT_TYPEID::ZERG_SPINECRAWLER) ||
-			(unit->unit_type == UNIT_TYPEID::ZERG_SPINECRAWLERUPROOTED) ||
+			//(unit->unit_type == UNIT_TYPEID::ZERG_SPINECRAWLERUPROOTED) ||
 			(unit->unit_type == UNIT_TYPEID::ZERG_SPIRE) ||
-			(unit->unit_type == UNIT_TYPEID::ZERG_SPORECRAWLER) ||
-			(unit->unit_type == UNIT_TYPEID::ZERG_SPORECRAWLERUPROOTED))
+			(unit->unit_type == UNIT_TYPEID::ZERG_SPORECRAWLER)) //||
+			//(unit->unit_type == UNIT_TYPEID::ZERG_SPORECRAWLERUPROOTED))
 	{
 		return true;
 	}
@@ -254,6 +254,9 @@ UnitTypeID UnitData::requiredStructure(AbilityID ability)
 	case ABILITY_ID::RESEARCH_PROTOSSSHIELDSLEVEL3:
 		required = UNIT_TYPEID::PROTOSS_FORGE;
 		break;
+	case ABILITY_ID::RESEARCH_PSISTORM:
+		required = UNIT_TYPEID::PROTOSS_TEMPLARARCHIVE;
+		break;
 	case ABILITY_ID::TRAIN_ZEALOT:
 	case ABILITY_ID::TRAINWARP_ZEALOT:
 		required = UNIT_TYPEID::PROTOSS_GATEWAY;
@@ -273,6 +276,9 @@ UnitTypeID UnitData::requiredStructure(AbilityID ability)
 	case ABILITY_ID::TRAIN_COLOSSUS:
 		required = UNIT_TYPEID::PROTOSS_ROBOTICSBAY;
 		break;
+	case ABILITY_ID::TRAIN_VOIDRAY:
+		required = UNIT_TYPEID::PROTOSS_STARGATE;
+		break;
 	default:
 		UNIT_TYPEID::INVALID;
 	}
@@ -287,6 +293,7 @@ bool UnitData::isResearch(AbilityID ability)
 		(ABILITY_ID(ability) == ABILITY_ID::RESEARCH_BLINK) ||
 		(ABILITY_ID(ability) == ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE) ||
 		(ABILITY_ID(ability) == ABILITY_ID::RESEARCH_CHARGE) ||
+		(ABILITY_ID(ability) == ABILITY_ID::RESEARCH_PSISTORM) ||
 		(ABILITY_ID(ability) == ABILITY_ID::RESEARCH_PROTOSSGROUNDARMOR) ||
 		(ABILITY_ID(ability) == ABILITY_ID::RESEARCH_PROTOSSGROUNDARMORLEVEL1) ||
 		(ABILITY_ID(ability) == ABILITY_ID::RESEARCH_PROTOSSGROUNDARMORLEVEL2) ||
@@ -570,6 +577,9 @@ AbilityID UnitData::getAbilityID(UpgradeID upgrade)
 	case UPGRADE_ID::PROTOSSSHIELDSLEVEL3:
 		return ABILITY_ID::RESEARCH_PROTOSSSHIELDSLEVEL3;
 		break;
+	case UPGRADE_ID::PSISTORMTECH:
+		return ABILITY_ID::RESEARCH_PSISTORM;
+		break;
 	default:
 		return ABILITY_ID::INVALID;
 		break;
@@ -707,5 +717,27 @@ AbilityID UnitData::getTrainWarpAbilityID(UnitTypeID unitType)
 	default:
 		return ABILITY_ID::INVALID;
 		break;
+	}
+}
+
+/*
+returns true if the ability id represents a tech structure
+*/
+bool UnitData::isTechStructure(AbilityID ability)
+{
+	if (ability == ABILITY_ID::BUILD_CYBERNETICSCORE ||
+		ability == ABILITY_ID::BUILD_TWILIGHTCOUNCIL ||
+		ability == ABILITY_ID::BUILD_TEMPLARARCHIVE ||
+		ability == ABILITY_ID::BUILD_ROBOTICSFACILITY ||
+		ability == ABILITY_ID::BUILD_ROBOTICSBAY ||
+		ability == ABILITY_ID::BUILD_STARGATE ||
+		ability == ABILITY_ID::BUILD_FORGE ||
+		ability == ABILITY_ID::BUILD_FLEETBEACON)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
 	}
 }

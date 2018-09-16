@@ -140,14 +140,14 @@ const Unit *WorkerManager::getBuilder()
 		}
 		if (builder == workers.end() || !isAvailableWorker(*builder))
 		{
-			std::cerr << "WorkerManager::getBuilder(): No workers Available." << std::endl;
+			//std::cerr << "WorkerManager::getBuilder(): No workers Available." << std::endl;
 			return nullptr;
 		}
 		return *builder;
 	}
 	else
 	{
-		std::cerr << "WorkerManager::getBuilder(): No workers Available." << std::endl;
+		//std::cerr << "WorkerManager::getBuilder(): No workers Available." << std::endl;
 		return nullptr;
 	}
 }

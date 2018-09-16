@@ -51,6 +51,7 @@ class ArmyManager
 
 	std::vector<ArmyUnit> army;
 	std::set<const Unit *> darkTemplars;
+	std::set<const Unit *> highTemplars;
 	std::set<const Unit *> enemyArmy;
 	std::set<const Unit *> enemyStructures;
 	std::set<const Unit *> observers;
@@ -83,13 +84,16 @@ private:
 	float calculateEnemyStaticDefenceInRadius(Point2D centre);
 	float calculateSupply(std::set<const Unit *> army);
 	float calculateSupply(std::vector<ArmyUnit> army);
+	float calculateSupplyAndWorkers(std::set<const Unit *> army);
 	float calculateSupplyAndWorkersInRadius(Point2D centre, std::set<const Unit *> army);
 	float calculateSupplyInRadius(Point2D centre, std::set<const Unit *> army);
 	float calculateSupplyInRadius(Point2D centre, std::vector<ArmyUnit> army);
 	bool canAttack();
 	void checkForZerglingSpeed();
 	void darkTemplarHarass();
+	bool escapeAOE(ArmyUnit armyUnit);
 	Point2D findAttackTarget(const Unit *unit);
+	Point2D getAOETarget(std::set<const Unit *> unitsInRange, float radius);
 	const Unit *getClosestBase(const Unit *unit);
 	const Unit *getClosestBase(Point2D point);
 	const Unit *getClosestEnemy(const Unit *ourUnit);
@@ -98,15 +102,16 @@ private:
 	Point2D getRetreatPoint(const Unit *unit);
 	bool inRange(const Unit *attacker, const Unit *target);
 	bool inRange(const Unit *attacker, Point2D target);
+	bool isUnderPsistorm(Point2D target);
 	bool kite(ArmyUnit armyUnit);
 	void moveObservers();
 	bool outranges(const Unit *attacker, const Unit *target);
 	void printDebug();
+	void psistorm();
 	bool regroup();
 	void retreat();
 	bool shieldsCritical(const Unit *unit, const Unit *attacker);
 	void updateArmyValues();
 	void workerDefence();
-
 };
 

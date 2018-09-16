@@ -2,35 +2,45 @@
 #include "iostream"
 #include "Blinkerbot.h"
 
-ProductionQueue::ProductionQueue(BlinkerBot & bot): blinkerBot(bot)
-{
-}
+ProductionQueue::ProductionQueue(BlinkerBot & bot): blinkerBot(bot), enemyRace(Race::Random){}
 
 /*
 adds an initial queue of BuildOrderItems (representing our opening build order) to the production queue.
 */
 void ProductionQueue::initialiseQueue()
 {
-	//3gate blink
+	switch (enemyRace)
+	{
+	case Race::Terran:
+		loadPvTBuildOrder();
+		break;
+	case Race::Zerg:
+		loadPvZBuildOrder();
+		break;
+	case Race::Protoss:
+	case Race::Random:
+	default:
+		loadPvPBuildOrder();
+		break;
+	}
+
+	/*
+	//1 base storm
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_CYBERNETICSCORE));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_WARPGATE));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TWILIGHTCOUNCIL));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TEMPLARARCHIVE));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ROBOTICSFACILITY));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_PSISTORM));
+	*/
 
 	/*
 	//dt rush
@@ -229,24 +239,22 @@ void ProductionQueue::addItemLowPriority(AbilityID type)
 	printDebug();
 }
 
-BuildOrderItem::BuildOrderItem(): item(NULL)
-{
-}
+BuildOrderItem::BuildOrderItem(): item(NULL){}
 
-BuildOrderItem::BuildOrderItem(sc2::AbilityID c_item): item(c_item)
-{
-}
+BuildOrderItem::BuildOrderItem(sc2::AbilityID c_item): item(c_item){}
 
 /*
 prints the current production queue in the top left of the screen
 */
 void ProductionQueue::printDebug()
 {
+	/*
 	for (auto item : productionQueue)
 	{
 		blinkerBot.Debug()->DebugTextOut(AbilityTypeToName(item.item));
 	}
 	blinkerBot.Debug()->SendDebug();
+	*/
 }
 
 /*
@@ -271,4 +279,103 @@ void ProductionQueue::clearQueue()
 {
 	productionQueue.clear();
 	printDebug();
+}
+
+/*
+assign a value to enemyRace
+*/
+void ProductionQueue::setEnemyRace(Race race)
+{
+	enemyRace = race;
+}
+
+void ProductionQueue::loadPvPBuildOrder()
+{
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_CYBERNETICSCORE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_WARPGATE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TWILIGHTCOUNCIL));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ROBOTICSFACILITY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::TRAIN_IMMORTAL));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
+
+}
+
+void ProductionQueue::loadPvTBuildOrder()
+{
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_CYBERNETICSCORE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_WARPGATE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TWILIGHTCOUNCIL));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ROBOTICSFACILITY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TEMPLARARCHIVE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_PSISTORM));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+}
+
+void ProductionQueue::loadPvZBuildOrder()
+{
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_CYBERNETICSCORE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_WARPGATE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TWILIGHTCOUNCIL));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_BLINK));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ROBOTICSFACILITY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TEMPLARARCHIVE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_PSISTORM));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+}
+
+void ProductionQueue::reorderQueue()
+{
+	
 }

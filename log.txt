@@ -1,13 +1,11 @@
 high priority:
-- stop units from retreating ontop of a pylon rather than away from enemies
-- movable structure bug
-- fix the bug on LostAndFound
-- fix infinite loop/crash bug
-- race specific builds: need to deal with ling heavy armies
-- reorganised methods and delete redundant or commented code
-- fix lag caused by army manager
+- when defending target closest enemy unit if possible (otherwise a move to target)
 
 later:
+- check if structures are powered and set nextpylonlocation to nearby if not
+- attack performance can maybe be increased  by widening the scope of the order check (before finding a target?)
+- deal with idle workers at bases with no minerals
+- reorganise methods to be consistent in each manager
 - army splitting (dont pull everything back every time a scout comes in your base)
 - built 3 robo facilities in response to banshees
 - eventually go voidray
@@ -15,13 +13,24 @@ later:
 - improve cannon placement
 - make train() able to switch between TRAIN and TRAINWARP
 - implement more sophisticated DT control (avoid detectors and prioritise targets)
-- remove duplicate tech structures
 - deal with surrounds
 - train only works for units that are trained from their own tech structure
 - deactivate expensive methods based on framerate performance
 - somehow deal with level2+ upgrades that require extra tech (perhaps a vector to show they require multiple?)
 - some weird behaviour around tanks and ramps
-- reduce kite blocking by checking stalkers that are closer to retreat point and moving those out of the way (maybe if they are out of range)
 - continue implementing UnitData
 
 DONE FOR NEXT UPLOAD:
+- fixed a bug causing duplicate structures to be made in some situations
+- fixed a bug preventing units from kiting away from a rally point
+- fixed a bug causing units to get stuck attack targeting a spore/spine that has been moved
+- fixed a wall in placement bug on some maps
+- fixed a bug causing an infinite loop when we have 0 bases
+- race specific build orders (need tweaking?)
+- reduced pointless stalker dancing
+- fixed bug causing units to run all the way home before attack again
+- stalkers now mass blink away when retreating and regrouping
+- limited the number of techs that can be researched before expanding
+- implemented storm
+- implemented voidrays
+- improved warpgate selection for production queue unit training
