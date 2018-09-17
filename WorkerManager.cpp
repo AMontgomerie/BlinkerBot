@@ -328,6 +328,7 @@ void WorkerManager::returnToMining(const Unit *unit)
 		//if we don't have any bases then just move to a mineral node's location
 		if (bases.empty())
 		{
+			/*
 			for (auto unit : blinkerBot.Observation()->GetUnits())
 			{
 				if (UnitData::isMinerals(unit))
@@ -335,6 +336,7 @@ void WorkerManager::returnToMining(const Unit *unit)
 					blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::MOVE, unit->pos);
 				}
 			}
+			*/
 		}
 		//otherwise let's find our closest base and go there
 		else

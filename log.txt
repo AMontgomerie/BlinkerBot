@@ -21,16 +21,3 @@ later:
 - continue implementing UnitData
 
 DONE FOR NEXT UPLOAD:
-- fixed a bug causing duplicate structures to be made in some situations
-- fixed a bug preventing units from kiting away from a rally point
-- fixed a bug causing units to get stuck attack targeting a spore/spine that has been moved
-- fixed a wall in placement bug on some maps
-- fixed a bug causing an infinite loop when we have 0 bases
-- race specific build orders (need tweaking?)
-- reduced pointless stalker dancing
-- fixed bug causing units to run all the way home before attack again
-- stalkers now mass blink away when retreating and regrouping
-- limited the number of techs that can be researched before expanding
-- implemented storm
-- implemented voidrays
-- improved warpgate selection for production queue unit training

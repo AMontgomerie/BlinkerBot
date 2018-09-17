@@ -51,7 +51,11 @@ void BlinkerBot::OnStep()
 	//if we're under attack then rally towards that location
 	else if (threatenedStructure)
 	{
-		rallyPoint = productionManager.getClosestPylon(threatenedStructure->pos)->pos;
+		const Unit *closestPylon = productionManager.getClosestPylon(threatenedStructure->pos);
+		if (closestPylon)
+		{
+			rallyPoint = closestPylon->pos;
+		}
 	}
 	else
 	{

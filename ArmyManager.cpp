@@ -365,6 +365,12 @@ void ArmyManager::attack(Point2D target)
 {
 	for (auto armyUnit : army)
 	{
+		//if we're near where we want to go, let's start picking targets
+		const Unit *targetUnit = nullptr;
+		if (Distance2D(armyUnit.unit->pos, target) < LOCALRADIUS)
+		{
+			targetUnit = getClosestEnemy(armyUnit.unit->pos);
+		}
 		if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
 		{
 			if (!escapeAOE(armyUnit) && !blink(armyUnit.unit) && !kite(armyUnit))
@@ -373,7 +379,14 @@ void ArmyManager::attack(Point2D target)
 				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK
 					|| ((*armyUnit.unit->orders.begin()).target_pos.x != target.x && (*armyUnit.unit->orders.begin()).target_pos.y != target.y))
 				{
-					blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+					if (targetUnit)
+					{
+						blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, targetUnit->pos);
+					}
+					else
+					{
+						blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+					}
 				}
 			}
 		}
@@ -385,7 +398,14 @@ void ArmyManager::attack(Point2D target)
 				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK
 					|| ((*armyUnit.unit->orders.begin()).target_pos.x != target.x && (*armyUnit.unit->orders.begin()).target_pos.y != target.y))
 				{
-					blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+					if (targetUnit)
+					{
+						blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, targetUnit->pos);
+					}
+					else
+					{
+						blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
+					}
 				}
 			}
 		}
