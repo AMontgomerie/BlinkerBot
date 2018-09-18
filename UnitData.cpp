@@ -741,3 +741,28 @@ bool UnitData::isTechStructure(AbilityID ability)
 		return false;
 	}
 }
+
+/*
+returns the warpgate cooldown for the given unit type (measured in game loops)
+*/
+float UnitData::getWarpGateCoolDown(UnitTypeID unitType)
+{
+	switch (UNIT_TYPEID(unitType))
+	{
+	case UNIT_TYPEID::PROTOSS_ADEPT:
+	case UNIT_TYPEID::PROTOSS_ZEALOT:
+		return 448.0f;
+		break;
+	case UNIT_TYPEID::PROTOSS_STALKER:
+	case UNIT_TYPEID::PROTOSS_SENTRY:
+		return 515.2f;
+		break;
+	case UNIT_TYPEID::PROTOSS_DARKTEMPLAR:
+	case UNIT_TYPEID::PROTOSS_HIGHTEMPLAR:
+		return 716.8;
+		break;
+	default:
+		return 0;
+		break;
+	}
+}

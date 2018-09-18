@@ -1,14 +1,20 @@
 high priority:
-- when defending target closest enemy unit if possible (otherwise a move to target)
+- STILL A FUCKING CRASH WITH 0 PYLONS FFS
+- dont warp in hts in defence mode
+- dont defend forward pylon if its under attack
+- new units shouldn't rally all the way to the forward pylon (or it should be interrupted if the army status changes)
+
+when laddermanager works again:
+- test that we can check for ling speed
+- practice worker rush defence
 
 later:
+- sometimes stops producing workers despite extra bases
 - check if structures are powered and set nextpylonlocation to nearby if not
 - attack performance can maybe be increased  by widening the scope of the order check (before finding a target?)
 - deal with idle workers at bases with no minerals
 - reorganise methods to be consistent in each manager
 - army splitting (dont pull everything back every time a scout comes in your base)
-- built 3 robo facilities in response to banshees
-- eventually go voidray
 - aggressive blink under flying units
 - improve cannon placement
 - make train() able to switch between TRAIN and TRAINWARP

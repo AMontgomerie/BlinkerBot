@@ -23,8 +23,10 @@ class ProductionManager
 	struct Warpgate {
 		const Unit *warpgate;
 		uint32_t lastWarpInLoop;
+		UnitTypeID lastTrainedType;
 
-		Warpgate(const Unit *newWarpgate, uint32_t currentLoop) : warpgate(newWarpgate), lastWarpInLoop(currentLoop){};
+		Warpgate(const Unit *newWarpgate, uint32_t currentLoop, UnitTypeID unitType): 
+			warpgate(newWarpgate), lastWarpInLoop(currentLoop), lastTrainedType(unitType){};
 	};
 
 	BlinkerBot & blinkerBot;
@@ -110,5 +112,6 @@ private:
 	void trainHighTemplar();
 	void trainUnits();
 	void trainVoidray();
+	void trainWarp();
 };
 

@@ -113,29 +113,31 @@ void ArmyManager::workerDefence()
 			}
 		}
 
-		//if we don't have any workers then let's find some
-		if (pulledWorkers.empty())
-		{
-			int threatLevel = 2 * int(calculateSupplyAndWorkersInRadius(threatenedStructure->pos, enemyArmy));
+		int threatLevel = 2 * (int(calculateSupplyAndWorkersInRadius(threatenedStructure->pos, enemyArmy)) - pulledWorkers.size());
 
+		//if we don't have any workers then let's find some
+		if (pulledWorkers.empty() || threatLevel > pulledWorkers.size() * 2)
+		{
 			//find nearby workers
 			for (auto unit : blinkerBot.Observation()->GetUnits())
 			{
 				if (UnitData::isOurs(unit) && UnitData::isWorker(unit) && 
-					Distance2D(unit->pos, threatenedStructure->pos) < 20 && threatLevel > 0)
+					Distance2D(unit->pos, threatenedStructure->pos) < LOCALRADIUS && threatLevel > pulledWorkers.size() * 2)
 				{
 					pulledWorkers.insert(unit);
 					threatLevel--;
 				}
 			}
 		}
+
 		//if we've already got some workers, then let's make sure they're being pulled
 		for (auto worker : pulledWorkers)
 		{
 			const Unit *target = getClosestEnemy(worker);
 			
-			//retreat hurt workers so they can regenerate shields
-			if (worker->shield <= 5 && Distance2D(worker->pos, mineral->pos) > 1)
+			//retreat hurt workers so they can regenerate shields (unless they're already fighting right next to the minerals)
+			if (target && worker->shield <= 5 && 
+				!(Distance2D(worker->pos, mineral->pos) < 2 && Distance2D(worker->pos, target->pos) < 2))
 			{
 				//right click the mineral (so the worker can move through other units)
 				if (mineral->display_type == Unit::DisplayType::Visible)
@@ -194,18 +196,18 @@ bool ArmyManager::regroup()
 				{
 					unitsCloseEnough = false;
 					blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, rallyPoint);
+				}
+			}
 
-					//blink stalkers out of trouble
-					if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
-					{
-						const Unit *enemy = getClosestEnemy(armyUnit.unit);
+			//blink stalkers out of trouble
+			if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
+			{
+				const Unit *enemy = getClosestEnemy(armyUnit.unit);
 
-						if (enemy && Distance2D(armyUnit.unit->pos, enemy->pos) < LOCALRADIUS
-							&& Distance2D(armyUnit.unit->pos, rallyPoint) > LOCALRADIUS)
-						{
-							blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::EFFECT_BLINK, rallyPoint);
-						}
-					}
+				if (enemy && Distance2D(armyUnit.unit->pos, enemy->pos) < LOCALRADIUS
+					&& Distance2D(armyUnit.unit->pos, rallyPoint) > LOCALRADIUS)
+				{
+					blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::EFFECT_BLINK, rallyPoint);
 				}
 			}
 		}
@@ -365,12 +367,11 @@ void ArmyManager::attack(Point2D target)
 {
 	for (auto armyUnit : army)
 	{
-		//if we're near where we want to go, let's start picking targets
 		const Unit *targetUnit = nullptr;
-		if (Distance2D(armyUnit.unit->pos, target) < LOCALRADIUS)
-		{
+		//if (Distance2D(armyUnit.unit->pos, target) < LOCALRADIUS)
+		//{
 			targetUnit = getClosestEnemy(armyUnit.unit->pos);
-		}
+		//}
 		if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
 		{
 			if (!escapeAOE(armyUnit) && !blink(armyUnit.unit) && !kite(armyUnit))
@@ -1335,6 +1336,7 @@ void ArmyManager::checkForZerglingSpeed()
 					std::cerr << "time: " << (blinkerBot.Observation()->GetGameLoop() / 22.4) - zerglingTimer.startTime << std::endl;
 					std::cerr << "on creep dist " << Distance2D(zerglingTimer.zergling->pos, zerglingTimer.startPosition) << std::endl;
 					*/
+					std::cerr << "enemy has ling speed" << std::endl;
 					zerglingSpeed = true;
 				}
 			}

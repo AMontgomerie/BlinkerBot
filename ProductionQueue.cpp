@@ -9,6 +9,7 @@ adds an initial queue of BuildOrderItems (representing our opening build order) 
 */
 void ProductionQueue::initialiseQueue()
 {
+
 	switch (enemyRace)
 	{
 	case Race::Terran:
@@ -248,14 +249,11 @@ prints the current production queue in the top left of the screen
 */
 void ProductionQueue::printDebug()
 {
-	/*
 	for (auto item : productionQueue)
 	{
 		blinkerBot.Debug()->DebugTextOut(AbilityTypeToName(item.item));
 	}
 	blinkerBot.Debug()->SendDebug();
-	*/
-
 }
 
 /*
@@ -369,7 +367,6 @@ void ProductionQueue::loadPvZBuildOrder()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_TEMPLARARCHIVE));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_PSISTORM));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));

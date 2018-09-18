@@ -83,12 +83,13 @@ void ProductionManager::onStep()
 		if (!isBlocking(productionQueue.getNextItem().item) || armyStatus == Defend || blinkerBot.Observation()->GetMinerals() > 800)
 		{
 			trainUnits();
-
+			trainWarp();
+			trainHighTemplar();
 			//let's train some high tech units as long as our economy isn't too small
 			if (workerManager.getWorkerCount() > 30)
 			{
 				trainColossus();
-				trainHighTemplar();
+				//trainHighTemplar();
 			}
 			if (workerManager.getWorkerCount() > 50)
 			{
@@ -190,16 +191,35 @@ void ProductionManager::trainUnits()
 		{
 			blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_PROBE);
 		}
+		/*
+		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->orders.size() == 0)
+		{
+			std::cerr << baseManager.getOurBases().size() << " bases and "
+				<< calculateMiningBases() << " mining bases and " << workerManager.getWorkerCount() << " workers" << std::endl;
+		}
+		*/
 		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY && structure->orders.size() == 0)
 		{
 			//if we have an idle gateway, try to make it into a warpgate
-			if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY)
+			if (buildOrderManager.alreadyResearched(ABILITY_ID::RESEARCH_WARPGATE) && structure->build_progress == 1.0)
 			{
-				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::MORPH_WARPGATE);
-				warpGates.push_back(Warpgate(structure, blinkerBot.Observation()->GetGameLoop()));
+				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::MORPH_WARPGATE);		
+				
+				bool alreadyAdded = false;
+				for (auto gate : warpGates)
+				{
+					if (structure == gate.warpgate)
+					{
+						alreadyAdded = true;
+					}
+				}
+				if (!alreadyAdded)
+				{
+					warpGates.push_back(Warpgate(structure, 0, UNIT_TYPEID::INVALID));
+				}
 			}
 			//otherwise train some units
-			if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) && canAffordGas(UNIT_TYPEID::PROTOSS_STALKER))
+			else if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) && canAffordGas(UNIT_TYPEID::PROTOSS_STALKER))
 			{
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_STALKER);
 			}
@@ -210,6 +230,7 @@ void ProductionManager::trainUnits()
 		}
 		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE)
 		{
+			/*
 			//find a warp in location
 			Point2D location = Point2D(rallyPoint.x + GetRandomScalar() * 7.0f, rallyPoint.y + GetRandomScalar() * 7.0f);
 			if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) && canAffordGas(UNIT_TYPEID::PROTOSS_STALKER))
@@ -222,12 +243,40 @@ void ProductionManager::trainUnits()
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAINWARP_ZEALOT, location);
 				lastUsedWarpGate = structure;
 			}
+			*/
 		}
 		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY)
 		{
 			if (structure->orders.size() == 0 && canAffordGas(UNIT_TYPEID::PROTOSS_IMMORTAL))
 			{
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_IMMORTAL);
+			}
+		}
+	}
+}
+
+/*
+checks to see if any of our warpgates are idle and tries to warp in a unit
+*/
+void ProductionManager::trainWarp()
+{
+	int currentLoop = blinkerBot.Observation()->GetGameLoop();
+	for (auto gate : warpGates)
+	{
+		if (currentLoop - gate.lastWarpInLoop >= UnitData::getWarpGateCoolDown(gate.lastTrainedType))
+		{
+			Point2D location = Point2D(rallyPoint.x + GetRandomScalar() * 7.0f, rallyPoint.y + GetRandomScalar() * 7.0f);
+			if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) && canAffordGas(UNIT_TYPEID::PROTOSS_STALKER))
+			{
+				blinkerBot.Actions()->UnitCommand(gate.warpgate, ABILITY_ID::TRAINWARP_STALKER, location);
+				lastUsedWarpGate = gate.warpgate;
+				return;
+			}
+			else
+			{
+				blinkerBot.Actions()->UnitCommand(gate.warpgate, ABILITY_ID::TRAINWARP_ZEALOT, location);
+				lastUsedWarpGate = gate.warpgate;
+				return;
 			}
 		}
 	}
@@ -341,6 +390,11 @@ void ProductionManager::train(BuildOrderItem item)
 					if (warpGate)
 					{
 						blinkerBot.Actions()->UnitCommand(warpGate, item.item, location);
+						lastUsedWarpGate = warpGate;
+					}
+					else
+					{
+						//std::cerr << "no idle warpgates" << std::endl;
 					}
 				}
 			}
@@ -733,6 +787,48 @@ void ProductionManager::addNewUnit(const Unit *unit)
 		productionQueue.removeItem();
 		lastProductionFrame = blinkerBot.Observation()->GetGameLoop();
 	}
+	//if we made a warpgate unit then we want to update the cooldown on the gate we used
+	if (UnitData::isWarpGateUnit(unit))
+	{
+		/*
+		for (auto gate : warpGates)
+		{
+			if (gate.warpgate == lastUsedWarpGate)
+			{
+				std::cerr << "before update: " << gate.lastWarpInLoop << " " << UnitTypeToName(gate.lastTrainedType) << std::endl;
+				gate.lastWarpInLoop = blinkerBot.Observation()->GetGameLoop();
+				gate.lastTrainedType = unit->unit_type;
+				std::cerr << "after update: " << gate.lastWarpInLoop << " " << UnitTypeToName(gate.lastTrainedType) << std::endl;
+			}
+		}
+		*/
+		
+		bool found = false;
+		for (std::vector<Warpgate>::iterator gate = warpGates.begin(); gate != warpGates.end();)
+		{
+			if ((*gate).warpgate == lastUsedWarpGate)
+			{
+				gate = warpGates.erase(gate);
+				found = true;
+			}
+			else
+			{
+				gate++;
+			}
+		}
+		if (found)
+		{
+			warpGates.push_back(Warpgate(lastUsedWarpGate, blinkerBot.Observation()->GetGameLoop(), unit->unit_type));
+		}
+	}
+	for (auto gate : warpGates)
+	{
+		if (gate.warpgate == lastUsedWarpGate)
+		{
+			gate.lastWarpInLoop = blinkerBot.Observation()->GetGameLoop();
+		}
+	}
+
 	//depending on the unit type, let's add it to the relevant group
 	if (UnitData::isOurs(unit) && UnitData::isStructure(unit))
 	{
@@ -775,24 +871,6 @@ void ProductionManager::addNewUnit(const Unit *unit)
 	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_HIGHTEMPLAR)
 	{
 		hts.insert(unit);
-		for (auto gate : warpGates)
-		{
-			if (gate.warpgate == lastUsedWarpGate)
-			{
-				gate.lastWarpInLoop = blinkerBot.Observation()->GetGameLoop();
-			}
-		}
-	}
-	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER ||
-			unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT)
-	{
-		for (auto gate : warpGates)
-		{
-			if (gate.warpgate == lastUsedWarpGate)
-			{
-				gate.lastWarpInLoop = blinkerBot.Observation()->GetGameLoop();
-			}
-		}
 	}
 }
 
@@ -1162,10 +1240,12 @@ int ProductionManager::checkPriority(ABILITY_ID ability)
 	case ABILITY_ID::RESEARCH_WARPGATE:
 	case ABILITY_ID::RESEARCH_BLINK:
 	case ABILITY_ID::TRAIN_OBSERVER:
+	case ABILITY_ID::RESEARCH_PSISTORM:
 		return 1;
 		break;
 	case ABILITY_ID::TRAIN_COLOSSUS:
 	case ABILITY_ID::TRAIN_IMMORTAL:
+	case ABILITY_ID::TRAIN_VOIDRAY:
 		return 2;
 		break;
 	case ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE:
@@ -1648,8 +1728,8 @@ adds high templars to the production queue
 void ProductionManager::trainHighTemplar()
 {
 	//if we can train HTs and we don't already have plenty, let's add another one to the queue
-	if (completedStructureExists(UNIT_TYPEID::PROTOSS_TEMPLARARCHIVE) && (hts.size() <= baseManager.getOurBases().size() * 2)
-		&& !productionQueue.includes(ABILITY_ID::TRAINWARP_HIGHTEMPLAR))
+	if (armyStatus != Defend && completedStructureExists(UNIT_TYPEID::PROTOSS_TEMPLARARCHIVE) && (hts.size() <= baseManager.getOurBases().size() * 2)
+		&& !productionQueue.includes(ABILITY_ID::TRAINWARP_HIGHTEMPLAR) && !productionQueue.includes(ABILITY_ID::RESEARCH_PSISTORM))
 	{
 		productionQueue.addItemHighPriority(ABILITY_ID::TRAINWARP_HIGHTEMPLAR);
 	}
@@ -1778,19 +1858,22 @@ void ProductionManager::trainVoidray()
 
 }
 
-
 /*
 finds an idle warpgate
 */
-
 const Unit *ProductionManager::getIdleWarpgate()
 {
 	int currentLoop = blinkerBot.Observation()->GetGameLoop();
+	const Unit *idleGate = nullptr;
 	for (auto gate : warpGates)
 	{
-		//717 represents 32 seconds (templar cooldown time) * 22.4 game loops per second
-		if (currentLoop - gate.lastWarpInLoop >= 717)
+		//std::cerr << currentLoop<< " last warped in " << UnitTypeToName(gate.lastTrainedType) << " at " << gate.lastWarpInLoop << std::endl;
+		//compare how long it's been since we last trained a unit with the cooldown for the unit type we made
+
+		if (currentLoop - gate.lastWarpInLoop >= UnitData::getWarpGateCoolDown(gate.lastTrainedType))
 		{
+			//blinkerBot.Debug()->DebugBoxOut(gate.warpgate->pos, Point3D(gate.warpgate->pos.x, gate.warpgate->pos.y, gate.warpgate->pos.y + 5));
+			//blinkerBot.Debug()->SendDebug();
 			return gate.warpgate;
 		}
 	}
