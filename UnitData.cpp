@@ -759,10 +759,155 @@ float UnitData::getWarpGateCoolDown(UnitTypeID unitType)
 		break;
 	case UNIT_TYPEID::PROTOSS_DARKTEMPLAR:
 	case UNIT_TYPEID::PROTOSS_HIGHTEMPLAR:
-		return 716.8;
+		return 716.8f;
 		break;
 	default:
 		return 0;
 		break;
+	}
+}
+
+/*
+returns true for unit types with energy-costing castable abilities
+*/
+bool UnitData::isCaster(UnitTypeID unitType)
+{
+	if ((unitType == UNIT_TYPEID::PROTOSS_HIGHTEMPLAR) ||
+		(unitType == UNIT_TYPEID::PROTOSS_MOTHERSHIP) ||
+		(unitType == UNIT_TYPEID::PROTOSS_ORACLE) ||
+		(unitType == UNIT_TYPEID::PROTOSS_SENTRY) ||
+		(unitType == UNIT_TYPEID::TERRAN_BANSHEE) ||
+		(unitType == UNIT_TYPEID::TERRAN_GHOST) ||
+		(unitType == UNIT_TYPEID::TERRAN_MEDIVAC) ||
+		(unitType == UNIT_TYPEID::TERRAN_RAVEN) ||
+		(unitType == UNIT_TYPEID::ZERG_INFESTOR) ||
+		(unitType == UNIT_TYPEID::ZERG_INFESTORBURROWED) ||
+		(unitType == UNIT_TYPEID::ZERG_QUEEN) ||
+		(unitType == UNIT_TYPEID::ZERG_QUEENBURROWED) ||
+		(unitType == UNIT_TYPEID::ZERG_VIPER) ||
+		(unitType == UNIT_TYPEID::ZERG_OVERSEER))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
+returns true if the unit type is a changeling
+*/
+bool UnitData::isChangeling(UnitTypeID unitType)
+{
+	if (unitType == UNIT_TYPEID::ZERG_CHANGELING ||
+		unitType == UNIT_TYPEID::ZERG_CHANGELINGMARINE ||
+		unitType == UNIT_TYPEID::ZERG_CHANGELINGMARINESHIELD ||
+		unitType == UNIT_TYPEID::ZERG_CHANGELINGZEALOT ||
+		unitType == UNIT_TYPEID::ZERG_CHANGELINGZERGLING ||
+		unitType == UNIT_TYPEID::ZERG_CHANGELINGZERGLINGWINGS)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
+returns true if the attacker is able to hit the potential target 
+(based on unit attributes e.g. flying, not on ranges or visibility)
+*/
+bool UnitData::canTarget(const Unit *attacker, const Unit *potentialTarget)
+{
+	//filter out untargetable units and changelings
+	if (isTargetable(potentialTarget->unit_type) && !isChangeling(potentialTarget->unit_type))
+	{
+		//only return true on flying units if we can attack flying
+		if (potentialTarget->is_flying)
+		{
+			if (canAttackAir(attacker->unit_type))
+			{
+				return true;
+			}
+			else
+			{
+				return false;
+			}
+		}
+		//non-flying units are targetable
+		else
+		{
+			return true;
+		}
+	}
+	//untargetable units and changelings are ignored
+	else
+	{
+		return false;
+	}
+}
+
+/*
+returns true if the unit type is able to target air units (currently only implemented for protoss)
+*/
+bool UnitData::canAttackAir(UnitTypeID unitType)
+{
+	if (unitType == UNIT_TYPEID::PROTOSS_ARCHON ||
+		unitType == UNIT_TYPEID::PROTOSS_CARRIER ||
+		unitType == UNIT_TYPEID::PROTOSS_INTERCEPTOR ||
+		unitType == UNIT_TYPEID::PROTOSS_MOTHERSHIP ||
+		unitType == UNIT_TYPEID::PROTOSS_PHOENIX ||
+		unitType == UNIT_TYPEID::PROTOSS_SENTRY ||
+		unitType == UNIT_TYPEID::PROTOSS_STALKER ||
+		unitType == UNIT_TYPEID::PROTOSS_TEMPEST ||
+		unitType == UNIT_TYPEID::PROTOSS_VOIDRAY)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
+returns false for unit types that can't be attacked (not including neutral units)
+*/
+bool UnitData::isTargetable(UnitTypeID unitType)
+{
+	if (unitType == UNIT_TYPEID::PROTOSS_ADEPTPHASESHIFT ||
+		unitType == UNIT_TYPEID::TERRAN_KD8CHARGE ||
+		unitType == UNIT_TYPEID::ZERG_PARASITICBOMBDUMMY)
+	{
+		return false;
+	}
+	else
+	{
+		return true;
+	}
+}
+
+/*
+returns true if the enemy unit is either not cloaked, or is cloaked but has been revealed
+*/
+bool UnitData::isVisible(const Unit *enemy)
+{
+	if (enemy->display_type != Unit::DisplayType::Visible || enemy->cloak == Unit::CloakState::Cloaked)
+	{
+		if (enemy->cloak == Unit::CloakState::Cloaked)
+		{
+			std::cerr << "found a cloaked enemy" << std::endl;
+		}
+		return false;
+	}
+	else
+	{
+		if (enemy->cloak == Unit::CloakState::CloakedDetected)
+		{
+			std::cerr << "found a detected cloaked enemy" << std::endl;
+		}
+		return true;
 	}
 }

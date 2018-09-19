@@ -80,16 +80,16 @@ void ProductionManager::onStep()
 		chronoBoost();
 
 		//let's stop regular production briefly to make sure the next base gets started or a key unit gets trained
-		if (!isBlocking(productionQueue.getNextItem().item) || armyStatus == Defend || blinkerBot.Observation()->GetMinerals() > 800)
+		if (!isBlocking(productionQueue.getNextItem().item) || armyStatus == Defend || blinkerBot.Observation()->GetMinerals() > 400)
 		{
 			trainUnits();
 			trainWarp();
-			trainHighTemplar();
+
 			//let's train some high tech units as long as our economy isn't too small
 			if (workerManager.getWorkerCount() > 30)
 			{
 				trainColossus();
-				//trainHighTemplar();
+				trainHighTemplar();
 			}
 			if (workerManager.getWorkerCount() > 50)
 			{
@@ -187,17 +187,10 @@ void ProductionManager::trainUnits()
 	for (auto structure : structures)
 	{
 		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->orders.size() == 0 
-			&& workerManager.getWorkerCount() <= (calculateMiningBases() * 22) && workerManager.getWorkerCount() <= 88)
+			&& workerManager.getWorkerCount() <= (baseManager.getOurBases().size() * 22) && workerManager.getWorkerCount() <= 88)
 		{
 			blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_PROBE);
 		}
-		/*
-		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->orders.size() == 0)
-		{
-			std::cerr << baseManager.getOurBases().size() << " bases and "
-				<< calculateMiningBases() << " mining bases and " << workerManager.getWorkerCount() << " workers" << std::endl;
-		}
-		*/
 		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY && structure->orders.size() == 0)
 		{
 			//if we have an idle gateway, try to make it into a warpgate
@@ -266,7 +259,10 @@ void ProductionManager::trainWarp()
 		if (currentLoop - gate.lastWarpInLoop >= UnitData::getWarpGateCoolDown(gate.lastTrainedType))
 		{
 			Point2D location = Point2D(rallyPoint.x + GetRandomScalar() * 7.0f, rallyPoint.y + GetRandomScalar() * 7.0f);
-			if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) && canAffordGas(UNIT_TYPEID::PROTOSS_STALKER))
+			if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) && canAffordGas(UNIT_TYPEID::PROTOSS_STALKER) 
+				&& productionQueue.getNextItem().item != ABILITY_ID::TRAINWARP_HIGHTEMPLAR && 
+				productionQueue.getNextItem().item != ABILITY_ID::TRAIN_COLOSSUS && 
+				productionQueue.getNextItem().item != ABILITY_ID::TRAIN_VOIDRAY)
 			{
 				blinkerBot.Actions()->UnitCommand(gate.warpgate, ABILITY_ID::TRAINWARP_STALKER, location);
 				lastUsedWarpGate = gate.warpgate;
@@ -573,7 +569,7 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 					bool hasCannon = false;
 					for (auto structure : structures)
 					{
-						if (Distance2D(base.getBuildLocation(), structure->pos) < 8 && structure->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
+						if (Distance2D(base.getTownhall()->pos, structure->pos) < 10 && structure->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
 						{
 							hasCannon = true;
 						}
@@ -581,14 +577,14 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 					//if we find a base with no cannon, let's get that location
 					if (!hasCannon)
 					{
-						buildLocation = base.getBuildLocation();
+						buildLocation = base.getTownhall()->pos;
 					}
 				}
 				//find the closest pylon to that base, and build the cannon there
 				const Unit *targetPylon = getClosestPylon(buildLocation);
 				if (targetPylon)
 				{
-					buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 6.5f, targetPylon->pos.y + GetRandomScalar() * 6.5f);
+					buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 2.0f, targetPylon->pos.y + GetRandomScalar() * 2.0f);
 				}
 			}
 			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
@@ -670,44 +666,6 @@ void ProductionManager::setNextPylonLocation()
 	if (pylons.empty() && baseManager.getFirstPylonPosition() != Point2D(0, 0))
 	{
 		nextPylonLocation = baseManager.getFirstPylonPosition();
-
-		/*
-		Point2D ramp = baseManager.getMainRamp();
-		Point2D main = blinkerBot.Observation()->GetStartLocation();
-		Point2D top = ramp;
-		int count = 0;
-
-		while (!blinkerBot.Observation()->IsPlacable(top) && count < 15)
-		{
-			if (top.x > main.x)
-			{
-				top = Point2D(top.x - 1, top.y);
-			}
-			else if (top.x < main.x)
-			{
-				top = Point2D(top.x + 1, top.y);
-			}
-			if (top.y > main.y)
-			{
-				top = Point2D(top.x, top.y - 1);
-			}
-			else if (top.y < main.y)
-			{
-				top = Point2D(top.x, top.y + 1);
-			}
-			count++;
-		}
-
-		if (blinkerBot.Observation()->IsPlacable(top))
-		{
-			nextPylonLocation = top;
-		}
-		else
-		{
-			std::cerr << "couldn't find the top of the ramp" << std::endl;
-		}
-		*/
-
 	}
 	//if we need a forward pylon then build the pylon there
 	else if (!pylons.empty() && forwardPylon == nullptr && armyStatus == Attack)
@@ -718,14 +676,36 @@ void ProductionManager::setNextPylonLocation()
 	//otherwise find an appropriate location
 	else
 	{
-		Point2D buildLocation;
-		//find the location of our most recent base
+		Point2D buildLocation = blinkerBot.Observation()->GetStartLocation();
 		if (baseManager.getOurBases().empty())
 		{
-			buildLocation = blinkerBot.Observation()->GetStartLocation();
+			return;
 		}
 		else
 		{
+			//if we have started a new base which doesn't have any pylons near it yet
+			const Unit *newBase = baseNeedsNearbyPylon();
+			if (newBase)
+			{
+				//find a nearby point and build there
+				bool found = false;
+				std::vector<Point2D> buildGrid = getBuildGrid(newBase->pos);
+				for (auto point : buildGrid)
+				{
+					if (Distance2D(point, newBase->pos) < NEARBYPYLONDIST)
+					{
+						found = true;
+						buildLocation = point;
+					}
+				}
+				if (found)
+				{
+					nextPylonLocation = buildLocation;
+					return;
+				}
+			}
+
+			//find the location of our most recent base
 			bool townHallInProduction = false;
 			for (auto unit : blinkerBot.Observation()->GetUnits())
 			{
@@ -1728,7 +1708,7 @@ adds high templars to the production queue
 void ProductionManager::trainHighTemplar()
 {
 	//if we can train HTs and we don't already have plenty, let's add another one to the queue
-	if (armyStatus != Defend && completedStructureExists(UNIT_TYPEID::PROTOSS_TEMPLARARCHIVE) && (hts.size() <= baseManager.getOurBases().size() * 2)
+	if (armyStatus != Defend && completedStructureExists(UNIT_TYPEID::PROTOSS_TEMPLARARCHIVE) && (hts.size() < baseManager.getOurBases().size() * 2)
 		&& !productionQueue.includes(ABILITY_ID::TRAINWARP_HIGHTEMPLAR) && !productionQueue.includes(ABILITY_ID::RESEARCH_PSISTORM))
 	{
 		productionQueue.addItemHighPriority(ABILITY_ID::TRAINWARP_HIGHTEMPLAR);
@@ -1878,4 +1858,34 @@ const Unit *ProductionManager::getIdleWarpgate()
 		}
 	}
 	return nullptr;
+}
+
+/*
+returns a base which doesn't have any pylons nearby, otherwise returns a nullptr
+*/
+const Unit *ProductionManager::baseNeedsNearbyPylon()
+{
+	const Unit *newBase = nullptr;
+
+	//check each base to see if it has a nearby pylon
+	for (auto base : baseManager.getOurBases())
+	{
+		bool nearbyPylon = false;
+		for (auto pylon : pylons)
+		{
+			if (Distance2D(pylon->pos, base.getTownhall()->pos) <= NEARBYPYLONDIST + 1)
+			{
+				nearbyPylon = true;
+			}
+		}
+
+		//if we can't find a nearby pylon, return the current base
+		if (!nearbyPylon)
+		{
+			newBase = base.getTownhall();
+			return newBase;
+		}
+	}
+	//this should return nullptr;
+	return newBase;
 }

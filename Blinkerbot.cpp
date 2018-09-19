@@ -133,7 +133,8 @@ void BlinkerBot::OnUnitCreated(const sc2::Unit *unit)
 			 unit->unit_type == UNIT_TYPEID::PROTOSS_DARKTEMPLAR ||
 			 unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER ||
 			 unit->unit_type == UNIT_TYPEID::PROTOSS_IMMORTAL ||
-			 unit->unit_type == UNIT_TYPEID::PROTOSS_VOIDRAY)
+			 unit->unit_type == UNIT_TYPEID::PROTOSS_VOIDRAY ||
+			 unit->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
 	{
 		armyManager.addUnit(unit);
 	}

@@ -30,6 +30,7 @@ void ArmyManager::onStep()
 	//printDebug();
 	darkTemplarHarass();
 	psistorm();
+	feedback();
 	moveObservers();
 	workerDefence();
 	checkForZerglingSpeed();
@@ -107,7 +108,7 @@ void ArmyManager::workerDefence()
 		for (auto unit : blinkerBot.Observation()->GetUnits())
 		{
 			if (UnitData::isMinerals(unit) && unit->display_type == Unit::DisplayType::Visible
-				&& Distance2D(unit->pos, blinkerBot.Observation()->GetStartLocation()) < 15)
+				&& Distance2D(unit->pos, blinkerBot.Observation()->GetStartLocation()) < LOCALRADIUS)
 			{
 				mineral = unit;
 			}
@@ -190,7 +191,8 @@ bool ArmyManager::regroup()
 		bool unitsCloseEnough = true;
 		for (auto armyUnit : army)
 		{
-			if (armyUnit.unit->orders.empty() || armyUnit.unit->orders.front().ability_id != ABILITY_ID::MOVE)
+			if (armyUnit.unit->orders.empty() || armyUnit.unit->orders.front().ability_id != ABILITY_ID::MOVE ||
+				(armyUnit.unit->orders.front().target_pos.x != rallyPoint.x && armyUnit.unit->orders.front().target_pos.y != rallyPoint.y))
 			{
 				if (Distance2D(armyUnit.unit->pos, rallyPoint) > LOCALRADIUS)
 				{
@@ -365,20 +367,19 @@ blink() and kite() will be called when our army comes into contact with enemy un
 */
 void ArmyManager::attack(Point2D target)
 {
+	aggressiveBlink(target);
+
 	for (auto armyUnit : army)
 	{
-		const Unit *targetUnit = nullptr;
-		//if (Distance2D(armyUnit.unit->pos, target) < LOCALRADIUS)
-		//{
-			targetUnit = getClosestEnemy(armyUnit.unit->pos);
-		//}
+		const Unit *targetUnit = getClosestEnemy(armyUnit.unit->pos);
+
 		if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER)
 		{
 			if (!escapeAOE(armyUnit) && !blink(armyUnit.unit) && !kite(armyUnit))
 			{
 				armyUnit.status = Attack;
-				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK
-					|| ((*armyUnit.unit->orders.begin()).target_pos.x != target.x && (*armyUnit.unit->orders.begin()).target_pos.y != target.y))
+				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+					//|| ((*armyUnit.unit->orders.begin()).target_pos.x != target.x && (*armyUnit.unit->orders.begin()).target_pos.y != target.y))
 				{
 					if (targetUnit)
 					{
@@ -396,8 +397,8 @@ void ArmyManager::attack(Point2D target)
 			if (!escapeAOE(armyUnit) && !kite(armyUnit))
 			{
 				armyUnit.status = Attack;
-				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK
-					|| ((*armyUnit.unit->orders.begin()).target_pos.x != target.x && (*armyUnit.unit->orders.begin()).target_pos.y != target.y))
+				if (armyUnit.unit->orders.empty() || (*armyUnit.unit->orders.begin()).ability_id != ABILITY_ID::ATTACK)
+					//|| ((*armyUnit.unit->orders.begin()).target_pos.x != target.x && (*armyUnit.unit->orders.begin()).target_pos.y != target.y))
 				{
 					if (targetUnit)
 					{
@@ -449,6 +450,10 @@ void ArmyManager::addUnit(const Unit *unit)
 	{
 		observers.insert(unit);
 	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
+	{
+		photonCannons.insert(unit);
+	}
 	else
 	{
 		for (auto armyUnit : army)
@@ -488,6 +493,10 @@ void ArmyManager::removeUnit(const Unit *unit)
 	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
 	{
 		observers.erase(unit);
+	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
+	{
+		photonCannons.erase(unit);
 	}
 	else
 	{
@@ -584,7 +593,7 @@ bool ArmyManager::canAttack()
 {
 	//attack can be delayed by zergling speed (until blink), rushes (until early game timer runs out), or army size
 	if (!(zerglingSpeed && !blinkTech) && !beingRushed && currentArmyValue > 1 && 
-		((currentArmyValue >= currentEnemyArmyValue)  || currentArmyValue > 80))
+		((currentArmyValue >= currentEnemyArmyValue)  || currentArmyValue > 70))
 	{
 		return true;
 	}
@@ -794,7 +803,8 @@ bool ArmyManager::blink(const Unit *unit)
 }
 
 /*
-find the closest enemy army unit to a given unit
+find the closest enemy army unit to a given unit.
+Ignores flying units if the unit cannot attack flyers, also ignores untargetable units and changelings
 */
 const Unit *ArmyManager::getClosestEnemy(const Unit *ourUnit)
 {
@@ -803,7 +813,8 @@ const Unit *ArmyManager::getClosestEnemy(const Unit *ourUnit)
 		const Unit *closestEnemy = *enemyArmy.begin();
 		for (auto enemy : enemyArmy)
 		{
-			if (Distance2D(enemy->pos, ourUnit->pos) < Distance2D(closestEnemy->pos, ourUnit->pos))
+			if (Distance2D(enemy->pos, ourUnit->pos) < Distance2D(closestEnemy->pos, ourUnit->pos) 
+				&& UnitData::canTarget(ourUnit, enemy) && UnitData::isVisible(enemy))
 			{
 				closestEnemy = enemy;
 			}
@@ -817,7 +828,8 @@ const Unit *ArmyManager::getClosestEnemy(const Unit *ourUnit)
 }
 
 /*
-find the closest enemy army unit to a given point
+find the closest enemy army unit to a given point.
+Since this version is not supplied an attacking unit, we cannot check if flying units are attackable
 */
 const Unit *ArmyManager::getClosestEnemy(Point2D point)
 {
@@ -826,7 +838,9 @@ const Unit *ArmyManager::getClosestEnemy(Point2D point)
 		const Unit *closestEnemy = *enemyArmy.begin();
 		for (auto enemy : enemyArmy)
 		{
-			if (Distance2D(enemy->pos, point) < Distance2D(closestEnemy->pos, point))
+			if (Distance2D(enemy->pos, point) < Distance2D(closestEnemy->pos, point) 
+				&& !UnitData::isChangeling(enemy->unit_type) && UnitData::isTargetable(enemy->unit_type)
+				&& UnitData::isVisible(enemy))
 			{
 				closestEnemy = enemy;
 			}
@@ -840,7 +854,8 @@ const Unit *ArmyManager::getClosestEnemy(Point2D point)
 }
 
 /*
-find the closest enemy structure to a given unit
+find the closest enemy structure to a given unit.
+Ignores burrowed creep tumors.
 */
 const Unit *ArmyManager::getClosestEnemyBase(const Unit *ourUnit)
 {
@@ -1372,10 +1387,12 @@ void ArmyManager::psistorm()
 	std::set<const Unit *> enemiesInRange;
 	float stormRange = blinkerBot.Observation()->GetAbilityData()[AbilityID(ABILITY_ID::EFFECT_PSISTORM)].cast_range;
 	float stormRadius = 1.5f;
+	float energyCost = 75.0f;
 	for (auto ht : highTemplars)
 	{
-		if (ht->energy >= 75)
+		if (ht->energy >= energyCost)
 		{
+			//find enemies in range
 			for (auto enemy : enemyArmy)
 			{
 				if (Distance2D(enemy->pos, ht->pos) < (stormRange + stormRadius))
@@ -1383,12 +1400,14 @@ void ArmyManager::psistorm()
 					enemiesInRange.insert(enemy);
 				}
 			}
+			//determine the best place to put the storm
 			Point2D target = getAOETarget(enemiesInRange, stormRadius);
 			if (Distance2D(target, ht->pos) <= stormRange && 
 				target.x != 0 && target.y != 0 && 
 				(calculateSupplyAndWorkers(enemiesInRange) > 4 || ht->shield == 0))
 			{
 				blinkerBot.Actions()->UnitCommand(ht, ABILITY_ID::EFFECT_PSISTORM, target);
+				return;
 			}
 		}
 	}
@@ -1485,13 +1504,101 @@ checks if a unit is under the effect of a hostile AOE spell. Issues a move comma
 */
 bool ArmyManager::escapeAOE(ArmyUnit armyUnit)
 {
-	if (isUnderPsistorm(armyUnit.unit->pos))
+	if (isUnderHostileSpell(armyUnit.unit->pos))
 	{
-		blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, getRetreatPoint(armyUnit.unit));
+		if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER && blinkTech)
+		{
+			blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::EFFECT_BLINK, getRetreatPoint(armyUnit.unit));
+		}
+		else
+		{
+			blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::MOVE, getRetreatPoint(armyUnit.unit));
+		}
 		return true;
 	}
 	else
 	{
 		return false;
 	}
+}
+
+/*
+finds an appropriate target and casts feedback if possible
+*/
+void ArmyManager::feedback()
+{
+	float castRange = blinkerBot.Observation()->GetAbilityData()[AbilityID(ABILITY_ID::EFFECT_FEEDBACK)].cast_range;
+	float energyCost = 50.0f;
+
+	for (auto ht : highTemplars)
+	{
+		if (ht->energy >= energyCost)
+		{
+			for (auto enemy : enemyArmy)
+			{
+				if (UnitData::isCaster(enemy->unit_type) && Distance2D(ht->pos, enemy->pos) <= castRange)
+				{
+					blinkerBot.Actions()->UnitCommand(ht, ABILITY_ID::EFFECT_FEEDBACK, enemy);
+					return;
+				}
+			}
+		}
+	}
+}
+
+/*
+returns true if the given point is under a potentially hostile spell
+*/
+bool ArmyManager::isUnderHostileSpell(Point2D target)
+{
+	for (auto effect : blinkerBot.Observation()->GetEffects())
+	{
+		EffectData effectData = blinkerBot.Observation()->GetEffectData()[effect.effect_id];
+		if (effectData.effect_id == 1 || //psistorm
+			effectData.effect_id == 3 || //temporal field (growing)
+			effectData.effect_id == 4 || //temporal field
+			effectData.effect_id == 7 || //nuke dot
+			effectData.effect_id == 10 || //blinding cloud
+			effectData.effect_id == 11 //corrosive bile
+			)
+		{
+			for (auto position : effect.positions)
+			{
+				if (Distance2D(position, target) <= effectData.radius || 
+					(effectData.effect_id == 7 && Distance2D(position, target) <= 8.0f)) //nuke radius
+				{
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+/*
+commands nearby stalkers to blink towards an enemy target in some situations
+*/
+bool ArmyManager::aggressiveBlink(Point2D target)
+{
+	//find the closest enemy to the target
+	const Unit *blinkTarget = getClosestEnemy(target);
+
+	//we only want to blink in if our army is significantly larger
+	if (blinkTarget && calculateSupplyInRadius(blinkTarget->pos, enemyArmy) * 2 < calculateSupplyInRadius(blinkTarget->pos, army))
+	{
+		for (auto armyUnit : army)
+		{
+			if (armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER && 
+				Distance2D(armyUnit.unit->pos, target) < LOCALRADIUS && Distance2D(armyUnit.unit->pos, target) > 3)
+			{
+				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::EFFECT_BLINK, blinkTarget->pos);
+			}
+		}
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+
 }

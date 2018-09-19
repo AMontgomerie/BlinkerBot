@@ -28,10 +28,16 @@ public:
 	static bool isTrainableUnitType(AbilityID ability);
 	static bool isGasStructure(const Unit *unit);
 	static bool isWarpGateUnit(const Unit *unit);
+	static bool isChangeling(UnitTypeID unitType);
 	static bool canCloak(const Unit *unit);
 	static bool canWarpIn(AbilityID ability);
 	static bool isComparableUpgrade(AbilityID abilityA, AbilityID abilityB);
 	static bool isTechStructure(AbilityID ability);
+	static bool isCaster(UnitTypeID unitType);
+	static bool isTargetable(UnitTypeID unitType);
+	static bool isVisible(const Unit *enemy);
+	static bool canTarget(const Unit *attacker, const Unit *potentialTarget);
+	static bool canAttackAir(UnitTypeID unitType);
 	static float getWarpGateCoolDown(UnitTypeID unitType);
 	static UnitTypeID getUnitTypeID(AbilityID ability);
 	static AbilityID getAbilityID(UpgradeID upgrade);

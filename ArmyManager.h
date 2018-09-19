@@ -56,6 +56,7 @@ class ArmyManager
 	std::set<const Unit *> enemyStructures;
 	std::set<const Unit *> observers;
 	std::set<const Unit *> pulledWorkers;
+	std::set<const Unit *> photonCannons;
 
 public:
 	ArmyManager(BlinkerBot & bot);
@@ -76,6 +77,7 @@ public:
 	const Unit *underAttack();
 
 private:
+	bool aggressiveBlink(Point2D target);
 	void attack();
 	void attack(Point2D target);
 	float averageUnitDistanceToEnemyBase();
@@ -92,6 +94,7 @@ private:
 	void checkForZerglingSpeed();
 	void darkTemplarHarass();
 	bool escapeAOE(ArmyUnit armyUnit);
+	void feedback();
 	Point2D findAttackTarget(const Unit *unit);
 	Point2D getAOETarget(std::set<const Unit *> unitsInRange, float radius);
 	const Unit *getClosestBase(const Unit *unit);
@@ -102,6 +105,7 @@ private:
 	Point2D getRetreatPoint(const Unit *unit);
 	bool inRange(const Unit *attacker, const Unit *target);
 	bool inRange(const Unit *attacker, Point2D target);
+	bool isUnderHostileSpell(Point2D target);
 	bool isUnderPsistorm(Point2D target);
 	bool kite(ArmyUnit armyUnit);
 	void moveObservers();

@@ -1,29 +1,35 @@
 high priority:
-- STILL A FUCKING CRASH WITH 0 PYLONS FFS
-- dont warp in hts in defence mode
-- dont defend forward pylon if its under attack
-- new units shouldn't rally all the way to the forward pylon (or it should be interrupted if the army status changes)
+- defend against drops
+	- better cannon placement
+- ignore cloaked/burrowed units if we dont have nearby detection
+- also ignore grenades and shit
+
 
 when laddermanager works again:
 - test that we can check for ling speed
 - practice worker rush defence
 
 later:
-- sometimes stops producing workers despite extra bases
+- remove destructible rocks from pylon placement
+- make storms avoid friendly units more
+- calculate lurker splash area
+- try to wall the natural for more greedy openings
 - check if structures are powered and set nextpylonlocation to nearby if not
 - attack performance can maybe be increased  by widening the scope of the order check (before finding a target?)
 - deal with idle workers at bases with no minerals
 - reorganise methods to be consistent in each manager
 - army splitting (dont pull everything back every time a scout comes in your base)
-- aggressive blink under flying units
 - improve cannon placement
-- make train() able to switch between TRAIN and TRAINWARP
 - implement more sophisticated DT control (avoid detectors and prioritise targets)
 - deal with surrounds
 - train only works for units that are trained from their own tech structure
 - deactivate expensive methods based on framerate performance
 - somehow deal with level2+ upgrades that require extra tech (perhaps a vector to show they require multiple?)
 - some weird behaviour around tanks and ramps
-- continue implementing UnitData
 
 DONE FOR NEXT UPLOAD:
+- units can now dodge aoe
+- new units shouldnt rally all the way to forward pylon during a retreat
+- ht can do feedback
+- unit targeting ignores changelings, untargetables, and cloaked units
+- improved cannon placement

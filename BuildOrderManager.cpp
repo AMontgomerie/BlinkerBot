@@ -77,7 +77,7 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 	//if we don't want to keep adding techs without expanding though
 	AbilityID tech = getNextTech();
 	if (tech != ABILITY_ID::INVALID && 
-		!(completedTechs.size() > 1 && currentBases < 2) && !(completedTechs.size() > 3 && currentBases < 3))
+		!(completedTechs.size() >= 1 && currentBases < 2) && !(completedTechs.size() >= 3 && currentBases < 3))
 	{
 		if (extraGases > 0)
 		{
@@ -88,7 +88,7 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 	}
 
 	//if the enemy has cloaked units, we want to make sure we have cannons at each base
-	if (enemyHasCloak || currentBases > 2)
+	if (enemyHasCloak || currentBases > 2 || (currentBases > 1 && enemyRace == Race::Terran))
 	{
 		if (extraCannons > 0)
 		{

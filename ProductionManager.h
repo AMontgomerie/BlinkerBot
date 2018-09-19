@@ -18,7 +18,8 @@ enum ArmyStatus;
 
 class ProductionManager
 {
-	const uint32_t DEADLOCK = 1000;
+	const uint32_t DEADLOCK = 700;
+	const float NEARBYPYLONDIST = 5.0f;
 
 	struct Warpgate {
 		const Unit *warpgate;
@@ -92,6 +93,7 @@ private:
 	void chronoBoost();
 	bool completedStructureExists(UnitTypeID structure);
 	void expand();
+	const Unit *baseNeedsNearbyPylon();
 	std::vector<Point2D> getBuildGrid(Point2D centre);
 	const Unit *getClosestBaseToEnemy();
 	const Unit *getClosestEnemyBase(Point2D point);
