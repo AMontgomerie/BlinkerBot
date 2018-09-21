@@ -898,7 +898,7 @@ bool UnitData::isVisible(const Unit *enemy)
 	{
 		if (enemy->cloak == Unit::CloakState::Cloaked)
 		{
-			std::cerr << "found a cloaked enemy" << std::endl;
+			//std::cerr << "found a cloaked enemy" << std::endl;
 		}
 		return false;
 	}
@@ -906,8 +906,42 @@ bool UnitData::isVisible(const Unit *enemy)
 	{
 		if (enemy->cloak == Unit::CloakState::CloakedDetected)
 		{
-			std::cerr << "found a detected cloaked enemy" << std::endl;
+			//std::cerr << "found a detected cloaked enemy" << std::endl;
 		}
 		return true;
+	}
+}
+
+/*
+returns true if Dustin Browder loves this unit
+*/
+bool UnitData::isNeutralRock(const Unit *unit)
+{
+	if (unit->unit_type == UNIT_TYPEID::NEUTRAL_COLLAPSIBLEROCKTOWERDEBRIS ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_COLLAPSIBLEROCKTOWERDIAGONAL ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_COLLAPSIBLEROCKTOWERPUSHUNIT ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_COLLAPSIBLETERRANTOWERDEBRIS ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_COLLAPSIBLETERRANTOWERDIAGONAL ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_COLLAPSIBLETERRANTOWERPUSHUNIT ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_COLLAPSIBLETERRANTOWERPUSHUNITRAMPLEFT ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_COLLAPSIBLETERRANTOWERPUSHUNITRAMPRIGHT ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_COLLAPSIBLETERRANTOWERRAMPLEFT ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_COLLAPSIBLETERRANTOWERRAMPRIGHT ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_DEBRISRAMPLEFT ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_DEBRISRAMPLEFT ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_DESTRUCTIBLEDEBRIS6X6 ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_DESTRUCTIBLEDEBRISRAMPDIAGONALHUGEBLUR ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_DESTRUCTIBLEDEBRISRAMPDIAGONALHUGEULBR ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_DESTRUCTIBLEROCK6X6 ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_DESTRUCTIBLEROCKEX1DIAGONALHUGEBLUR ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_UNBUILDABLEBRICKSDESTRUCTIBLE ||
+		unit->unit_type == UNIT_TYPEID::NEUTRAL_UNBUILDABLEPLATESDESTRUCTIBLE ||
+		unit->unit_type == UNIT_TYPEID(472)) //472 is UNBUILABLEROCKSDESTRUCTIBLE
+	{
+		return true;
+	}
+	else
+	{
+		return false;
 	}
 }

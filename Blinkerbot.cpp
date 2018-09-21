@@ -76,6 +76,7 @@ void BlinkerBot::OnStep()
 	}
 	//timer stuff
 	*/
+	
 }
 
 void BlinkerBot::OnUnitDestroyed(const sc2::Unit *unit)
@@ -125,19 +126,7 @@ void BlinkerBot::OnBuildingConstructionComplete(const sc2::Unit* unit)
 void BlinkerBot::OnUnitCreated(const sc2::Unit *unit)
 {
 	productionManager.addNewUnit(unit);
-
-	if (unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT || 
-			 unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER || 
-			 unit->unit_type == UNIT_TYPEID::PROTOSS_COLOSSUS || 
-			 unit->unit_type == UNIT_TYPEID::PROTOSS_HIGHTEMPLAR ||
-			 unit->unit_type == UNIT_TYPEID::PROTOSS_DARKTEMPLAR ||
-			 unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER ||
-			 unit->unit_type == UNIT_TYPEID::PROTOSS_IMMORTAL ||
-			 unit->unit_type == UNIT_TYPEID::PROTOSS_VOIDRAY ||
-			 unit->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
-	{
-		armyManager.addUnit(unit);
-	}
+	armyManager.addUnit(unit);
 }
 
 void BlinkerBot::OnUnitIdle(const sc2::Unit *unit)

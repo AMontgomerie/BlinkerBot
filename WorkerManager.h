@@ -9,16 +9,22 @@
 using namespace sc2;
 
 class BlinkerBot;
+enum ArmyStatus;
 
 class WorkerManager
 {
+	const int LOCALRADIUS = 30;
 	BlinkerBot & blinkerBot;
 	std::set<const Unit *> workers;
+	std::set<const Unit *> pulledWorkers;
 	std::set<const Unit *> bases;
 	std::set<const Unit *> gases;
 	const Unit *enemyMain;
 	const Unit *scout;
 	bool scouting;
+	ArmyStatus armyStatus;
+	const Unit *threatenedStructure;
+	float threat;
 
 	void returnToMining(const Unit *unit);
 	void transferWorkers(int numOfWorkers, const Unit *overSaturatedBase);
@@ -30,6 +36,14 @@ class WorkerManager
 	void scoutEnemyBases();
 	void harassWorkers();
 	const Unit *getClosestEnemyWorker(const Unit *ourUnit);
+	float calculateThreatSupplyDifference();
+	const Unit *findThreatenedStructure();
+	void updatePulledWorkers();
+	const Unit *getClosestEnemy(const Unit *ourUnit);
+	const Unit *getFurthestVisibleMineral(const Unit *ourUnit);
+	const Unit *getClosestVisibleMineral(const Unit *ourUnit);
+	void checkForThreatenedWorkers();
+	const Unit *getClosestBase(const Unit *unit);
 public:
 	void initialise();
 	void update();
@@ -45,6 +59,7 @@ public:
 	void removeGas(const Unit *unit);
 	const Unit *getScout();
 	void addEnemyMain(const Unit *unit);
+	void setArmyStatus(ArmyStatus status);
 	WorkerManager(BlinkerBot & bot);
 };
 

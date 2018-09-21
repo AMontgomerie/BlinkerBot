@@ -945,6 +945,7 @@ receives the current ArmyStatus from ArmyManager.
 void ProductionManager::receiveArmyStatus(ArmyStatus status)
 {
 	armyStatus = status;
+	workerManager.setArmyStatus(status);
 }
 
 /*

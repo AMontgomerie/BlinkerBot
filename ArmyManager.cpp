@@ -1,12 +1,18 @@
 #include "ArmyManager.h"
 #include "Blinkerbot.h"
 
-ArmyManager::ArmyManager(BlinkerBot & bot) : blinkerBot(bot), currentStatus(Defend), 
-regroupComplete(true), enemyBaseExplored(false), warpgateTech(false), beingRushed(false), zerglingSpeed(false), blinkTech(false),
+ArmyManager::ArmyManager(BlinkerBot & bot) : blinkerBot(bot), currentStatus(Retreat), 
+regroupComplete(true), warpgateTech(false), beingRushed(false), zerglingSpeed(false), blinkTech(false),
 zerglingTimer(nullptr, 0, 0, Point2D(0, 0), false){}
 
 void ArmyManager::initialise()
 {
+	//find potential enemy start locations
+	for (auto location : blinkerBot.Observation()->GetGameInfo().enemy_start_locations)
+	{
+		unexploredEnemyStartLocations.push_back(location);
+	}
+
 	//find the enemy race
 	for (auto player : blinkerBot.Observation()->GetGameInfo().player_info)
 	{
@@ -32,7 +38,6 @@ void ArmyManager::onStep()
 	psistorm();
 	feedback();
 	moveObservers();
-	workerDefence();
 	checkForZerglingSpeed();
 
 	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
@@ -94,93 +99,6 @@ const Unit *ArmyManager::underAttack()
 }
 
 /*
-pulls workers to defend in the event that there are not enough fighting units
-*/
-void ArmyManager::workerDefence()
-{
-	const Unit *threatenedStructure = underAttack();
-	//if we don't have enough fighting units then we need to pull some workers
-	if (threatenedStructure && (calculateSupplyAndWorkersInRadius(threatenedStructure->pos, enemyArmy) > 
-		calculateSupplyInRadius(threatenedStructure->pos, army) * 1.3))
-	{
-		//we need to find a nearby mineral to mineral walk through
-		const Unit *mineral = *blinkerBot.Observation()->GetUnits().begin();
-		for (auto unit : blinkerBot.Observation()->GetUnits())
-		{
-			if (UnitData::isMinerals(unit) && unit->display_type == Unit::DisplayType::Visible
-				&& Distance2D(unit->pos, blinkerBot.Observation()->GetStartLocation()) < LOCALRADIUS)
-			{
-				mineral = unit;
-			}
-		}
-
-		int threatLevel = 2 * (int(calculateSupplyAndWorkersInRadius(threatenedStructure->pos, enemyArmy)) - pulledWorkers.size());
-
-		//if we don't have any workers then let's find some
-		if (pulledWorkers.empty() || threatLevel > pulledWorkers.size() * 2)
-		{
-			//find nearby workers
-			for (auto unit : blinkerBot.Observation()->GetUnits())
-			{
-				if (UnitData::isOurs(unit) && UnitData::isWorker(unit) && 
-					Distance2D(unit->pos, threatenedStructure->pos) < LOCALRADIUS && threatLevel > pulledWorkers.size() * 2)
-				{
-					pulledWorkers.insert(unit);
-					threatLevel--;
-				}
-			}
-		}
-
-		//if we've already got some workers, then let's make sure they're being pulled
-		for (auto worker : pulledWorkers)
-		{
-			const Unit *target = getClosestEnemy(worker);
-			
-			//retreat hurt workers so they can regenerate shields (unless they're already fighting right next to the minerals)
-			if (target && worker->shield <= 5 && 
-				!(Distance2D(worker->pos, mineral->pos) < 2 && Distance2D(worker->pos, target->pos) < 2))
-			{
-				//right click the mineral (so the worker can move through other units)
-				if (mineral->display_type == Unit::DisplayType::Visible)
-				{
-					blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::SMART, mineral);
-				}
-			}
-			//otherwise issue attack commands
-			else if (target && (worker->orders.empty() || (*worker->orders.begin()).ability_id != ABILITY_ID::ATTACK))
-			{
-				blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::ATTACK, target->pos);
-			}
-		}
-	}
-	//if we're not under attack then we don't need the workers anymore
-	else if (!pulledWorkers.empty() && 
-		(getClosestEnemy(*pulledWorkers.begin()) == nullptr ||
-		Distance2D(getClosestEnemy(*pulledWorkers.begin())->pos, (*pulledWorkers.begin())->pos) > LOCALRADIUS))
-	{
-		for (auto worker : pulledWorkers)
-		{
-			const Unit *closestBase = getClosestBase(worker);
-			if (closestBase)
-			{
-				blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::MOVE, closestBase->pos);
-			}
-		}
-		pulledWorkers.clear();
-	}
-
-	//if workers chase too far away from our bases then tell them to go back home
-	for (auto worker : pulledWorkers)
-	{
-		const Unit *closestBase = getClosestBase(worker);
-		if (closestBase && Distance2D(closestBase->pos, worker->pos) > LOCALRADIUS + 10)
-		{
-			blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::MOVE, closestBase->pos);
-		}
-	}
-}
-
-/*
 issues a regroup command to all of our units. Returns true when all units are within a certain distance of the rally point.
 */
 bool ArmyManager::regroup()
@@ -231,15 +149,15 @@ Point2D ArmyManager::findAttackTarget(const Unit *unit)
 
 	if (enemyStructures.empty())
 	{
-		//if we've been to the enemy main but don't know the location of any enemy bases, set a random location
-		if (enemyBaseExplored)
+		//if we haven't scouted the enemy start locations yet, go to those
+		if (!unexploredEnemyStartLocations.empty())
 		{
-			target = Point2D(float(GetRandomInteger(0, blinkerBot.Observation()->GetGameInfo().width)), float(GetRandomInteger(0, blinkerBot.Observation()->GetGameInfo().height)));
+			target = *unexploredEnemyStartLocations.begin();
 		}
-		//if we haven't seen any enemy bases yet, let's just attack towards his start location
+		//if we've been to the enemy main but don't know the location of any enemy bases, set a random location
 		else
 		{
-			target = blinkerBot.Observation()->GetGameInfo().enemy_start_locations.front();
+			target = Point2D(float(GetRandomInteger(0, blinkerBot.Observation()->GetGameInfo().width)), float(GetRandomInteger(0, blinkerBot.Observation()->GetGameInfo().height)));
 		}
 	}
 	//otherwise let's find his closest base and go there
@@ -260,18 +178,31 @@ void ArmyManager::attack()
 {
 	for (auto armyUnit : army)
 	{
-		//confirms that we have visited the enemy base
-		if (Distance2D(armyUnit.unit->pos, blinkerBot.Observation()->GetGameInfo().enemy_start_locations.front()) < 8)
-		{
-			enemyBaseExplored = true;
-		}
-
 		//find an appropriate target
 		Point2D target = findAttackTarget(armyUnit.unit);
 
 		//if we don't know where the enemy base is, let's search randomly with our idle units
-		if (enemyStructures.empty() && enemyBaseExplored)
+		if (enemyStructures.empty())
 		{
+			//if we still have unexplored enemy bases, then check and remove any we can see
+			if (!unexploredEnemyStartLocations.empty())
+			{
+				for (std::vector<Point2D>::iterator enemyStartLocation = unexploredEnemyStartLocations.begin();
+					enemyStartLocation != unexploredEnemyStartLocations.end();)
+				{
+					if (Distance2D(armyUnit.unit->pos, *enemyStartLocation) <
+						blinkerBot.Observation()->GetUnitTypeData()[armyUnit.unit->unit_type].sight_range)
+					{
+						enemyStartLocation = unexploredEnemyStartLocations.erase(enemyStartLocation);
+					}
+					else
+					{
+						++enemyStartLocation;
+					}
+				}
+			}
+
+			//attack towards either an enemy start location or a random point if we've already seen all the start locations
 			if (armyUnit.unit->orders.empty())
 			{
 				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, target);
@@ -454,7 +385,12 @@ void ArmyManager::addUnit(const Unit *unit)
 	{
 		photonCannons.insert(unit);
 	}
-	else
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT ||
+		unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER ||
+		unit->unit_type == UNIT_TYPEID::PROTOSS_COLOSSUS ||
+		unit->unit_type == UNIT_TYPEID::PROTOSS_HIGHTEMPLAR ||
+		unit->unit_type == UNIT_TYPEID::PROTOSS_IMMORTAL ||
+		unit->unit_type == UNIT_TYPEID::PROTOSS_VOIDRAY)
 	{
 		for (auto armyUnit : army)
 		{
@@ -469,11 +405,11 @@ void ArmyManager::addUnit(const Unit *unit)
 		{
 			highTemplars.insert(unit);
 		}
-	}
 
-	if (currentStatus == Regroup || currentStatus == Retreat)
-	{
-		blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::MOVE, rallyPoint);
+		if (currentStatus == Regroup || currentStatus == Retreat)
+		{
+			blinkerBot.Actions()->UnitCommand(unit, ABILITY_ID::MOVE, rallyPoint);
+		}
 	}
 }
 
@@ -509,17 +445,6 @@ void ArmyManager::removeUnit(const Unit *unit)
 			else
 			{
 				++armyUnit;
-			}
-		}
-		for (std::set<const Unit*>::iterator worker = pulledWorkers.begin(); worker != pulledWorkers.end();)
-		{
-			if (*worker == unit)
-			{
-				pulledWorkers.erase(worker++);
-			}
-			else
-			{
-				++worker;
 			}
 		}
 	}

@@ -2,7 +2,8 @@
 #include "Blinkerbot.h"
 
 
-WorkerManager::WorkerManager(BlinkerBot & bot) : blinkerBot(bot), scout(nullptr), enemyMain(nullptr), scouting(false){}
+WorkerManager::WorkerManager(BlinkerBot & bot) : 
+	blinkerBot(bot), scout(nullptr), enemyMain(nullptr), threatenedStructure(nullptr), scouting(false), threat(0), armyStatus(Retreat){}
 
 /*
 perform one-time only actions at the start of the game
@@ -29,6 +30,7 @@ remove a worker from our set of workers
 */
 void WorkerManager::removeWorker(const Unit *unit)
 {
+	/*
 	for (std::set<const Unit *>::iterator worker = workers.begin(); worker != workers.end();)
 	{
 		if (*worker == unit)
@@ -40,6 +42,9 @@ void WorkerManager::removeWorker(const Unit *unit)
 			++worker;
 		}
 	}
+	*/
+	workers.erase(unit);
+	pulledWorkers.erase(unit);
 }
 
 /*
@@ -260,19 +265,37 @@ void WorkerManager::update()
 		scoutEnemyBases();
 	}
 
+	if (armyStatus == Defend)
+	{
+		if (!threatenedStructure)
+		{
+			threatenedStructure = findThreatenedStructure();
+			threat = 0;
+		}
+		else
+		{
+			threat = calculateThreatSupplyDifference();
+		}
+
+		checkForThreatenedWorkers();
+	}
+	else
+	{
+		threatenedStructure = nullptr;
+		threat = 0;
+	}
+
+	updatePulledWorkers();
+
 	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
 	{
 		checkForIdleWorkers();
 		checkSaturation();
-		checkGases();
+		if (armyStatus != Defend)
+		{
+			checkGases();
+		}
 	}
-
-	/*
-	std::ostringstream workerCount;
-	workerCount << " worker count: " << workers.size() << std::endl;
-	blinkerBot.Debug()->DebugTextOut(workerCount.str());
-	blinkerBot.Debug()->SendDebug();
-	*/	
 }
 
 /*
@@ -509,6 +532,7 @@ void WorkerManager::harassWorkers()
 
 /*
 find the closest enemy worker to a given unit
+(for worker harass purposes)
 */
 const Unit *WorkerManager::getClosestEnemyWorker(const Unit *ourUnit)
 {
@@ -529,4 +553,299 @@ const Unit *WorkerManager::getClosestEnemyWorker(const Unit *ourUnit)
 	}
 
 	return closestEnemy;
+}
+
+/*
+receives the current status of our army, so we know when to check if defensive workers need to be pulled
+*/
+void WorkerManager::setArmyStatus(ArmyStatus status)
+{
+	armyStatus = status;
+}
+
+/*
+returns a value representing the size of the difference between the enemy's nearby army and ours.
+Returns 0 if our army is bigger.
+*/
+float WorkerManager::calculateThreatSupplyDifference()
+{
+	float threat = 0;
+	float ourSupply = 0;
+	float enemySupply = 0;
+
+	//if there's any enemy units threatening our base
+	if (threatenedStructure)
+	{
+		for (auto unit : blinkerBot.Observation()->GetUnits())
+		{
+			//add all of our fighting units
+			if (UnitData::isOurs(unit) && !UnitData::isWorker(unit) && !UnitData::isStructure(unit))
+			{
+				ourSupply += blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].food_required;
+			}
+			//add any nearby enemies
+			else if (!UnitData::isOurs(unit) && Distance2D(unit->pos, threatenedStructure->pos) <= LOCALRADIUS)
+			{
+				enemySupply += blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].food_required;
+			}
+		}
+	}
+
+	threat = enemySupply - (1.3 * ourSupply);
+	if (threat < 0)
+	{
+		return 0;
+	}
+	else
+	{
+		return threat;
+	}
+}
+
+/*
+returns a structure which is close to some enemy units
+*/
+const Unit *WorkerManager::findThreatenedStructure()
+{
+	for (auto unit : blinkerBot.Observation()->GetUnits())
+	{
+		if (!UnitData::isOurs(unit) && !UnitData::isMinerals(unit) && !UnitData::isVespeneGeyser(unit))
+		{
+			for (auto base : bases)
+			{
+				if (Distance2D(base->pos, unit->pos) <= LOCALRADIUS &&
+					unit->last_seen_game_loop == blinkerBot.Observation()->GetGameLoop())
+				{
+					return base;
+				}
+			}
+		}
+	}
+	return nullptr;
+}
+
+/*
+handles workers that were pulled for defensive reasons
+*/
+void WorkerManager::updatePulledWorkers()
+{
+	//if we don't need to defend then send everyone back to work
+	if (armyStatus != Defend || threat <= 0 || !threatenedStructure)
+	{
+		if (!pulledWorkers.empty())
+		{
+			for (auto worker : pulledWorkers)
+			{
+				returnToMining(worker);
+				workers.insert(worker);
+			}
+			pulledWorkers.clear();
+		}
+	}
+	else
+	{
+		int intThreat = std::round(threat);
+
+		//add extra workers if we need to
+		if (pulledWorkers.size() <= intThreat)
+		{
+			std::set<const Unit *>::iterator worker = workers.begin();
+			while (pulledWorkers.size() <= intThreat && worker != workers.end())
+			{
+				if (threatenedStructure && Distance2D((*worker)->pos, threatenedStructure->pos) <= LOCALRADIUS && (*worker)->shield > 5)
+				{
+					pulledWorkers.insert(*worker);
+					workers.erase(worker++);
+				}
+				else
+				{
+					++worker;
+				}
+			}
+		}
+
+		for (std::set<const Unit *>::iterator worker = pulledWorkers.begin(); worker != pulledWorkers.end();)
+		{
+			//return hurt workers to mining and remove them to the group
+			if ((*worker)->shield < 5)
+			{
+				const Unit *mineral = getClosestVisibleMineral(threatenedStructure);
+				if (mineral)
+				{
+					blinkerBot.Actions()->UnitCommand(*worker, ABILITY_ID::SMART, mineral);
+				}
+				else
+				{
+					returnToMining(*worker);
+				}
+				workers.insert(*worker);
+				pulledWorkers.erase(worker++);
+			}
+			//tell our workers to attack
+			else
+			{
+				//if workers chase too far away then pull them back
+				if (threatenedStructure && Distance2D((*worker)->pos, threatenedStructure->pos) > LOCALRADIUS)
+				{
+					if ((*worker)->orders.empty() || (*worker)->orders.front().ability_id == ABILITY_ID::ATTACK)
+					{
+						const Unit *mineral = getClosestVisibleMineral(threatenedStructure);
+						if (mineral)
+						{
+							blinkerBot.Actions()->UnitCommand(*worker, ABILITY_ID::SMART, mineral);
+						}
+						else
+						{
+							returnToMining(*worker);
+						}
+					}
+				}
+				//otherwise continue attacking
+				else
+				{
+					const Unit *closestEnemy = getClosestEnemy(*worker);
+					if (closestEnemy && ((*worker)->orders.empty() || (*worker)->orders.front().ability_id != ABILITY_ID::ATTACK))
+					{
+						blinkerBot.Actions()->UnitCommand(*worker, ABILITY_ID::ATTACK, closestEnemy->pos);
+					}
+
+					//if we can't find any enemies then go back to mining
+					else if(!closestEnemy && (*worker)->orders.empty())
+					{
+						returnToMining(*worker);
+					}
+				}
+				worker++;
+			}
+		}
+	}
+}
+
+/*
+finds the closest enemy to a given unit
+*/
+const Unit *WorkerManager::getClosestEnemy(const Unit *ourUnit)
+{
+	const Unit *closestEnemy = nullptr;
+	for (auto unit : blinkerBot.Observation()->GetUnits())
+	{
+		if (!UnitData::isOurs(unit) && UnitData::canTarget(ourUnit, unit) && UnitData::isVisible(unit) 
+			&& !UnitData::isMinerals(unit) && !UnitData::isVespeneGeyser(unit) && !UnitData::isNeutralRock(unit))
+		{
+			if (!closestEnemy)
+			{
+				closestEnemy = unit;
+			}
+			else if (Distance2D(unit->pos, ourUnit->pos) < Distance2D(closestEnemy->pos, ourUnit->pos))
+			{
+				closestEnemy = unit;
+			}
+		}
+	}
+	return closestEnemy;
+}
+
+/*
+returns the furthest visible mineral from a given worker (so it can mineral walk to escape)
+*/
+const Unit *WorkerManager::getFurthestVisibleMineral(const Unit *ourUnit)
+{
+	const Unit *furthestMineral = nullptr;
+	for (auto unit : blinkerBot.Observation()->GetUnits())
+	{
+		if (UnitData::isMinerals(unit) && unit->display_type == Unit::DisplayType::Visible)
+		{
+			if (!furthestMineral)
+			{
+				furthestMineral = unit;
+			}
+			else if (Distance2D(ourUnit->pos, unit->pos) > Distance2D(ourUnit->pos, furthestMineral->pos))
+			{
+				furthestMineral = unit;
+			}
+		}
+	}
+	return furthestMineral;
+}
+
+/*
+returns the closest visible mineral to a given unit
+*/
+const Unit *WorkerManager::getClosestVisibleMineral(const Unit *ourUnit)
+{
+	const Unit *closestMineral = nullptr;
+	for (auto unit : blinkerBot.Observation()->GetUnits())
+	{
+		if (UnitData::isMinerals(unit) && unit->display_type == Unit::DisplayType::Visible)
+		{
+			if (!closestMineral)
+			{
+				closestMineral = unit;
+			}
+			else if (Distance2D(ourUnit->pos, unit->pos) < Distance2D(ourUnit->pos, closestMineral->pos))
+			{
+				closestMineral = unit;
+			}
+		}
+	}
+	return closestMineral;
+}
+
+/*
+if any of our workers are under threat, make them run  or fight
+*/
+void WorkerManager::checkForThreatenedWorkers()
+{
+	for (auto worker : workers)
+	{
+		const Unit *enemy = getClosestEnemy(worker);
+
+		if (enemy && threatenedStructure && 
+			Distance2D(enemy->pos, worker->pos) < 2 && Distance2D(worker->pos, threatenedStructure->pos) <= 5)
+		{
+			if (worker->orders.empty() || worker->orders.front().ability_id != ABILITY_ID::ATTACK)
+			{
+				blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::ATTACK, enemy->pos);
+			}
+		}
+		else if (worker->orders.empty() || worker->orders.front().ability_id == ABILITY_ID::ATTACK)
+		{
+			const Unit *mineral = nullptr;
+			if (threatenedStructure)
+			{
+				mineral = getClosestVisibleMineral(threatenedStructure);
+			}
+			if (mineral)
+			{
+				blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::SMART, mineral);
+			}
+			else
+			{
+				returnToMining(worker);
+			}
+		}
+	}
+}
+
+/*
+returns the closest base to a given unit
+*/
+const Unit *WorkerManager::getClosestBase(const Unit *unit)
+{
+	const Unit *closestBase = nullptr;
+	for (auto base : bases)
+	{
+		if (!closestBase)
+		{
+			closestBase = base;
+		}
+		else
+		{
+			if (Distance2D(unit->pos, base->pos) < Distance2D(unit->pos, closestBase->pos))
+			{
+				closestBase = base;
+			}
+		}
+	}
+	return closestBase;
 }

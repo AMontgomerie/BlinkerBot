@@ -1,11 +1,5 @@
 high priority:
-- defend against drops
-	- better cannon placement
-- ignore cloaked/burrowed units if we dont have nearby detection
-- also ignore grenades and shit
-
-
-when laddermanager works again:
+- pull workers vs drops
 - test that we can check for ling speed
 - practice worker rush defence
 
@@ -28,8 +22,3 @@ later:
 - some weird behaviour around tanks and ramps
 
 DONE FOR NEXT UPLOAD:
-- units can now dodge aoe
-- new units shouldnt rally all the way to forward pylon during a retreat
-- ht can do feedback
-- unit targeting ignores changelings, untargetables, and cloaked units
-- improved cannon placement

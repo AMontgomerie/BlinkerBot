@@ -39,7 +39,6 @@ class ArmyManager
 	Race enemyRace;
 	bool beingRushed;
 	bool regroupComplete;
-	bool enemyBaseExplored;
 	bool zerglingSpeed;
 	bool warpgateTech;
 	bool blinkTech;
@@ -50,13 +49,14 @@ class ArmyManager
 	ZerglingTimer zerglingTimer;
 
 	std::vector<ArmyUnit> army;
+	std::vector<Point2D> unexploredEnemyStartLocations;
 	std::set<const Unit *> darkTemplars;
 	std::set<const Unit *> highTemplars;
 	std::set<const Unit *> enemyArmy;
 	std::set<const Unit *> enemyStructures;
 	std::set<const Unit *> observers;
-	std::set<const Unit *> pulledWorkers;
 	std::set<const Unit *> photonCannons;
+
 
 public:
 	ArmyManager(BlinkerBot & bot);
@@ -116,6 +116,5 @@ private:
 	void retreat();
 	bool shieldsCritical(const Unit *unit, const Unit *attacker);
 	void updateArmyValues();
-	void workerDefence();
 };
 
