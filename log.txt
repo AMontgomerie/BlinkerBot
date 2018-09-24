@@ -1,9 +1,15 @@
 high priority:
+- more advanced dt: only run when visible and threats are in range
+- still a 3 robo bug vs cloaked units
+- blink into main vs fast expanders
+- do a ffe
+- fix crash vs tyrz
 - pull workers vs drops
-- test that we can check for ling speed
-- practice worker rush defence
-
+- make cannons vs banshee/oracle/voidray/muta
+- defensive units need to have a shorter leash (defend ramp tops)
+- prioritise chronoboosts on units in defensive situations (perhaps switch priority to trainUnits() over produce() too)
 later:
+- unfinished static defence counts as finished when we cant see it (causing retreats)
 - remove destructible rocks from pylon placement
 - make storms avoid friendly units more
 - calculate lurker splash area
@@ -13,7 +19,6 @@ later:
 - deal with idle workers at bases with no minerals
 - reorganise methods to be consistent in each manager
 - army splitting (dont pull everything back every time a scout comes in your base)
-- improve cannon placement
 - implement more sophisticated DT control (avoid detectors and prioritise targets)
 - deal with surrounds
 - train only works for units that are trained from their own tech structure
@@ -22,3 +27,15 @@ later:
 - some weird behaviour around tanks and ramps
 
 DONE FOR NEXT UPLOAD:
+- static defence only counts towards enemy army when finished (kinda)
+- aggressive blink can now be triggered during attack as well as defense
+- aggressive blink prioritizes flyers
+- units should only kite vs units that they can attack and that can attack them
+- enemy army value only includes units that attack air if we have air units
+- set a max regroup time so we can attack anyway
+- reduced command spam from production manager
+- fixed a bug causing a crash when dts have no targets to attack
+- dts now avoid targets that are within detector range (only for static detection)
+- build order manager now takes into account currently being researched techs
+- implemented prismatic alignment for voidrays
+- will now train voidrays vs terrans that are floating all their bases

@@ -91,7 +91,7 @@ void ProductionManager::onStep()
 				trainColossus();
 				trainHighTemplar();
 			}
-			if (workerManager.getWorkerCount() > 50)
+			if (workerManager.getWorkerCount() > 60)
 			{
 				trainVoidray();
 			}
@@ -152,6 +152,7 @@ determines the type of thing we have at the front of the production queue and pa
 */
 void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 {
+
 	//check if the queue is empty. If it is, then let's generate a new goal and queue up some items
 	if (nextBuildOrderItem.item == ABILITY_ID::INVALID)
 	{
@@ -168,7 +169,7 @@ void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 		research(nextBuildOrderItem);
 	}
 	//deal with expansions
-	else if (nextBuildOrderItem.item == ABILITY_ID::BUILD_NEXUS)
+	else if (nextBuildOrderItem.item == ABILITY_ID::BUILD_NEXUS && canAfford(UNIT_TYPEID::PROTOSS_NEXUS))
 	{
 		expand();
 	}
@@ -214,9 +215,12 @@ void ProductionManager::trainUnits()
 			//otherwise train some units
 			else if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) && canAffordGas(UNIT_TYPEID::PROTOSS_STALKER))
 			{
-				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_STALKER);
+				if (canAfford(UNIT_TYPEID::PROTOSS_STALKER))
+				{
+					blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_STALKER);
+				}
 			}
-			else
+			else if (canAfford(UNIT_TYPEID::PROTOSS_ZEALOT))
 			{
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_ZEALOT);
 			}
@@ -264,11 +268,14 @@ void ProductionManager::trainWarp()
 				productionQueue.getNextItem().item != ABILITY_ID::TRAIN_COLOSSUS && 
 				productionQueue.getNextItem().item != ABILITY_ID::TRAIN_VOIDRAY)
 			{
-				blinkerBot.Actions()->UnitCommand(gate.warpgate, ABILITY_ID::TRAINWARP_STALKER, location);
-				lastUsedWarpGate = gate.warpgate;
-				return;
+				if (canAfford(UNIT_TYPEID::PROTOSS_STALKER))
+				{
+					blinkerBot.Actions()->UnitCommand(gate.warpgate, ABILITY_ID::TRAINWARP_STALKER, location);
+					lastUsedWarpGate = gate.warpgate;
+					return;
+				}
 			}
-			else
+			else if (canAfford(UNIT_TYPEID::PROTOSS_ZEALOT))
 			{
 				blinkerBot.Actions()->UnitCommand(gate.warpgate, ABILITY_ID::TRAINWARP_ZEALOT, location);
 				lastUsedWarpGate = gate.warpgate;
@@ -313,7 +320,7 @@ void ProductionManager::build(BuildOrderItem item)
 	{
 		productionQueue.addItemHighPriority(blinkerBot.Observation()->GetUnitTypeData()[requiredStructure].ability_id);
 	}
-	else
+	else if (canAfford(UnitData::getUnitTypeID(item.item)))
 	{
 		buildStructure(item.item);
 	}
@@ -450,7 +457,7 @@ void ProductionManager::research(BuildOrderItem item)
 		productionQueue.removeItem();
 	}
 	//if we haven't started it yet, then let's try
-	else if (!isStarted)
+	else if (!isStarted && canAfford(UnitData::getUpgradeID(item.item)))
 	{
 		blinkerBot.Actions()->UnitCommand(researchStructure, item.item);
 	}
@@ -477,6 +484,10 @@ void ProductionManager::addStructure(const Unit *unit)
 void ProductionManager::buildStructure(AbilityID structureToBuild)
 {
 	const Unit *builder = workerManager.getBuilder();
+	if (!builder)
+	{
+		return;
+	}
 
 	if (structureToBuild == ABILITY_ID::BUILD_ASSIMILATOR)
 	{
@@ -743,7 +754,10 @@ build a structure at a specified point on the map
 void ProductionManager::buildStructure(AbilityID structureToBuild, Point2D target)
 {
 	const Unit *builder = workerManager.getBuilder();
-	blinkerBot.Actions()->UnitCommand(builder, structureToBuild, target);
+	if (builder)
+	{
+		blinkerBot.Actions()->UnitCommand(builder, structureToBuild, target);
+	}
 }
 
 /*
@@ -751,7 +765,10 @@ build a structure at a specified point on the map using the supplied unit
 */
 void ProductionManager::buildStructure(const Unit *builder, AbilityID structureToBuild, Point2D target)
 {
-	blinkerBot.Actions()->UnitCommand(builder, structureToBuild, target);
+	if (builder)
+	{
+		blinkerBot.Actions()->UnitCommand(builder, structureToBuild, target);
+	}
 }
 
 /*
@@ -1143,18 +1160,11 @@ void ProductionManager::chronoBoost()
 			const Unit * target = getHighestPriorityInProduction(getCurrentlyInProduction());
 			if (target)
 			{
-				//std::cerr << UnitTypeToName(structure->unit_type) << " is boostin " << UnitTypeToName(target->unit_type) << std::endl;
-
 				//3755 = new chronoboost. EFFECT_CHRONOBOOST is the old pre-LOTV one.
 				blinkerBot.Actions()->UnitCommand(structure, AbilityID(3755), target);
 			}
 		}
 	}
-	/*
-	for (auto item : getCurrentlyInProduction())
-	{
-		std::cerr << AbilityTypeToName(item.first) << " at " << UnitTypeToName(item.second->unit_type) << std::endl;
-	}*/
 }
 
 /*
@@ -1614,7 +1624,7 @@ void ProductionManager::darkShrine(bool signal)
 
 	//if we already have a dark shrine, then just queue up a dt if don't have one
 	if (completedStructureExists(UNIT_TYPEID::PROTOSS_DARKSHRINE) && dts.empty() 
-		&& !productionQueue.includes(ABILITY_ID::TRAINWARP_DARKTEMPLAR))
+		&& !productionQueue.includes(ABILITY_ID::TRAINWARP_DARKTEMPLAR) && blinkerBot.Observation()->GetFoodUsed() < 190)
 	{
 		productionQueue.addItemHighPriority(ABILITY_ID::TRAINWARP_DARKTEMPLAR);
 	}
@@ -1625,8 +1635,12 @@ returns true if we have enough minerals and gas to make the given unit type
 */
 bool ProductionManager::canAfford(UnitTypeID unit)
 {
-	if (blinkerBot.Observation()->GetVespene() > blinkerBot.Observation()->GetUnitTypeData()[unit].vespene_cost &&
-		blinkerBot.Observation()->GetMinerals() > blinkerBot.Observation()->GetUnitTypeData()[unit].mineral_cost)
+	/*
+	std::cerr << UnitTypeToName(unit) << " " << blinkerBot.Observation()->GetUnitTypeData()[unit].mineral_cost 
+		<< "/" << blinkerBot.Observation()->GetUnitTypeData()[unit].vespene_cost << std::endl;
+	*/
+	if (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUnitTypeData()[unit].vespene_cost &&
+		blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUnitTypeData()[unit].mineral_cost)
 	{
 		return true;
 	}
@@ -1638,11 +1652,29 @@ bool ProductionManager::canAfford(UnitTypeID unit)
 }
 
 /*
+returns true if we have enough minerals and gas to research the upgrade
+*/
+bool ProductionManager::canAfford(UpgradeID upgrade)
+{
+	if (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUpgradeData()[upgrade].vespene_cost &&
+		blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUpgradeData()[upgrade].mineral_cost)
+	{
+		//std::cerr << "we can afford a " << UpgradeIDToName(upgrade) << std::endl;
+		return true;
+	}
+	else
+	{
+		//std::cerr << "we can't afford a " << UpgradeIDToName(upgrade) << std::endl;
+		return false;
+	}
+}
+
+/*
 returns true if we have enough gas to make the given unit type
 */
 bool ProductionManager::canAffordGas(UnitTypeID unit)
 {
-	if (blinkerBot.Observation()->GetVespene() > blinkerBot.Observation()->GetUnitTypeData()[unit].vespene_cost)
+	if (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUnitTypeData()[unit].vespene_cost)
 	{
 		return true;
 	}
@@ -1696,7 +1728,8 @@ void ProductionManager::trainColossus()
 			structure->build_progress == 1.0 &&
 			structure->orders.empty() &&
 			completedStructureExists(UNIT_TYPEID::PROTOSS_ROBOTICSBAY) &&
-			!productionQueue.includes(ABILITY_ID::TRAIN_COLOSSUS))
+			!productionQueue.includes(ABILITY_ID::TRAIN_COLOSSUS)
+			&& blinkerBot.Observation()->GetFoodUsed() < 190)
 		{
 			productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_COLOSSUS);
 		}
@@ -1710,7 +1743,8 @@ void ProductionManager::trainHighTemplar()
 {
 	//if we can train HTs and we don't already have plenty, let's add another one to the queue
 	if (armyStatus != Defend && completedStructureExists(UNIT_TYPEID::PROTOSS_TEMPLARARCHIVE) && (hts.size() < baseManager.getOurBases().size() * 2)
-		&& !productionQueue.includes(ABILITY_ID::TRAINWARP_HIGHTEMPLAR) && !productionQueue.includes(ABILITY_ID::RESEARCH_PSISTORM))
+		&& !productionQueue.includes(ABILITY_ID::TRAINWARP_HIGHTEMPLAR) && !productionQueue.includes(ABILITY_ID::RESEARCH_PSISTORM) 
+		&& blinkerBot.Observation()->GetFoodUsed() < 190)
 	{
 		productionQueue.addItemHighPriority(ABILITY_ID::TRAINWARP_HIGHTEMPLAR);
 	}
@@ -1817,12 +1851,53 @@ void ProductionManager::receiveRushSignal(bool signal)
 }
 
 /*
+returns true if the enemy is trying to cause a draw
+*/
+bool ProductionManager::cleanUp()
+{
+	//we're only worried about terrans trying to float
+	if (enemyRace == Race::Terran)
+	{
+		//no base terrans might try to float barracks or other structures away
+		if (enemyBases.empty())
+		{
+			return true;
+		}
+		else
+		{
+			//let's check the bases we know about
+			bool landedBaseExists = false;
+			for (auto base : enemyBases)
+			{
+				if (!base->is_flying)
+				{
+					return true;
+				}
+			}
+			//if there's no landed bases then react
+			if (landedBaseExists)
+			{
+				return false;
+			}
+			else
+			{
+				return true;
+			}
+		}
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
 adds a stargate and trains voidrays
 */
 void ProductionManager::trainVoidray()
 {
-	//we don't wanna go stargate in PvT or on low economy
-	if (enemyRace == Race::Terran || baseManager.getOurBases().size() < 3)
+	//we don't wanna go stargate in PvT (unless we're just cleaning up the map with possible floating buildings) or on low economy
+	if ((enemyRace == Race::Terran && !cleanUp()) || baseManager.getOurBases().size() < 3)
 	{
 		return;
 	}
@@ -1832,7 +1907,8 @@ void ProductionManager::trainVoidray()
 		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_STARGATE);
 	}
 	//if we've got a stargate then let's make a voidray
-	else if (completedStructureExists(UNIT_TYPEID::PROTOSS_STARGATE) && !productionQueue.includes(ABILITY_ID::TRAIN_VOIDRAY))
+	else if (completedStructureExists(UNIT_TYPEID::PROTOSS_STARGATE) && !productionQueue.includes(ABILITY_ID::TRAIN_VOIDRAY) 
+		&& blinkerBot.Observation()->GetFoodUsed() < 190)
 	{
 		productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_VOIDRAY);
 	}

@@ -429,6 +429,9 @@ UnitTypeID UnitData::getUnitTypeID(AbilityID ability)
 	case ABILITY_ID::BUILD_FORGE:
 		return UNIT_TYPEID::PROTOSS_FORGE;
 		break;
+	case ABILITY_ID::BUILD_GATEWAY:
+		return UNIT_TYPEID::PROTOSS_GATEWAY;
+		break;
 	case ABILITY_ID::BUILD_NEXUS:
 		return UNIT_TYPEID::PROTOSS_NEXUS;
 		break;
@@ -458,6 +461,58 @@ UnitTypeID UnitData::getUnitTypeID(AbilityID ability)
 		break;
 	default:
 		return UNIT_TYPEID::INVALID;
+		break;
+	}
+}
+
+UpgradeID UnitData::getUpgradeID(AbilityID ability)
+{
+	switch (ABILITY_ID(ability))
+	{
+	case ABILITY_ID::RESEARCH_WARPGATE:
+		return UPGRADE_ID::WARPGATERESEARCH;
+		break;
+	case ABILITY_ID::RESEARCH_BLINK:
+		return UPGRADE_ID::BLINKTECH;
+		break;
+	case ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE:
+		return UPGRADE_ID::EXTENDEDTHERMALLANCE;
+		break;
+	case ABILITY_ID::RESEARCH_CHARGE:
+		return UPGRADE_ID::CHARGE;
+		break;
+	case ABILITY_ID::RESEARCH_PROTOSSGROUNDARMORLEVEL1:
+		return UPGRADE_ID::PROTOSSGROUNDARMORSLEVEL1;
+		break;
+	case ABILITY_ID::RESEARCH_PROTOSSGROUNDARMORLEVEL2:
+		return UPGRADE_ID::PROTOSSGROUNDARMORSLEVEL2;
+		break;
+	case ABILITY_ID::RESEARCH_PROTOSSGROUNDARMORLEVEL3:
+		return UPGRADE_ID::PROTOSSGROUNDARMORSLEVEL3;
+		break;
+	case ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL1:
+		return UPGRADE_ID::PROTOSSGROUNDWEAPONSLEVEL1;
+		break;
+	case ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL2:
+		return UPGRADE_ID::PROTOSSGROUNDWEAPONSLEVEL2;
+		break;
+	case ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL3:
+		return UPGRADE_ID::PROTOSSGROUNDWEAPONSLEVEL3;
+		break;
+	case ABILITY_ID::RESEARCH_PROTOSSSHIELDSLEVEL1:
+		return UPGRADE_ID::PROTOSSSHIELDSLEVEL1;
+		break;
+	case ABILITY_ID::RESEARCH_PROTOSSSHIELDSLEVEL2:
+		return UPGRADE_ID::PROTOSSSHIELDSLEVEL2;
+		break;
+	case ABILITY_ID::RESEARCH_PROTOSSSHIELDSLEVEL3:
+		return UPGRADE_ID::PROTOSSSHIELDSLEVEL3;
+		break;
+	case ABILITY_ID::RESEARCH_PSISTORM:
+		return UPGRADE_ID::PSISTORMTECH;
+		break;
+	default:
+		return UPGRADE_ID::INVALID;
 		break;
 	}
 }
@@ -824,7 +879,7 @@ bool UnitData::canTarget(const Unit *attacker, const Unit *potentialTarget)
 	//filter out untargetable units and changelings
 	if (isTargetable(potentialTarget->unit_type) && !isChangeling(potentialTarget->unit_type))
 	{
-		//only return true on flying units if we can attack flying
+		//for flying targets
 		if (potentialTarget->is_flying)
 		{
 			if (canAttackAir(attacker->unit_type))
@@ -836,10 +891,17 @@ bool UnitData::canTarget(const Unit *attacker, const Unit *potentialTarget)
 				return false;
 			}
 		}
-		//non-flying units are targetable
+		//for non-flying targets
 		else
 		{
-			return true;
+			if (canAttackGround(attacker->unit_type))
+			{
+				return true;
+			}
+			else
+			{
+				return false;
+			}
 		}
 	}
 	//untargetable units and changelings are ignored
@@ -850,7 +912,7 @@ bool UnitData::canTarget(const Unit *attacker, const Unit *potentialTarget)
 }
 
 /*
-returns true if the unit type is able to target air units (currently only implemented for protoss)
+returns true if the unit type is able to target air units
 */
 bool UnitData::canAttackAir(UnitTypeID unitType)
 {
@@ -859,10 +921,104 @@ bool UnitData::canAttackAir(UnitTypeID unitType)
 		unitType == UNIT_TYPEID::PROTOSS_INTERCEPTOR ||
 		unitType == UNIT_TYPEID::PROTOSS_MOTHERSHIP ||
 		unitType == UNIT_TYPEID::PROTOSS_PHOENIX ||
+		unitType == UNIT_TYPEID::PROTOSS_PHOTONCANNON ||
 		unitType == UNIT_TYPEID::PROTOSS_SENTRY ||
 		unitType == UNIT_TYPEID::PROTOSS_STALKER ||
 		unitType == UNIT_TYPEID::PROTOSS_TEMPEST ||
-		unitType == UNIT_TYPEID::PROTOSS_VOIDRAY)
+		unitType == UNIT_TYPEID::PROTOSS_VOIDRAY ||
+		unitType == UNIT_TYPEID::TERRAN_AUTOTURRET ||
+		unitType == UNIT_TYPEID::TERRAN_BATTLECRUISER ||
+		unitType == UNIT_TYPEID::TERRAN_BUNKER ||
+		unitType == UNIT_TYPEID::TERRAN_CYCLONE ||
+		unitType == UNIT_TYPEID::TERRAN_GHOST ||
+		unitType == UNIT_TYPEID::TERRAN_LIBERATOR ||
+		unitType == UNIT_TYPEID::TERRAN_MARINE||
+		unitType == UNIT_TYPEID::TERRAN_MISSILETURRET ||
+		unitType == UNIT_TYPEID::TERRAN_THOR ||
+		unitType == UNIT_TYPEID::TERRAN_VIKINGFIGHTER ||
+		unitType == UNIT_TYPEID::TERRAN_WIDOWMINE ||
+		unitType == UNIT_TYPEID::TERRAN_WIDOWMINEBURROWED ||
+		unitType == UNIT_TYPEID::ZERG_CORRUPTOR ||
+		unitType == UNIT_TYPEID::ZERG_HYDRALISK ||
+		unitType == UNIT_TYPEID::ZERG_INFESTOR ||
+		unitType == UNIT_TYPEID::ZERG_INFESTORTERRAN ||
+		unitType == UNIT_TYPEID::ZERG_MUTALISK ||
+		unitType == UNIT_TYPEID::ZERG_QUEEN ||
+		unitType == UNIT_TYPEID::ZERG_RAVAGER ||
+		unitType == UNIT_TYPEID::ZERG_SPORECRAWLER)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
+returns true for units which are able to attack ground units
+*/
+bool UnitData::canAttackGround(UnitTypeID unitType)
+{
+	if (unitType == UNIT_TYPEID::PROTOSS_ADEPT ||
+		unitType == UNIT_TYPEID::PROTOSS_ARCHON ||
+		unitType == UNIT_TYPEID::PROTOSS_CARRIER ||
+		unitType == UNIT_TYPEID::PROTOSS_COLOSSUS ||
+		unitType == UNIT_TYPEID::PROTOSS_DARKTEMPLAR ||
+		unitType == UNIT_TYPEID::PROTOSS_DISRUPTOR ||
+		unitType == UNIT_TYPEID::PROTOSS_DISRUPTORPHASED ||
+		unitType == UNIT_TYPEID::PROTOSS_HIGHTEMPLAR ||
+		unitType == UNIT_TYPEID::PROTOSS_IMMORTAL ||
+		unitType == UNIT_TYPEID::PROTOSS_INTERCEPTOR ||
+		unitType == UNIT_TYPEID::PROTOSS_MOTHERSHIP ||
+		unitType == UNIT_TYPEID::PROTOSS_MOTHERSHIPCORE ||
+		unitType == UNIT_TYPEID::PROTOSS_ORACLE ||
+		unitType == UNIT_TYPEID::PROTOSS_PHOTONCANNON ||
+		unitType == UNIT_TYPEID::PROTOSS_PROBE ||
+		unitType == UNIT_TYPEID::PROTOSS_SENTRY ||
+		unitType == UNIT_TYPEID::PROTOSS_STALKER ||
+		unitType == UNIT_TYPEID::PROTOSS_TEMPEST ||
+		unitType == UNIT_TYPEID::PROTOSS_VOIDRAY ||
+		unitType == UNIT_TYPEID::PROTOSS_ZEALOT ||
+		unitType == UNIT_TYPEID::TERRAN_AUTOTURRET ||
+		unitType == UNIT_TYPEID::TERRAN_BANSHEE ||
+		unitType == UNIT_TYPEID::TERRAN_BATTLECRUISER ||
+		unitType == UNIT_TYPEID::TERRAN_BUNKER ||
+		unitType == UNIT_TYPEID::TERRAN_CYCLONE ||
+		unitType == UNIT_TYPEID::TERRAN_GHOST ||
+		unitType == UNIT_TYPEID::TERRAN_HELLION ||
+		unitType == UNIT_TYPEID::TERRAN_HELLIONTANK ||
+		unitType == UNIT_TYPEID::TERRAN_LIBERATORAG ||
+		unitType == UNIT_TYPEID::TERRAN_MARAUDER ||
+		unitType == UNIT_TYPEID::TERRAN_MARINE ||
+		unitType == UNIT_TYPEID::TERRAN_PLANETARYFORTRESS ||
+		unitType == UNIT_TYPEID::TERRAN_REAPER ||
+		unitType == UNIT_TYPEID::TERRAN_SCV ||
+		unitType == UNIT_TYPEID::TERRAN_SIEGETANK ||
+		unitType == UNIT_TYPEID::TERRAN_SIEGETANKSIEGED ||
+		unitType == UNIT_TYPEID::TERRAN_THOR ||
+		unitType == UNIT_TYPEID::TERRAN_THORAP ||
+		unitType == UNIT_TYPEID::TERRAN_VIKINGASSAULT ||
+		unitType == UNIT_TYPEID::TERRAN_WIDOWMINE ||
+		unitType == UNIT_TYPEID::TERRAN_WIDOWMINEBURROWED ||
+		unitType == UNIT_TYPEID::ZERG_BANELING ||
+		unitType == UNIT_TYPEID::ZERG_BANELINGBURROWED ||
+		unitType == UNIT_TYPEID::ZERG_BROODLING ||
+		unitType == UNIT_TYPEID::ZERG_BROODLORD ||
+		unitType == UNIT_TYPEID::ZERG_DRONE ||
+		unitType == UNIT_TYPEID::ZERG_HYDRALISK ||
+		unitType == UNIT_TYPEID::ZERG_INFESTOR ||
+		unitType == UNIT_TYPEID::ZERG_INFESTORBURROWED ||
+		unitType == UNIT_TYPEID::ZERG_INFESTORTERRAN ||
+		unitType == UNIT_TYPEID::ZERG_LOCUSTMP ||
+		unitType == UNIT_TYPEID::ZERG_LURKERMPBURROWED ||
+		unitType == UNIT_TYPEID::ZERG_MUTALISK ||
+		unitType == UNIT_TYPEID::ZERG_QUEEN ||
+		unitType == UNIT_TYPEID::ZERG_RAVAGER ||
+		unitType == UNIT_TYPEID::ZERG_ROACH ||
+		unitType == UNIT_TYPEID::ZERG_SPINECRAWLER ||
+		unitType == UNIT_TYPEID::ZERG_ULTRALISK ||
+		unitType == UNIT_TYPEID::ZERG_ZERGLING)
 	{
 		return true;
 	}

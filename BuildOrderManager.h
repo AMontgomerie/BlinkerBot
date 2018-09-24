@@ -42,6 +42,7 @@ private:
 	void removeKeyTech(AbilityID ability);
 	bool inProgress(AbilityID ability);
 	AbilityID getNextTech();
+	std::set<AbilityID> getTechsCurrentlyInProduction();
 public:
 	bool alreadyResearched(AbilityID ability);
 	std::vector<ProductionGoal> generateGoal();

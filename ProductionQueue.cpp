@@ -25,6 +25,24 @@ void ProductionQueue::initialiseQueue()
 	}
 
 	/*
+	//voidray
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_CYBERNETICSCORE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_STARGATE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::RESEARCH_WARPGATE));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::TRAIN_VOIDRAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::TRAIN_VOIDRAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::TRAIN_VOIDRAY));
+	*/
+
+	/*
 	//1 base storm
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
@@ -248,11 +266,13 @@ prints the current production queue in the top left of the screen
 */
 void ProductionQueue::printDebug()
 {
+	/*
 	for (auto item : productionQueue)
 	{
 		blinkerBot.Debug()->DebugTextOut(AbilityTypeToName(item.item));
 	}
 	blinkerBot.Debug()->SendDebug();
+	*/
 }
 
 /*

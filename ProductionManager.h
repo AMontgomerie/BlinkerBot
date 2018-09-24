@@ -87,10 +87,12 @@ private:
 	int calculateMiningBases();
 	float calculateSupplyCapacity();
 	bool canAfford(UnitTypeID unit);
+	bool canAfford(UpgradeID upgrade);
 	bool canAffordGas(UnitTypeID unit);
 	void checkSupply();
 	int checkPriority(ABILITY_ID ability);
 	void chronoBoost();
+	bool cleanUp();
 	bool completedStructureExists(UnitTypeID structure);
 	void expand();
 	const Unit *baseNeedsNearbyPylon();

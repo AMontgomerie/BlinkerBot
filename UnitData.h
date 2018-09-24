@@ -38,9 +38,11 @@ public:
 	static bool isVisible(const Unit *enemy);
 	static bool canTarget(const Unit *attacker, const Unit *potentialTarget);
 	static bool canAttackAir(UnitTypeID unitType);
+	static bool canAttackGround(UnitTypeID unitType);
 	static float getWarpGateCoolDown(UnitTypeID unitType);
 	static bool isNeutralRock(const Unit *unit);
 	static UnitTypeID getUnitTypeID(AbilityID ability);
+	static UpgradeID getUpgradeID(AbilityID ability);
 	static AbilityID getAbilityID(UpgradeID upgrade);
 	static UnitTypeID requiredStructure(AbilityID ability);
 	static AbilityID getTrainWarpAbilityID(UnitTypeID unitType);

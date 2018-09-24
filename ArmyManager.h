@@ -17,6 +17,7 @@ class ArmyManager
 	BlinkerBot & blinkerBot;
 
 	const int LOCALRADIUS = 15;
+	const int WAITTIME = 500;
 
 	struct ArmyUnit
 	{
@@ -38,6 +39,7 @@ class ArmyManager
 
 	Race enemyRace;
 	bool beingRushed;
+	int regroupStarted;
 	bool regroupComplete;
 	bool zerglingSpeed;
 	bool warpgateTech;
@@ -77,6 +79,7 @@ public:
 	const Unit *underAttack();
 
 private:
+	void activatePrismaticAlignment(const Unit *voidray);
 	bool aggressiveBlink(Point2D target);
 	void attack();
 	void attack(Point2D target);
@@ -102,7 +105,10 @@ private:
 	const Unit *getClosestEnemy(const Unit *ourUnit);
 	const Unit *getClosestEnemy(Point2D point);
 	const Unit *getClosestEnemyBase(const Unit *ourUnit);
+	const Unit *getClosestEnemyBaseWithoutDetection(const Unit *unit);
+	const Unit *getClosestEnemyFlyer(Point2D point);
 	Point2D getRetreatPoint(const Unit *unit);
+	bool includes(UnitTypeID unitType);
 	bool inRange(const Unit *attacker, const Unit *target);
 	bool inRange(const Unit *attacker, Point2D target);
 	bool isUnderHostileSpell(Point2D target);

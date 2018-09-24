@@ -72,12 +72,13 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 	int extraCannons = currentBases - currentCannons;
 	int extraProductionFacilities = (currentBases * 2) - currentProductionFacilities + 1;
 	int extraGases = (currentBases * 2) - currentGases;
+	int techTotal = completedTechs.size() + getTechsCurrentlyInProduction().size();
 
 	//if there are any necessary techs, let's add the next one to the queue
-	//if we don't want to keep adding techs without expanding though
+	//we don't want to keep adding techs without expanding though
 	AbilityID tech = getNextTech();
 	if (tech != ABILITY_ID::INVALID && 
-		!(completedTechs.size() >= 1 && currentBases < 2) && !(completedTechs.size() >= 3 && currentBases < 3))
+		!(techTotal >= 2 && currentBases < 2) && !(techTotal >= 3 && currentBases < 3))
 	{
 		if (extraGases > 0)
 		{
@@ -411,4 +412,24 @@ std::vector<ProductionGoal> BuildOrderManager::generateRushDefenceGoal()
 void BuildOrderManager::setEnemyRace(Race race)
 {
 	enemyRace = race;
+}
+
+std::set<AbilityID> BuildOrderManager::getTechsCurrentlyInProduction()
+{
+	std::set<AbilityID> inProduction;
+
+	for (auto structure : blinkerBot.Observation()->GetUnits())
+	{
+		if (UnitData::isOurs(structure) && UnitData::isStructure(structure))
+		{
+			for (auto order : structure->orders)
+			{
+				if (UnitData::isResearch(order.ability_id))
+				{
+					inProduction.insert(order.ability_id);
+				}
+			}
+		}
+	}
+	return inProduction;
 }
