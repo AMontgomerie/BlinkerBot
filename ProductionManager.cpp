@@ -169,7 +169,8 @@ void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 		research(nextBuildOrderItem);
 	}
 	//deal with expansions
-	else if (nextBuildOrderItem.item == ABILITY_ID::BUILD_NEXUS && canAfford(UNIT_TYPEID::PROTOSS_NEXUS))
+	else if (nextBuildOrderItem.item == ABILITY_ID::BUILD_NEXUS && canAfford(UNIT_TYPEID::PROTOSS_NEXUS) && 
+		armyStatus != Defend && !beingRushed)
 	{
 		expand();
 	}
@@ -549,14 +550,23 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 			//if we only have one base then let's put them at the top of the ramp
 			if (baseManager.getOurBases().size() == 1)
 			{
-				buildLocation = baseManager.getFirstPylonPosition();
+				const Unit *rampPylon = getClosestPylon(baseManager.getFirstPylonPosition());
+				if (Distance2D(rampPylon->pos, baseManager.getFirstPylonPosition()) < 2)
+				{
+					//buildLocation = baseManager.getFirstPylonPosition();
+					buildLocation = baseManager.getMainRampTop();
+				}
+				else
+				{
+					buildLocation = getClosestPylon(getClosestBaseToEnemy()->pos)->pos;
+				}
 			}
 			//otherwise let's choose the closest base to the enemy
 			else
 			{
 				buildLocation = getClosestPylon(getClosestBaseToEnemy()->pos)->pos;
 			}
-			buildLocation = Point2D(buildLocation.x + GetRandomScalar() * 4.0f, buildLocation.y + GetRandomScalar() * 4.0f);
+			buildLocation = Point2D(buildLocation.x + GetRandomScalar() * 5.0f, buildLocation.y + GetRandomScalar() * 5.0f);
 			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
 		}
 		//we want to make sure we have a cannon at each base for detection purposes
@@ -876,6 +886,14 @@ updates the relevant sets and vectors when a unit dies
 */
 void ProductionManager::onUnitDestroyed(const Unit *unit)
 {
+	//if we lose a gateway during a rush we want to remake it as a priority
+	if (beingRushed && (unit->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY || unit->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE))
+	{
+		productionQueue.clearQueue();
+		productionQueue.generateMoreItems(buildOrderManager.generateRushDefenceGoal());
+	}
+
+
 	if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
 	{
 		workerManager.removeWorker(unit);
@@ -1223,33 +1241,58 @@ return an int representing the priority of the ability (low value = high priorit
 */
 int ProductionManager::checkPriority(ABILITY_ID ability)
 {
-	switch (ability)
+	//chronoboost priority changes when we are being rushed
+	if (beingRushed)
 	{
-	case ABILITY_ID::INVALID:
-		return 100;
-		break;
-	case ABILITY_ID::RESEARCH_WARPGATE:
-	case ABILITY_ID::RESEARCH_BLINK:
-	case ABILITY_ID::TRAIN_OBSERVER:
-	case ABILITY_ID::RESEARCH_PSISTORM:
-		return 1;
-		break;
-	case ABILITY_ID::TRAIN_COLOSSUS:
-	case ABILITY_ID::TRAIN_IMMORTAL:
-	case ABILITY_ID::TRAIN_VOIDRAY:
-		return 2;
-		break;
-	case ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE:
-	case ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONS:
-	case ABILITY_ID::RESEARCH_PROTOSSGROUNDARMOR:
-	case ABILITY_ID::RESEARCH_PROTOSSSHIELDS:
-		return 3;
-		break;
-	case ABILITY_ID::TRAIN_STALKER:
-		return 4;
-	default:
-		return 5;
-		break;
+		switch (ability)
+		{
+		case ABILITY_ID::INVALID:
+			return 100;
+			break;
+		case ABILITY_ID::TRAIN_STALKER:
+		case ABILITY_ID::TRAIN_ZEALOT:
+			return 1;
+			break;
+		case ABILITY_ID::RESEARCH_WARPGATE:
+		case ABILITY_ID::RESEARCH_BLINK:
+			return 2;
+			break;
+		default:
+			return 3;
+			break;
+		}
+	}
+	//standard priority order
+	else
+	{
+		switch (ability)
+		{
+		case ABILITY_ID::INVALID:
+			return 100;
+			break;
+		case ABILITY_ID::RESEARCH_WARPGATE:
+		case ABILITY_ID::RESEARCH_BLINK:
+		case ABILITY_ID::TRAIN_OBSERVER:
+		case ABILITY_ID::RESEARCH_PSISTORM:
+			return 1;
+			break;
+		case ABILITY_ID::TRAIN_COLOSSUS:
+		case ABILITY_ID::TRAIN_IMMORTAL:
+		case ABILITY_ID::TRAIN_VOIDRAY:
+			return 2;
+			break;
+		case ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE:
+		case ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONS:
+		case ABILITY_ID::RESEARCH_PROTOSSGROUNDARMOR:
+		case ABILITY_ID::RESEARCH_PROTOSSSHIELDS:
+			return 3;
+			break;
+		case ABILITY_ID::TRAIN_STALKER:
+			return 4;
+		default:
+			return 5;
+			break;
+		}
 	}
 }
 
@@ -1656,8 +1699,8 @@ returns true if we have enough minerals and gas to research the upgrade
 */
 bool ProductionManager::canAfford(UpgradeID upgrade)
 {
-	if (blinkerBot.Observation()->GetVespene() >= blinkerBot.Observation()->GetUpgradeData()[upgrade].vespene_cost &&
-		blinkerBot.Observation()->GetMinerals() >= blinkerBot.Observation()->GetUpgradeData()[upgrade].mineral_cost)
+	if (uint32_t(blinkerBot.Observation()->GetVespene()) >= blinkerBot.Observation()->GetUpgradeData()[upgrade].vespene_cost &&
+		uint32_t(blinkerBot.Observation()->GetMinerals()) >= blinkerBot.Observation()->GetUpgradeData()[upgrade].mineral_cost)
 	{
 		//std::cerr << "we can afford a " << UpgradeIDToName(upgrade) << std::endl;
 		return true;
@@ -1788,7 +1831,8 @@ Point2D ProductionManager::getDefensivePosition()
 	//if we have only one base, let's defend the top of our ramp
 	if (baseManager.getOurBases().size() < 2)
 	{
-		return baseManager.getMainRampTop();
+		//return baseManager.getMainRampTop();
+		return baseManager.getFirstPylonPosition();
 	}
 	else
 	{
@@ -1825,6 +1869,7 @@ void ProductionManager::receiveRushSignal(bool signal)
 {
 	if (signal)
 	{
+		beingRushed = true;
 		//if this is the first we've heard about it, cancel the current build order and get a defensive one
 		if (!reactedToRush)
 		{
@@ -1847,6 +1892,10 @@ void ProductionManager::receiveRushSignal(bool signal)
 				}
 			}
 		}
+	}
+	else
+	{
+		beingRushed = false;
 	}
 }
 

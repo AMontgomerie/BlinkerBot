@@ -1,14 +1,15 @@
 high priority:
+- change aggressive blink so it can be triggered by any stalker when attacking, also make stalkers actually target the unit they blunk
 - more advanced dt: only run when visible and threats are in range
 - still a 3 robo bug vs cloaked units
 - blink into main vs fast expanders
 - do a ffe
-- fix crash vs tyrz
 - pull workers vs drops
 - make cannons vs banshee/oracle/voidray/muta
 - defensive units need to have a shorter leash (defend ramp tops)
 - prioritise chronoboosts on units in defensive situations (perhaps switch priority to trainUnits() over produce() too)
 later:
+- forcefield placement could work like storm?
 - unfinished static defence counts as finished when we cant see it (causing retreats)
 - remove destructible rocks from pylon placement
 - make storms avoid friendly units more
@@ -27,15 +28,4 @@ later:
 - some weird behaviour around tanks and ramps
 
 DONE FOR NEXT UPLOAD:
-- static defence only counts towards enemy army when finished (kinda)
-- aggressive blink can now be triggered during attack as well as defense
-- aggressive blink prioritizes flyers
-- units should only kite vs units that they can attack and that can attack them
-- enemy army value only includes units that attack air if we have air units
-- set a max regroup time so we can attack anyway
-- reduced command spam from production manager
-- fixed a bug causing a crash when dts have no targets to attack
-- dts now avoid targets that are within detector range (only for static detection)
-- build order manager now takes into account currently being researched techs
-- implemented prismatic alignment for voidrays
-- will now train voidrays vs terrans that are floating all their bases
+- armysize updates are carried out on unit added/destroyed rather than recalculated completely

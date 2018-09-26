@@ -311,8 +311,8 @@ void ProductionQueue::loadPvPBuildOrder()
 {
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_CYBERNETICSCORE));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
@@ -328,7 +328,7 @@ void ProductionQueue::loadPvPBuildOrder()
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::TRAIN_IMMORTAL));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_NEXUS));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::TRAIN_IMMORTAL));
 
 }
 

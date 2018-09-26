@@ -22,7 +22,7 @@ int main(int argc, char* argv[])
 	coordinator.SetParticipants({
 		CreateParticipant(sc2::Race::Protoss, &bot),
 		//sc2::PlayerSetup(sc2::PlayerType::Observer,Util::GetRaceFromString(enemyRaceString)),
-		CreateComputer(sc2::Race::Zerg, sc2::Difficulty::VeryHard)
+		CreateComputer(sc2::Race::Protoss, sc2::Difficulty::VeryHard)
 	});
 
 	// Start the game.

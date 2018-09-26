@@ -43,6 +43,7 @@ class ProductionManager
 	Point2D forwardPylonPoint;
 	bool enemyHasCloak;
 	bool reactedToRush;
+	bool beingRushed;
 	int lastProductionFrame;
 	const Unit *forwardPylon;
 	const Unit *lastUsedWarpGate;

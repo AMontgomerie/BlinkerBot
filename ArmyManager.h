@@ -39,6 +39,7 @@ class ArmyManager
 
 	Race enemyRace;
 	bool beingRushed;
+	bool proxy;
 	int regroupStarted;
 	bool regroupComplete;
 	bool zerglingSpeed;
@@ -58,6 +59,7 @@ class ArmyManager
 	std::set<const Unit *> enemyStructures;
 	std::set<const Unit *> observers;
 	std::set<const Unit *> photonCannons;
+	std::set<const Unit *> bases;
 
 
 public:
@@ -96,6 +98,7 @@ private:
 	bool canAttack();
 	void checkForZerglingSpeed();
 	void darkTemplarHarass();
+	void defend(Point2D threatened);
 	bool escapeAOE(ArmyUnit armyUnit);
 	void feedback();
 	Point2D findAttackTarget(const Unit *unit);
