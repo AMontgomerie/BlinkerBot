@@ -1356,7 +1356,7 @@ bool ArmyManager::rushDetected()
 					return true;
 				}
 				//if they still don't have anything in their main, they must be proxying us
-				else if (blinkerBot.Observation()->GetGameLoop() > 1500 && enemyStructures.size() < 3 && productionFacilities == 0)
+				else if (blinkerBot.Observation()->GetGameLoop() > 1500 && productionFacilities == 0)
 				{
 					//std::cerr << "can't see anything in the main, reacting to proxy" << std::endl;
 					beingRushed = true;

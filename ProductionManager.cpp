@@ -4,7 +4,8 @@
 ProductionManager::ProductionManager(BlinkerBot & bot): 
 	blinkerBot(bot), baseManager(bot), productionQueue(bot), workerManager(bot), buildOrderManager(bot), 
 	forwardPylon(nullptr), lastUsedWarpGate(nullptr),
-	nextPylonLocation(Point2D(-1.0,-1.0)), enemyHasCloak(false), reactedToRush(false), lastProductionFrame(0)
+	nextPylonLocation(Point2D(-1.0,-1.0)), lastProductionFrame(0),
+	enemyHasCloak(false), reactedToRush(false), beingRushed(false)
 {
 }
 
@@ -188,6 +189,18 @@ void ProductionManager::trainUnits()
 {
 	for (auto structure : structures)
 	{
+		//let's add an extra pylon if we have any unpowered production facilities
+		if (UnitData::isStructure(structure) &&
+			structure->unit_type != UNIT_TYPEID::PROTOSS_PYLON &&
+			structure->unit_type != UNIT_TYPEID::PROTOSS_NEXUS &&
+			structure->unit_type != UNIT_TYPEID::PROTOSS_ASSIMILATOR &&
+			!structure->is_powered &&
+			structure->build_progress == 1.0 &&
+			productionQueue.getNextItem().item != ABILITY_ID::BUILD_PYLON)
+		{
+			productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
+		}
+
 		if (structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && structure->orders.size() == 0 
 			&& workerManager.getWorkerCount() <= (baseManager.getOurBases().size() * 22) && workerManager.getWorkerCount() <= 88)
 		{
@@ -469,15 +482,18 @@ let's the relevant managers know when a new structure is created
 */
 void ProductionManager::addStructure(const Unit *unit)
 {
-	structures.insert(unit);
-
-	if (UnitData::isOurs(unit) && unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
+	if (UnitData::isStructure(unit) && UnitData::isOurs(unit))
 	{
-		baseManager.addBase(unit);
-		workerManager.addBase(unit);
-		if (baseManager.getOurBases().size() > 1)
+		structures.insert(unit);
+
+		if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
 		{
-			productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
+			baseManager.addBase(unit);
+			workerManager.addBase(unit);
+			if (baseManager.getOurBases().size() > 1)
+			{
+				productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
+			}
 		}
 	}
 }
@@ -698,6 +714,32 @@ void ProductionManager::setNextPylonLocation()
 	else
 	{
 		Point2D buildLocation = blinkerBot.Observation()->GetStartLocation();
+
+		//first let's check for an unpowered buildings that need a new pylon
+		bool unpowered = false;
+		for (auto structure : structures)
+		{
+			if (!structure->is_powered && 
+				structure->unit_type != UNIT_TYPEID::PROTOSS_PYLON && structure->unit_type != UNIT_TYPEID::PROTOSS_NEXUS)
+			{
+				unpowered = true;
+				buildLocation = structure->pos;
+			}
+		}
+		if (unpowered)
+		{
+			std::vector<Point2D> buildGrid = getBuildGrid(buildLocation);
+
+			for (auto point : buildGrid)
+			{
+				if (blinkerBot.Observation()->IsPlacable(point) && Distance2D(point, buildLocation) <= 5)
+				{
+					nextPylonLocation = point;
+					return;
+				}
+			}		
+		}
+
 		if (baseManager.getOurBases().empty())
 		{
 			return;
@@ -887,10 +929,9 @@ updates the relevant sets and vectors when a unit dies
 void ProductionManager::onUnitDestroyed(const Unit *unit)
 {
 	//if we lose a gateway during a rush we want to remake it as a priority
-	if (beingRushed && (unit->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY || unit->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE))
+	if (unit->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY || unit->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE)
 	{
-		productionQueue.clearQueue();
-		productionQueue.generateMoreItems(buildOrderManager.generateRushDefenceGoal());
+		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_GATEWAY);
 	}
 
 
@@ -1095,11 +1136,17 @@ void ProductionManager::checkSupply()
 	//if we're nearly blocked, the next item in the queue is not a pylon, and we don't have one already building, then make a new one
 	if (supplyCapacity - supplyUsed < 5.0f && productionQueue.getNextItem().item != ABILITY_ID::BUILD_PYLON && !pylonAlreadyInProduction)
 	{
-		productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
-		//add an extra pylon for each base we have
-		for (int i = 0; i < baseManager.getOurBases().size(); i++)
+		if (baseManager.getOurBases().empty())
 		{
 			productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
+		}
+		else
+		{
+			//add a pylon for each base we have
+			for (int i = 0; i < baseManager.getOurBases().size(); i++)
+			{
+				productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
+			}
 		}
 	}
 }

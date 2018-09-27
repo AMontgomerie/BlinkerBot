@@ -1,4 +1,5 @@
 high priority:
+- repower unpowered buildings
 - change aggressive blink so it can be triggered by any stalker when attacking, also make stalkers actually target the unit they blunk
 - more advanced dt: only run when visible and threats are in range
 - still a 3 robo bug vs cloaked units
@@ -28,4 +29,3 @@ later:
 - some weird behaviour around tanks and ramps
 
 DONE FOR NEXT UPLOAD:
-- armysize updates are carried out on unit added/destroyed rather than recalculated completely

@@ -230,7 +230,7 @@ void ProductionQueue::generateMoreItems(std::vector<ProductionGoal> buildOrderGo
 		{
 			productionQueue.push_back(BuildOrderItem(item.type));
 			count++;
-			if (count % 3 == 0)
+			if (count % 3 == 2)
 			{
 				productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 			}
@@ -266,13 +266,11 @@ prints the current production queue in the top left of the screen
 */
 void ProductionQueue::printDebug()
 {
-	/*
 	for (auto item : productionQueue)
 	{
 		blinkerBot.Debug()->DebugTextOut(AbilityTypeToName(item.item));
 	}
 	blinkerBot.Debug()->SendDebug();
-	*/
 }
 
 /*
@@ -336,8 +334,8 @@ void ProductionQueue::loadPvTBuildOrder()
 {
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
-	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_GATEWAY));
+	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_PYLON));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_CYBERNETICSCORE));
 	productionQueue.push_back(BuildOrderItem(ABILITY_ID::BUILD_ASSIMILATOR));
