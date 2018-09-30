@@ -33,6 +33,7 @@ public:
 	ProductionQueue(BlinkerBot & bot);
 	~ProductionQueue();
 	void removeItem();
+	bool findAndRemoveItem(AbilityID ability);
 	void initialiseQueue();
 	BuildOrderItem getNextItem();
 	void generateMoreItems(std::vector<ProductionGoal> buildOrderGoal);

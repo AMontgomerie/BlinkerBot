@@ -29,6 +29,7 @@ class BuildOrderManager
 	int currentGases;
 	int currentProductionFacilities;
 	int currentCannons;
+	int currentWorkers;
 	bool enemyHasCloak;
 	bool miningOut;
 	Race enemyRace;
@@ -40,10 +41,11 @@ private:
 	void addCompletedTech(UpgradeID upgrade);
 	void removeKeyTech(UpgradeID upgrade);
 	void removeKeyTech(AbilityID ability);
-	bool inProgress(AbilityID ability);
 	AbilityID getNextTech();
 	std::set<AbilityID> getTechsCurrentlyInProduction();
+	std::vector<ProductionGoal> prioritiseGoal(std::vector<ProductionGoal> goal);
 public:
+	bool inProgress(AbilityID ability);
 	bool alreadyResearched(AbilityID ability);
 	std::vector<ProductionGoal> generateGoal();
 	void onUpgradeComplete(UpgradeID upgrade);

@@ -33,8 +33,10 @@ void BaseManager::initialise()
 	findBases();
 	findRamp();
 	//calculateWallInOpening();
-	calculateFirstPylonPosition();
-	calculateWallInPositions();
+	calculateMainFirstPylonPosition();
+	calculateMainWallInPositions();
+	calculateNaturalFirstPylonPosition();
+	calculateNaturalWallInPositions();
 	printDebug();
 }
 
@@ -157,6 +159,9 @@ void BaseManager::printDebug()
 	//blinkerBot.Debug()->SendDebug();
 }
 
+/*
+returns a grid of placable points, defaults to radius 10 and nexus
+*/
 std::vector<Point2D> BaseManager::getBuildGrid(Point2D centre)
 {
 	std::vector<QueryInterface::PlacementQuery> queries;
@@ -244,6 +249,103 @@ std::vector<Point2D> BaseManager::getBuildGrid(Point2D centre)
 			++point;
 		}
 	}
+
+	//printBuildGrid(buildGrid);
+	return buildGrid;
+}
+
+/*
+returns a build grid with a specified centre, radius, and structure type
+*/
+std::vector<Point2D> BaseManager::getBuildGrid(Point2D centre, int radius, AbilityID structure)
+{
+	std::vector<QueryInterface::PlacementQuery> queries;
+	std::vector<Point2D> buildGrid;
+
+	//first we set the minimum and maximum values for the search area
+	float minX = centre.x - radius;
+	float minY = centre.y - radius;
+	float maxX = centre.x + radius;
+	float maxY = centre.y + radius;
+
+	if (minX < 0)
+	{
+		minX = 0;
+	}
+	if (minY < 0)
+	{
+		minY = 0;
+	}
+	if (maxX > blinkerBot.Observation()->GetGameInfo().width)
+	{
+		maxX = float(blinkerBot.Observation()->GetGameInfo().width);
+	}
+	if (maxY > blinkerBot.Observation()->GetGameInfo().height)
+	{
+		maxY = float(blinkerBot.Observation()->GetGameInfo().height);
+	}
+
+	//load up the vector with a query for each point
+	for (float x = minX; x <= maxX; x++)
+	{
+		for (float y = minY; y <= maxY; y++)
+		{
+			queries.push_back(QueryInterface::PlacementQuery(structure, Point2D(x, y)));
+			buildGrid.push_back(Point2D(x, y));
+		}
+	}
+
+	//query each position
+	std::vector<bool> output = blinkerBot.Query()->Placement(queries);
+
+	if (!output.empty())
+	{
+		//if a point is unbuildable, set its location to 0:0 so we know it doesn't work
+		for (int i = 0; i != output.size() - 1; ++i)
+		{
+			//std::cerr << i << ": " << output[i] << std::endl;
+			if (output[i] == false)
+			{
+				buildGrid[i] = Point2D(0, 0);
+			}
+		}
+	}
+	//go through the vector and remove all the unbuildable (0:0) points
+	for (std::vector<Point2D>::iterator point = buildGrid.begin(); point != buildGrid.end();)
+	{
+		if (*point == Point2D(0, 0))
+		{
+			point = buildGrid.erase(point);
+		}
+		else
+		{
+			++point;
+		}
+	}
+
+	/*
+	for (std::vector<Point2D>::iterator point = buildGrid.begin(); point != buildGrid.end();)
+	{
+		bool tooClose = false;
+		//let's make sure it's not too close to our resources (we don't wanna block any mineral or gas lines
+		for (auto resource : blinkerBot.Observation()->GetUnits())
+		{
+			if ((UnitData::isMinerals(resource) || UnitData::isVespeneGeyser(resource)) && Distance2D(*point, resource->pos) < 4)
+			{
+				//std::cerr << "removing a location for being too close to a mineral/gas" << std::endl;
+				tooClose = true;
+			}
+		}
+		if (tooClose)
+		{
+			point = buildGrid.erase(point);
+		}
+		else
+		{
+			++point;
+		}
+	}
+	*/
 
 	//printBuildGrid(buildGrid);
 	return buildGrid;
@@ -474,7 +576,7 @@ takes a set of minerals and gas and returns an acceptable expansion location
 */
 Point2D BaseManager::calculateBuildLocation(Base base)
 {
-	//first we get a vector of nearby buildable locations (EXPENSIVE)
+	//first we get a vector of nearby buildable locations
 	std::vector<Point2D> buildGrid = getBuildGrid(base.getBuildLocation());
 
 	//search through the locations we receive and try to find the closest point that isn't too close
@@ -743,23 +845,32 @@ void BaseManager::addBase(const Unit *unit)
 {
 	for (auto base : bases)
 	{
-		if (Distance2D((*base.getMinerals().begin())->pos, unit->pos) < 8)
+		if (Distance2D((*base.getMinerals().begin())->pos, unit->pos) <= 10)
 		{
 			bool alreadyFound = false;
 			for (auto ourBase : ourBases)
 			{
+				/*
 				if (Distance2D(base.getBuildLocation(), ourBase.getBuildLocation()) < 8)
 				{
 					alreadyFound = true;
 				}
+				*/
+				if (ourBase.getTownhall() == unit)
+				{
+					alreadyFound = true;
+				}
 			}
+
 			if (!alreadyFound)
 			{
 				base.setTownhall(unit);
 				ourBases.push_back(base);
+				return;
 			}
 		}
 	}
+
 	printDebug();
 }
 
@@ -1134,7 +1245,7 @@ Point2D BaseManager::getWallInOpening()
 }
 */
 
-void BaseManager::calculateWallInPositions()
+void BaseManager::calculateMainWallInPositions()
 {
 	std::vector<Point2D> edges;
 	int wallType = 0;
@@ -1162,119 +1273,119 @@ void BaseManager::calculateWallInPositions()
 		//std::cerr << "wall-in calculation error" << std::endl;
 		return;
 	}
-	firstWallinPosition = edges[0];
-	secondWallinPosition = edges[1];
+	mainFirstWallinPosition = edges[0];
+	mainSecondWallinPosition = edges[1];
 
 	if (wallType == 1)
 	{
 		//first building offset from ramp to account for gateway size
-		if (firstWallinPosition.x > firstPylonPosition.x)
+		if (mainFirstWallinPosition.x > mainFirstPylonPosition.x)
 		{
-			firstWallinPosition = Point2D(firstWallinPosition.x - 1, firstWallinPosition.y);
+			mainFirstWallinPosition = Point2D(mainFirstWallinPosition.x - 1, mainFirstWallinPosition.y);
 		}
-		else if (firstWallinPosition.x < firstPylonPosition.x)
+		else if (mainFirstWallinPosition.x < mainFirstPylonPosition.x)
 		{
-			firstWallinPosition = Point2D(firstWallinPosition.x + 1, firstWallinPosition.y);
+			mainFirstWallinPosition = Point2D(mainFirstWallinPosition.x + 1, mainFirstWallinPosition.y);
 		}
-		if (firstWallinPosition.y > firstPylonPosition.y)
+		if (mainFirstWallinPosition.y > mainFirstPylonPosition.y)
 		{
-			firstWallinPosition = Point2D(firstWallinPosition.x, firstWallinPosition.y - 1);
+			mainFirstWallinPosition = Point2D(mainFirstWallinPosition.x, mainFirstWallinPosition.y - 1);
 		}
-		else if (firstWallinPosition.y < firstPylonPosition.y)
+		else if (mainFirstWallinPosition.y < mainFirstPylonPosition.y)
 		{
-			firstWallinPosition = Point2D(firstWallinPosition.x, firstWallinPosition.y + 1);
+			mainFirstWallinPosition = Point2D(mainFirstWallinPosition.x, mainFirstWallinPosition.y + 1);
 		}
 
 		//second building offset from ramp to account for gateway size
-		if (secondWallinPosition.x > firstPylonPosition.x)
+		if (mainSecondWallinPosition.x > mainFirstPylonPosition.x)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x - 1, secondWallinPosition.y);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x - 1, mainSecondWallinPosition.y);
 		}
-		else if (secondWallinPosition.x < firstPylonPosition.x)
+		else if (mainSecondWallinPosition.x < mainFirstPylonPosition.x)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x + 1, secondWallinPosition.y);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x + 1, mainSecondWallinPosition.y);
 		}
-		if (secondWallinPosition.y > firstPylonPosition.y)
+		if (mainSecondWallinPosition.y > mainFirstPylonPosition.y)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y - 1);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x, mainSecondWallinPosition.y - 1);
 		}
-		else if (secondWallinPosition.y < firstPylonPosition.y)
+		else if (mainSecondWallinPosition.y < mainFirstPylonPosition.y)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y + 1);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x, mainSecondWallinPosition.y + 1);
 		}
 
 		//second building move towards first building to make tight wall
-		if (secondWallinPosition.x > firstWallinPosition.x)
+		if (mainSecondWallinPosition.x > mainFirstWallinPosition.x)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x - 1, secondWallinPosition.y);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x - 1, mainSecondWallinPosition.y);
 		}
-		else if (secondWallinPosition.x < firstWallinPosition.x)
+		else if (mainSecondWallinPosition.x < mainFirstWallinPosition.x)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x + 1, secondWallinPosition.y);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x + 1, mainSecondWallinPosition.y);
 		}
-		if (secondWallinPosition.y > firstWallinPosition.y)
+		if (mainSecondWallinPosition.y > mainFirstWallinPosition.y)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y - 1);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x, mainSecondWallinPosition.y - 1);
 		}
-		else if (secondWallinPosition.y < firstWallinPosition.y)
+		else if (mainSecondWallinPosition.y < mainFirstWallinPosition.y)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y + 1);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x, mainSecondWallinPosition.y + 1);
 		}
 
 		//second building offset to avoid corner overlap
-		if (secondWallinPosition.x > mainRampTop.x)
+		if (mainSecondWallinPosition.x > mainRampTop.x)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x + 1, secondWallinPosition.y);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x + 1, mainSecondWallinPosition.y);
 		}
-		else if (secondWallinPosition.x < mainRampTop.x)
+		else if (mainSecondWallinPosition.x < mainRampTop.x)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x - 1, secondWallinPosition.y);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x - 1, mainSecondWallinPosition.y);
 		}
-		if (secondWallinPosition.y > mainRampTop.y)
+		if (mainSecondWallinPosition.y > mainRampTop.y)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y + 1);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x, mainSecondWallinPosition.y + 1);
 		}
-		else if (secondWallinPosition.y < mainRampTop.y)
+		else if (mainSecondWallinPosition.y < mainRampTop.y)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y - 1);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x, mainSecondWallinPosition.y - 1);
 		}
 	}
 	//NOTE: this one doesn't correctly wall-in on DreamCatcherLE
 	else if (wallType == 2)
 	{
 		//first building offset from ramp to account for gateway size
-		if (firstWallinPosition.x > firstPylonPosition.x)
+		if (mainFirstWallinPosition.x > mainFirstPylonPosition.x)
 		{
-			firstWallinPosition = Point2D(firstWallinPosition.x - 1, firstWallinPosition.y);
+			mainFirstWallinPosition = Point2D(mainFirstWallinPosition.x - 1, mainFirstWallinPosition.y);
 		}
-		else if (firstWallinPosition.x < firstPylonPosition.x)
+		else if (mainFirstWallinPosition.x < mainFirstPylonPosition.x)
 		{
-			firstWallinPosition = Point2D(firstWallinPosition.x + 1, firstWallinPosition.y);
+			mainFirstWallinPosition = Point2D(mainFirstWallinPosition.x + 1, mainFirstWallinPosition.y);
 		}
-		if (firstWallinPosition.y > firstPylonPosition.y)
+		if (mainFirstWallinPosition.y > mainFirstPylonPosition.y)
 		{
-			firstWallinPosition = Point2D(firstWallinPosition.x, firstWallinPosition.y - 1);
+			mainFirstWallinPosition = Point2D(mainFirstWallinPosition.x, mainFirstWallinPosition.y - 1);
 		}
-		else if (firstWallinPosition.y < firstPylonPosition.y)
+		else if (mainFirstWallinPosition.y < mainFirstPylonPosition.y)
 		{
-			firstWallinPosition = Point2D(firstWallinPosition.x, firstWallinPosition.y + 1);
+			mainFirstWallinPosition = Point2D(mainFirstWallinPosition.x, mainFirstWallinPosition.y + 1);
 		}
 		//second building offset from ramp to account for gateway size
-		if (secondWallinPosition.x > firstPylonPosition.x)
+		if (mainSecondWallinPosition.x > mainFirstPylonPosition.x)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x - 2, secondWallinPosition.y);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x - 2, mainSecondWallinPosition.y);
 		}
-		else if (secondWallinPosition.x < firstPylonPosition.x)
+		else if (mainSecondWallinPosition.x < mainFirstPylonPosition.x)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x + 2, secondWallinPosition.y);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x + 2, mainSecondWallinPosition.y);
 		}
-		if (secondWallinPosition.y > firstPylonPosition.y)
+		if (mainSecondWallinPosition.y > mainFirstPylonPosition.y)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y - 2);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x, mainSecondWallinPosition.y - 2);
 		}
-		else if (secondWallinPosition.y < firstPylonPosition.y)
+		else if (mainSecondWallinPosition.y < mainFirstPylonPosition.y)
 		{
-			secondWallinPosition = Point2D(secondWallinPosition.x, secondWallinPosition.y + 2);
+			mainSecondWallinPosition = Point2D(mainSecondWallinPosition.x, mainSecondWallinPosition.y + 2);
 		}
 	}
 	else
@@ -1286,11 +1397,11 @@ void BaseManager::calculateWallInPositions()
 /*
 calculates the position of our first pylon for wall-in purposes
 */
-void BaseManager::calculateFirstPylonPosition()
+void BaseManager::calculateMainFirstPylonPosition()
 {
 	if (wallInPoints.empty())
 	{
-		firstPylonPosition = Point2D(0, 0);
+		mainFirstPylonPosition = Point2D(0, 0);
 	}
 	else
 	{
@@ -1314,42 +1425,42 @@ void BaseManager::calculateFirstPylonPosition()
 		{
 			pylonPoint = Point2D(pylonPoint.x, pylonPoint.y + PYLONDIST);
 		}
-		firstPylonPosition = pylonPoint;
+		mainFirstPylonPosition = pylonPoint;
 	}
 }
 
 /*
 returns the position of the first pylon, for wall-in purposes
 */
-Point2D BaseManager::getFirstPylonPosition()
+Point2D BaseManager::getMainFirstPylonPosition()
 {
-	return firstPylonPosition;
+	return mainFirstPylonPosition;
 }
 
 /*
 returns the placement position of our first wall-in structure
 */
-Point2D BaseManager::getFirstWallInPosition()
+Point2D BaseManager::getMainFirstWallInPosition()
 {
-	return firstWallinPosition;
+	return mainFirstWallinPosition;
 }
 
 /*
 returns the placement position of our second wall-in structure
 */
-Point2D BaseManager::getSecondWallInPosition()
+Point2D BaseManager::getMainSecondWallInPosition()
 {
-	return secondWallinPosition;
+	return mainSecondWallinPosition;
 }
 
 /*
 returns true if there is a building in the first wall-in position
 */
-bool BaseManager::firstWallInPositionExists()
+bool BaseManager::mainFirstWallInPositionExists()
 {
 	for (auto unit : blinkerBot.Observation()->GetUnits())
 	{
-		if (UnitData::isOurs(unit) && UnitData::isStructure(unit) && Distance2D(unit->pos, firstWallinPosition) < 2)
+		if (UnitData::isOurs(unit) && UnitData::isStructure(unit) && Distance2D(unit->pos, mainFirstWallinPosition) < 2)
 		{
 			return true;
 		}
@@ -1360,14 +1471,120 @@ bool BaseManager::firstWallInPositionExists()
 /*
 returns true if there is a building in the second wall-in position
 */
-bool BaseManager::secondWallInPositionExists()
+bool BaseManager::mainSecondWallInPositionExists()
 {
 	for (auto unit : blinkerBot.Observation()->GetUnits())
 	{
-		if (UnitData::isOurs(unit) && UnitData::isStructure(unit) && Distance2D(unit->pos, secondWallinPosition) < 2)
+		if (UnitData::isOurs(unit) && UnitData::isStructure(unit) && Distance2D(unit->pos, mainSecondWallinPosition) < 2)
 		{
 			return true;
 		}
 	}
 	return false;
+}
+
+/*
+calculates the position of the first pylon at our natural
+*/
+void BaseManager::calculateNaturalFirstPylonPosition()
+{
+	naturalFirstPylonPosition = Point2D(0, 0);
+	std::vector<Point2D> grid = getBuildGrid(getNextBaseLocation(), 10, ABILITY_ID::BUILD_PYLON);
+
+	for (auto point : grid)
+	{
+		if (Distance2D(point, getNextBaseLocation()) > 5 &&
+			Distance2D(point, getNextBaseLocation()) < 8 &&
+			Distance2D(point, mainRampBottom) > 3 &&
+			Distance2D(point, mainRampBottom) < 8)
+		{
+			bool tooClose = false;
+			for (auto unit : blinkerBot.Observation()->GetUnits())
+			{
+				if ((UnitData::isMinerals(unit) || UnitData::isVespeneGeyser(unit)) && Distance2D(point, unit->pos) < 5)
+				{
+					tooClose = true;
+				}
+				else if (UnitData::isNeutralRock(unit) && Distance2D(point, unit->pos) < 2)
+				{
+					tooClose = true;
+				}
+			}
+			if (!tooClose)
+			{
+				naturalFirstPylonPosition = point;
+			}
+		}
+	}
+
+	//std::vector<Point2D> grid = calculateGrid(getNextBaseLocation(), 15);
+	/*
+	for (auto point : grid)
+	{
+		blinkerBot.Debug()->DebugBoxOut(Point3D(point.x, point.y, blinkerBot.Observation()->GetStartLocation().z + 1),
+			Point3D(point.x + 1, point.y + 1, blinkerBot.Observation()->GetStartLocation().z - 1), Colors::Black);
+	}
+	blinkerBot.Debug()->SendDebug();
+	*/
+
+	/*
+	//find the location of our natural ramp, rampPoints will remain empty in the event there is no ramp
+	std::vector<Point2D> rampPoints;
+	for (auto point : grid)
+	{
+		if (isNextToRamp(point) &&
+		Distance2D(mainRampBottom, point) > 5 && //make sure we aren't just finding the main ramp again
+		Distance2D(mainRampTop, point) > 5)
+		{
+			rampPoints.push_back(point);
+		}
+	}
+
+	//ramp-type natural
+	if (!rampPoints.empty())
+	{
+
+
+		/*
+		for (auto point : rampPoints)
+		{
+			blinkerBot.Debug()->DebugBoxOut(Point3D(point.x, point.y, blinkerBot.Observation()->GetStartLocation().z + 1),
+				Point3D(point.x + 1, point.y + 1, blinkerBot.Observation()->GetStartLocation().z - 1), Colors::White);
+		}
+		blinkerBot.Debug()->SendDebug();
+
+		//find ramp top and bottom
+
+		//pylon position can be calculated from there
+
+		//buildings can be placed relative to ramp top
+	}
+	//no ramp natural
+	else
+	{
+		for (auto point : grid)
+		{
+			blinkerBot.Debug()->DebugBoxOut(Point3D(point.x, point.y, blinkerBot.Observation()->GetStartLocation().z + 1),
+				Point3D(point.x + 1, point.y + 1, blinkerBot.Observation()->GetStartLocation().z - 1), Colors::Black);
+		}
+		blinkerBot.Debug()->SendDebug();
+				
+	}
+	*/
+}
+
+/*
+calculates the positions of natural expansion wall-in buildings
+*/
+void BaseManager::calculateNaturalWallInPositions()
+{
+
+}
+
+/*
+returns the position of our first pylon in the natural for wall-in purposes
+*/
+Point2D BaseManager::getNaturalFirstPylonPosition()
+{
+	return naturalFirstPylonPosition;
 }

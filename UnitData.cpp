@@ -262,7 +262,9 @@ UnitTypeID UnitData::requiredStructure(AbilityID ability)
 		required = UNIT_TYPEID::PROTOSS_GATEWAY;
 		break;
 	case ABILITY_ID::TRAIN_STALKER:
+	case ABILITY_ID::TRAIN_SENTRY:
 	case ABILITY_ID::TRAINWARP_STALKER:
+	case ABILITY_ID::TRAINWARP_SENTRY:
 		required = UNIT_TYPEID::PROTOSS_CYBERNETICSCORE;
 		break;
 	case ABILITY_ID::TRAIN_DARKTEMPLAR:
@@ -337,10 +339,11 @@ bool UnitData::isTrainableUnitType(AbilityID ability)
 		(ABILITY_ID(ability) == ABILITY_ID::TRAIN_ORACLE) ||
 		(ABILITY_ID(ability) == ABILITY_ID::TRAIN_PHOENIX) ||
 		(ABILITY_ID(ability) == ABILITY_ID::TRAIN_PROBE) ||
+		(ABILITY_ID(ability) == ABILITY_ID::TRAIN_SENTRY) ||
+		(ABILITY_ID(ability) == ABILITY_ID::TRAIN_STALKER) ||
 		(ABILITY_ID(ability) == ABILITY_ID::TRAIN_WARPPRISM) ||
 		(ABILITY_ID(ability) == ABILITY_ID::TRAIN_VOIDRAY) ||
-		(ABILITY_ID(ability) == ABILITY_ID::TRAIN_ZEALOT) ||
-		(ABILITY_ID(ability) == ABILITY_ID::TRAIN_STALKER))
+		(ABILITY_ID(ability) == ABILITY_ID::TRAIN_ZEALOT))
 	{
 		return true;
 	}
@@ -735,6 +738,46 @@ bool UnitData::isWarpGateUnit(const Unit *unit)
 		unit->unit_type == UNIT_TYPEID::PROTOSS_SENTRY ||
 		unit->unit_type == UNIT_TYPEID::PROTOSS_STALKER ||
 		unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
+returns true if the given unit type can be trained from a warpgate
+*/
+bool UnitData::isWarpGateUnit(UnitTypeID unitType)
+{
+	if (unitType == UNIT_TYPEID::PROTOSS_ADEPT ||
+		unitType == UNIT_TYPEID::PROTOSS_DARKTEMPLAR ||
+		unitType == UNIT_TYPEID::PROTOSS_HIGHTEMPLAR ||
+		unitType == UNIT_TYPEID::PROTOSS_SENTRY ||
+		unitType == UNIT_TYPEID::PROTOSS_STALKER ||
+		unitType == UNIT_TYPEID::PROTOSS_ZEALOT)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
+returns true for gateway TRAIN_ ability_ids
+*/
+bool UnitData::isTrainedFromGateway(AbilityID ability)
+{
+	if (ability == ABILITY_ID::TRAIN_ADEPT ||
+		ability == ABILITY_ID::TRAIN_DARKTEMPLAR ||
+		ability == ABILITY_ID::TRAIN_HIGHTEMPLAR ||
+		ability == ABILITY_ID::TRAIN_SENTRY ||
+		ability == ABILITY_ID::TRAIN_STALKER ||
+		ability == ABILITY_ID::TRAIN_ZEALOT)
 	{
 		return true;
 	}

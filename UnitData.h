@@ -26,8 +26,10 @@ public:
 	static bool isBuildAbility(AbilityID ability);
 	static bool isResearch(AbilityID ability);
 	static bool isTrainableUnitType(AbilityID ability);
+	static bool isTrainedFromGateway(AbilityID ability);
 	static bool isGasStructure(const Unit *unit);
 	static bool isWarpGateUnit(const Unit *unit);
+	static bool isWarpGateUnit(UnitTypeID unitType);
 	static bool isChangeling(UnitTypeID unitType);
 	static bool canCloak(const Unit *unit);
 	static bool canWarpIn(AbilityID ability);

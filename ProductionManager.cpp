@@ -5,7 +5,7 @@ ProductionManager::ProductionManager(BlinkerBot & bot):
 	blinkerBot(bot), baseManager(bot), productionQueue(bot), workerManager(bot), buildOrderManager(bot), 
 	forwardPylon(nullptr), lastUsedWarpGate(nullptr),
 	nextPylonLocation(Point2D(-1.0,-1.0)), lastProductionFrame(0),
-	enemyHasCloak(false), reactedToRush(false), beingRushed(false)
+	enemyHasCloak(false), reactedToRush(false), beingRushed(false), massLing(false)
 {
 }
 
@@ -52,12 +52,22 @@ void ProductionManager::onStep()
 	*/
 
 	//printDebug();
-
-	if (blinkerBot.Observation()->GetGameLoop() - lastProductionFrame > DEADLOCK
-		&& uint32_t(blinkerBot.Observation()->GetMinerals()) > DEADLOCK)
+	if (uint32_t(blinkerBot.Observation()->GetMinerals()) > DEADLOCK)
 	{
-		//std::cerr << "attempting to break production deadlock" << std::endl;
-		breakDeadlock();
+		if (blinkerBot.Observation()->GetGameLoop() - lastProductionFrame > DEADLOCK)
+		{
+			//std::cerr << "attempting to break production deadlock" << std::endl;
+			breakDeadlock();
+		}
+		else if (!productionQueue.includes(ABILITY_ID::BUILD_GATEWAY))
+		{
+			/*
+			for (int i = 0; i < baseManager.getOurBases().size(); i++)
+			{
+				productionQueue.addItemHighPriority(ABILITY_ID::BUILD_GATEWAY);
+			}
+			*/
+		}
 	}
 
 	//if the first pylon location hasn't been set yet, then let's set it
@@ -66,8 +76,6 @@ void ProductionManager::onStep()
 		setNextPylonLocation();
 	}
 
-	//make sure that we aren't supply blocked
-	checkSupply();
 	//deal with the next item in the production queue
 	produce(productionQueue.getNextItem());
 
@@ -78,6 +86,7 @@ void ProductionManager::onStep()
 	//the following don't need to be called so frequently
 	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
 	{
+		checkSupply();
 		chronoBoost();
 
 		//let's stop regular production briefly to make sure the next base gets started or a key unit gets trained
@@ -85,6 +94,10 @@ void ProductionManager::onStep()
 		{
 			trainUnits();
 			trainWarp();
+		}
+		if (!isBlocking(productionQueue.getNextItem().item) || armyStatus == Defend)
+		{
+			trainSentries();
 
 			//let's train some high tech units as long as our economy isn't too small
 			if (workerManager.getWorkerCount() > 30)
@@ -92,10 +105,12 @@ void ProductionManager::onStep()
 				trainColossus();
 				trainHighTemplar();
 			}
-			if (workerManager.getWorkerCount() > 60)
+			if (workerManager.getWorkerCount() > 70)
 			{
 				trainVoidray();
 			}
+
+			upgrade();
 		}
 		else
 		{
@@ -171,12 +186,12 @@ void ProductionManager::produce(BuildOrderItem nextBuildOrderItem)
 	}
 	//deal with expansions
 	else if (nextBuildOrderItem.item == ABILITY_ID::BUILD_NEXUS && canAfford(UNIT_TYPEID::PROTOSS_NEXUS) && 
-		armyStatus != Defend && !beingRushed)
+		armyStatus != Defend && !(enemyRace != Race::Zerg && beingRushed))
 	{
 		expand();
 	}
 	//deal with structures
-	else
+	else if (nextBuildOrderItem.item != ABILITY_ID::BUILD_NEXUS)
 	{
 		build(nextBuildOrderItem);
 	}
@@ -227,7 +242,10 @@ void ProductionManager::trainUnits()
 				}
 			}
 			//otherwise train some units
-			else if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) && canAffordGas(UNIT_TYPEID::PROTOSS_STALKER))
+			else if (!isBlocking(productionQueue.getNextItem().item) &&
+				!massLing && 
+				completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) && 
+				canAffordGas(UNIT_TYPEID::PROTOSS_STALKER))
 			{
 				if (canAfford(UNIT_TYPEID::PROTOSS_STALKER))
 				{
@@ -256,7 +274,9 @@ void ProductionManager::trainUnits()
 			}
 			*/
 		}
-		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY)
+		else if (!isBlocking(productionQueue.getNextItem().item) && 
+			structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY &&
+			!completedStructureExists(UNIT_TYPEID::PROTOSS_ROBOTICSBAY)) 
 		{
 			if (structure->orders.size() == 0 && canAffordGas(UNIT_TYPEID::PROTOSS_IMMORTAL))
 			{
@@ -277,10 +297,9 @@ void ProductionManager::trainWarp()
 		if (currentLoop - gate.lastWarpInLoop >= UnitData::getWarpGateCoolDown(gate.lastTrainedType))
 		{
 			Point2D location = Point2D(rallyPoint.x + GetRandomScalar() * 7.0f, rallyPoint.y + GetRandomScalar() * 7.0f);
-			if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) && canAffordGas(UNIT_TYPEID::PROTOSS_STALKER) 
-				&& productionQueue.getNextItem().item != ABILITY_ID::TRAINWARP_HIGHTEMPLAR && 
-				productionQueue.getNextItem().item != ABILITY_ID::TRAIN_COLOSSUS && 
-				productionQueue.getNextItem().item != ABILITY_ID::TRAIN_VOIDRAY)
+			if (!isBlocking(productionQueue.getNextItem().item) &&
+				completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) && 
+				canAffordGas(UNIT_TYPEID::PROTOSS_STALKER))
 			{
 				if (canAfford(UNIT_TYPEID::PROTOSS_STALKER))
 				{
@@ -348,6 +367,12 @@ void ProductionManager::train(BuildOrderItem item)
 	const Unit *productionFacility = nullptr;
 	UnitTypeID requiredStructure = UnitData::requiredStructure(item.item);
 
+	//if the top command is to TRAIN_ a warpgate unit, but we already have warpgate, remove so it can be replaced by a TRAINWARP_ instead
+	if (UnitData::isTrainedFromGateway(item.item) && warpGates.size() > 0)
+	{
+		productionQueue.removeItem();
+	}
+
 	//search our buildings
 	for (auto structure : structures)
 	{
@@ -375,6 +400,16 @@ void ProductionManager::train(BuildOrderItem item)
 		for (auto structure : structures)
 		{
 			if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY)
+			{
+				productionFacility = structure;
+			}
+		}
+	}
+	else if (item.item == ABILITY_ID::TRAIN_SENTRY)
+	{
+		for (auto structure : structures)
+		{
+			if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY)
 			{
 				productionFacility = structure;
 			}
@@ -490,7 +525,12 @@ void ProductionManager::addStructure(const Unit *unit)
 		{
 			baseManager.addBase(unit);
 			workerManager.addBase(unit);
-			if (baseManager.getOurBases().size() > 1)
+
+			if (enemyRace == Race::Zerg && baseManager.getOurBases().size() > 2)
+			{
+				productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
+			}
+			else if (enemyRace != Race::Zerg && baseManager.getOurBases().size() > 1)
 			{
 				productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PYLON);
 			}
@@ -566,8 +606,8 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 			//if we only have one base then let's put them at the top of the ramp
 			if (baseManager.getOurBases().size() == 1)
 			{
-				const Unit *rampPylon = getClosestPylon(baseManager.getFirstPylonPosition());
-				if (Distance2D(rampPylon->pos, baseManager.getFirstPylonPosition()) < 2)
+				const Unit *rampPylon = getClosestPylon(baseManager.getMainFirstPylonPosition());
+				if (Distance2D(rampPylon->pos, baseManager.getMainFirstPylonPosition()) < 2)
 				{
 					//buildLocation = baseManager.getFirstPylonPosition();
 					buildLocation = baseManager.getMainRampTop();
@@ -600,28 +640,40 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 			}
 			else
 			{
-				for (auto base : baseManager.getOurBases())
+				//if we're dealing with a rush in PvZ then we wanna put the extra cannons at the front
+				if (beingRushed)
 				{
-					//check each base to see if a base has a cannon
-					bool hasCannon = false;
-					for (auto structure : structures)
+					const Unit *targetPylon = getClosestPylon(baseManager.getOurBases().back().getBuildLocation());
+					if (targetPylon)
 					{
-						if (Distance2D(base.getTownhall()->pos, structure->pos) < 10 && structure->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
-						{
-							hasCannon = true;
-						}
-					}
-					//if we find a base with no cannon, let's get that location
-					if (!hasCannon)
-					{
-						buildLocation = base.getTownhall()->pos;
+						buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 4.0f, targetPylon->pos.y + GetRandomScalar() * 4.0f);
 					}
 				}
-				//find the closest pylon to that base, and build the cannon there
-				const Unit *targetPylon = getClosestPylon(buildLocation);
-				if (targetPylon)
+				else
 				{
-					buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 2.0f, targetPylon->pos.y + GetRandomScalar() * 2.0f);
+					for (auto base : baseManager.getOurBases())
+					{
+						//check each base to see if a base has a cannon
+						bool hasCannon = false;
+						for (auto structure : structures)
+						{
+							if (Distance2D(base.getTownhall()->pos, structure->pos) < 10 && structure->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
+							{
+								hasCannon = true;
+							}
+						}
+						//if we find a base with no cannon, let's get that location
+						if (!hasCannon)
+						{
+							buildLocation = base.getTownhall()->pos;
+						}
+					}
+					//find the closest pylon to that base, and build the cannon there
+					const Unit *targetPylon = getClosestPylon(buildLocation);
+					if (targetPylon)
+					{
+						buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 2.0f, targetPylon->pos.y + GetRandomScalar() * 2.0f);
+					}
 				}
 			}
 			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
@@ -636,13 +688,13 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 			{
 				if (enemyRace != Race::Terran)
 				{
-					if (!baseManager.firstWallInPositionExists())
+					if (!baseManager.mainFirstWallInPositionExists())
 					{
-						buildLocation = baseManager.getFirstWallInPosition();
+						buildLocation = baseManager.getMainFirstWallInPosition();
 					}
-					else if (!baseManager.secondWallInPositionExists())
+					else if (!baseManager.mainSecondWallInPositionExists())
 					{
-						buildLocation = baseManager.getSecondWallInPosition();
+						buildLocation = baseManager.getMainSecondWallInPosition();
 					}
 					else
 					{
@@ -653,6 +705,13 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 				{
 					buildLocation = Point2D(targetPylon->pos.x + GetRandomScalar() * 6.5f, targetPylon->pos.y + GetRandomScalar() * 6.5f);
 				}
+			}
+			
+			//check to make sure we aren't going to block our own base
+			if (structureToBuild != ABILITY_ID::BUILD_NEXUS && Distance2D(buildLocation, baseManager.getNextBaseLocation()) < 5)
+			{
+				//std::cerr << "skipping to avoid blocking expansion location" << std::endl;
+				return;
 			}
 			blinkerBot.Actions()->UnitCommand(builder, structureToBuild, buildLocation);
 		}
@@ -699,17 +758,36 @@ determines the location of the next pylon to be constructed
 */
 void ProductionManager::setNextPylonLocation()
 {
-	//if this is our first pylon, then let's build it at the top of the ramp
-	if (pylons.empty() && baseManager.getFirstPylonPosition() != Point2D(0, 0))
+	//if this is our first pylon
+	if (pylons.empty())
 	{
-		nextPylonLocation = baseManager.getFirstPylonPosition();
+		//build it in the natural in PvZ
+		if (enemyRace == Race::Zerg)
+		{
+			nextPylonLocation = baseManager.getMainFirstPylonPosition();
+			//nextPylonLocation = baseManager.getNaturalFirstPylonPosition();
+			return;
+		}
+		//put it at the top of our ramp in other matchups
+		else
+		{
+			nextPylonLocation = baseManager.getMainFirstPylonPosition();
+			return;
+		}
+	}
+	else if (pylons.size() == 1 && enemyRace == Race::Zerg)
+	{
+		//nextPylonLocation = baseManager.getMainFirstPylonPosition();
+		nextPylonLocation = baseManager.getNaturalFirstPylonPosition();
+		return;
 	}
 	//if we need a forward pylon then build the pylon there
-	else if (!pylons.empty() && forwardPylon == nullptr && armyStatus == Attack)
+	if (enemyRace == Race::Zerg && !pylons.empty() && forwardPylon == nullptr && armyStatus == Attack)
 	{
 		//std::cerr << "making a forward pylon" << std::endl;
 		nextPylonLocation = forwardPylonPoint;
 	}
+
 	//otherwise find an appropriate location
 	else
 	{
@@ -795,6 +873,17 @@ void ProductionManager::setNextPylonLocation()
 
 		//select a random location from the available ones
 		buildLocation = GetRandomEntry(buildGrid);
+		/*
+		if (Distance2D(buildLocation, baseManager.getNextBaseLocation()) < 6)
+		{
+			int count = 0;
+			while (Distance2D(buildLocation, baseManager.getNextBaseLocation()) < 6 && count < 20)
+			{
+				buildLocation = GetRandomEntry(buildGrid);
+				count++;
+			}
+		}
+		*/
 
 		nextPylonLocation = buildLocation;
 	}
@@ -835,6 +924,21 @@ void ProductionManager::addNewUnit(const Unit *unit)
 	{
 		productionQueue.removeItem();
 		lastProductionFrame = blinkerBot.Observation()->GetGameLoop();
+
+		//check that no duplicate commands were issued and delete any if we find them
+		if (productionQueue.getNextItem().item != blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].ability_id)
+		{
+			workerManager.checkForDuplicateBuildCommands(productionQueue.getNextItem().item);
+		}
+	}
+	else if (blinkerBot.Observation()->GetGameLoop() > 1)
+	{
+		//if we didn't find it at the front of the queue, check the whole queue in case it has been updated while we were trying to produce
+		if (productionQueue.findAndRemoveItem(blinkerBot.Observation()->GetUnitTypeData()[unit->unit_type].ability_id) ||
+			productionQueue.findAndRemoveItem(UnitData::getTrainWarpAbilityID(unit->unit_type)))
+		{
+			lastProductionFrame = blinkerBot.Observation()->GetGameLoop();
+		}
 	}
 	//if we made a warpgate unit then we want to update the cooldown on the gate we used
 	if (UnitData::isWarpGateUnit(unit))
@@ -900,6 +1004,7 @@ void ProductionManager::addNewUnit(const Unit *unit)
 	{
 		workerManager.addGas(unit);
 		baseManager.addGas(unit);
+		assimilators.insert(unit);
 	}
 	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS && blinkerBot.Observation()->GetGameLoop() > 1)
 	{
@@ -920,6 +1025,14 @@ void ProductionManager::addNewUnit(const Unit *unit)
 	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_HIGHTEMPLAR)
 	{
 		hts.insert(unit);
+	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
+	{
+		photonCannons.insert(unit);
+	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_SENTRY)
+	{
+		sentries.insert(unit);
 	}
 }
 
@@ -947,6 +1060,10 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 	{
 		shieldBatteries.erase(unit);
 	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
+	{
+		photonCannons.erase(unit);
+	}
 	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_OBSERVER)
 	{
 		observers.erase(unit);
@@ -954,6 +1071,10 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_HIGHTEMPLAR)
 	{
 		hts.erase(unit);
+	}
+	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_SENTRY)
+	{
+		sentries.erase(unit);
 	}
 	else if (unit->unit_type == UNIT_TYPEID::PROTOSS_WARPGATE)
 	{
@@ -994,6 +1115,7 @@ void ProductionManager::onUnitDestroyed(const Unit *unit)
 				{
 					workerManager.removeGas(unit);
 					baseManager.removeGas(unit);
+					assimilators.erase(unit);
 				}
 			}
 			else
@@ -1156,9 +1278,8 @@ expand to the next closest base location
 */
 void ProductionManager::expand()
 {
-
 	Point2D nextBase = baseManager.getNextBaseLocation();
-
+	
 	if (blinkerBot.Query()->Placement(ABILITY_ID::BUILD_NEXUS, nextBase, workerManager.getBuilder()))
 	{
 		buildStructure(ABILITY_ID::BUILD_NEXUS, nextBase);
@@ -1562,7 +1683,7 @@ std::vector<Point2D> ProductionManager::getBuildGrid(Point2D centre)
 	//go through the vector and remove all the unbuildable (0:0) points
 	for (std::vector<Point2D>::iterator point = buildGrid.begin(); point != buildGrid.end();)
 	{
-		if (*point == Point2D(0, 0))
+		if (*point == Point2D(0, 0) || Distance2D(*point, baseManager.getNextBaseLocation()) < 6)
 		{
 			point = buildGrid.erase(point);
 		}
@@ -1879,7 +2000,7 @@ Point2D ProductionManager::getDefensivePosition()
 	if (baseManager.getOurBases().size() < 2)
 	{
 		//return baseManager.getMainRampTop();
-		return baseManager.getFirstPylonPosition();
+		return baseManager.getMainFirstPylonPosition();
 	}
 	else
 	{
@@ -1917,14 +2038,18 @@ void ProductionManager::receiveRushSignal(bool signal)
 	if (signal)
 	{
 		beingRushed = true;
-		//if this is the first we've heard about it, cancel the current build order and get a defensive one
-		if (!reactedToRush)
-		{
-			productionQueue.clearQueue();
-			productionQueue.generateMoreItems(buildOrderManager.generateRushDefenceGoal());
-			reactedToRush = true;
-		}
 
+		//protoss or terran response
+		//if (enemyRace != Race::Zerg)
+		//{
+			//if this is the first we've heard about it, cancel the current build order and get a defensive one
+			if (!reactedToRush)
+			{
+				productionQueue.clearQueue();
+				productionQueue.generateMoreItems(buildOrderManager.generateRushDefenceGoal());
+				reactedToRush = true;
+			}
+		//}
 		//if we can make shield batteries, let's do it
 		if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE))
 		{
@@ -1936,6 +2061,19 @@ void ProductionManager::receiveRushSignal(bool signal)
 				for (int i = 0; i < extraShieldBatteries; i++)
 				{
 					productionQueue.addItemHighPriority(ABILITY_ID::BUILD_SHIELDBATTERY);
+				}
+			}
+		}
+		//if we can make cannons, do that
+		if (completedStructureExists(UNIT_TYPEID::PROTOSS_FORGE))
+		{
+			int extraCannons = 2 - photonCannons.size();
+
+			if (extraCannons > 0 && !productionQueue.includes(ABILITY_ID::BUILD_PHOTONCANNON))
+			{
+				for (int i = 0; i < extraCannons; i++)
+				{
+					productionQueue.addItemHighPriority(ABILITY_ID::BUILD_PHOTONCANNON);
 				}
 			}
 		}
@@ -2061,4 +2199,77 @@ const Unit *ProductionManager::baseNeedsNearbyPylon()
 	}
 	//this should return nullptr;
 	return newBase;
+}
+
+/*
+receives a status from army manager telling us that the enemy army contains a significant amount of zerglings
+*/
+void ProductionManager::receiveMassLingSignal(bool signal)
+{
+	massLing = signal;
+}
+
+/*
+starts upgrades at idle forges
+*/
+void ProductionManager::upgrade()
+{
+	for (auto structure : structures)
+	{
+		if (structure->unit_type == UNIT_TYPEID::PROTOSS_FORGE && structure->orders.empty())
+		{
+			//first prioritise attack upgrades
+			if (!buildOrderManager.alreadyResearched(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL3) && 
+				!buildOrderManager.inProgress(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONS))
+			{
+				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONS);
+			}
+			//if attack is already completed or upgrading, try armor
+			else if (!buildOrderManager.alreadyResearched(ABILITY_ID::RESEARCH_PROTOSSGROUNDARMORLEVEL3) &&
+				!buildOrderManager.inProgress(ABILITY_ID::RESEARCH_PROTOSSGROUNDARMOR))
+			{
+				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::RESEARCH_PROTOSSGROUNDARMOR);
+			}
+			//if we can't upgrade attack or armor, get shields
+			else if (!buildOrderManager.alreadyResearched(ABILITY_ID::RESEARCH_PROTOSSSHIELDSLEVEL3) &&
+				!buildOrderManager.inProgress(ABILITY_ID::RESEARCH_PROTOSSSHIELDS))
+			{
+				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::RESEARCH_PROTOSSSHIELDS);
+			}
+		}
+	}
+}
+
+/*
+trains extra sentries if we need them
+*/
+void ProductionManager::trainSentries()
+{
+	if (baseManager.getOurBases().empty())
+	{
+		return;
+	}
+	else if (armyStatus != Defend && 
+		enemyRace != Terran &&
+		!(beingRushed && shieldBatteries.size() < 2) &&
+		!(!warpGates.empty() && warpGates.size() < 2) &&
+		sentries.size() < assimilators.size() - 1 &&
+		completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) &&
+		!productionQueue.includes(ABILITY_ID::TRAIN_SENTRY) &&
+		!productionQueue.includes(ABILITY_ID::TRAINWARP_SENTRY))
+	{
+		if (warpGates.empty())
+		{
+			productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_SENTRY);
+		}
+		else
+		{
+			productionQueue.addItemHighPriority(ABILITY_ID::TRAINWARP_SENTRY);
+		}
+	}
+}
+
+void ProductionManager::receiveLingSpeedSignal(bool signal)
+{
+	lingSpeed = signal;
 }

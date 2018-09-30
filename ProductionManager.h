@@ -44,19 +44,23 @@ class ProductionManager
 	bool enemyHasCloak;
 	bool reactedToRush;
 	bool beingRushed;
+	bool lingSpeed;
+	bool massLing;
 	int lastProductionFrame;
 	const Unit *forwardPylon;
 	const Unit *lastUsedWarpGate;
 
+	std::set<const Unit *> assimilators;
 	std::set<const Unit *> dts;
 	std::set<const Unit *> enemyBases;
 	std::set<const Unit *> miningBases;
 	std::set<const Unit *> observers;
+	std::set<const Unit *> sentries;
 	std::set<const Unit *> shieldBatteries;
 	std::set<const Unit *> hts;
+	std::set<const Unit *> photonCannons;
 	std::set<const Unit *> pylons;
 	std::set<const Unit *> structures;
-	//std::set<const Unit *> warpGates;
 	std::vector<Warpgate> warpGates;
 
 public:
@@ -75,6 +79,8 @@ public:
 	void onUpgradeComplete(UpgradeID upgrade);
 	void receiveArmyStatus(ArmyStatus status);
 	void receiveCloakSignal(bool signal);
+	void receiveLingSpeedSignal(bool signal);
+	void receiveMassLingSignal(bool signal);
 	void receiveRushSignal(bool signal);
 	void removeEnemyBase(const Unit *unit);
 	void setRallyPoint(Point2D point);
@@ -115,8 +121,10 @@ private:
 	void train(BuildOrderItem item);
 	void trainColossus();
 	void trainHighTemplar();
+	void trainSentries();
 	void trainUnits();
 	void trainVoidray();
 	void trainWarp();
+	void upgrade();
 };
 

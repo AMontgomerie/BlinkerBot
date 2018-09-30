@@ -29,8 +29,9 @@ void BlinkerBot::OnStep()
 	productionManager.receiveArmyStatus(armyManager.getArmyStatus());
 	productionManager.receiveCloakSignal(armyManager.detectionRequired());
 	productionManager.receiveRushSignal(armyManager.rushDetected());
+	productionManager.receiveMassLingSignal(armyManager.massLings());
+	productionManager.receiveLingSpeedSignal(armyManager.lingSpeed());
 	armyManager.onStep();
-
 
 	//determine the location of our rally point
 	ArmyStatus currentStatus = armyManager.getArmyStatus();

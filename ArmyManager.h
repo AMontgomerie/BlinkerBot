@@ -16,8 +16,9 @@ class ArmyManager
 {
 	BlinkerBot & blinkerBot;
 
-	const int LOCALRADIUS = 15;
-	const int WAITTIME = 500;
+	const int LOCALRADIUS = 15; //radius used to count the number of nearby units and whether units are close to bases
+	const int WAITTIME = 500; //represents the number of game loops we can wait before a regroup order times out
+	const float zerglingSupply = 0.75; //increased from 0.5 for army size comparisons to reflect their strength vs stalkers
 
 	struct ArmyUnit
 	{
@@ -45,21 +46,24 @@ class ArmyManager
 	bool zerglingSpeed;
 	bool warpgateTech;
 	bool blinkTech;
+	bool extendedThermalLanceTech;
 	float currentArmyValue;
 	float currentEnemyArmyValue;
+	float totalZerglingSupply;
 	ArmyStatus currentStatus;
 	Point2D rallyPoint;
 	ZerglingTimer zerglingTimer;
 
 	std::vector<ArmyUnit> army;
 	std::vector<Point2D> unexploredEnemyStartLocations;
+	std::set<const Unit *> bases;
 	std::set<const Unit *> darkTemplars;
 	std::set<const Unit *> highTemplars;
 	std::set<const Unit *> enemyArmy;
 	std::set<const Unit *> enemyStructures;
 	std::set<const Unit *> observers;
 	std::set<const Unit *> photonCannons;
-	std::set<const Unit *> bases;
+	std::set<const Unit *> sentries;
 
 
 public:
@@ -71,6 +75,8 @@ public:
 	bool detectionRequired();
 	ArmyStatus getArmyStatus();
 	void initialise();
+	bool lingSpeed();
+	bool massLings();
 	void onStep();
 	void onUpgradeComplete(UpgradeID upgrade);
 	void removeEnemyUnit(const Unit *unit);
@@ -89,6 +95,7 @@ private:
 	bool blink(const Unit *unit);
 	int calculateEnemyStaticDefence();
 	float calculateEnemyStaticDefenceInRadius(Point2D centre);
+	std::vector<Point2D> calculateGrid(Point2D centre, int size);
 	float calculateSupply(std::set<const Unit *> army);
 	float calculateSupply(std::vector<ArmyUnit> army);
 	float calculateSupplyAndWorkers(std::set<const Unit *> army);
@@ -100,8 +107,11 @@ private:
 	void darkTemplarHarass();
 	void defend(Point2D threatened);
 	bool escapeAOE(ArmyUnit armyUnit);
+	bool enemyHas(UnitTypeID unitType);
 	void feedback();
 	Point2D findAttackTarget(const Unit *unit);
+	Point2D findNearbyRamp(const Unit *unit);
+	void forcefield();
 	Point2D getAOETarget(std::set<const Unit *> unitsInRange, float radius);
 	const Unit *getClosestBase(const Unit *unit);
 	const Unit *getClosestBase(Point2D point);
@@ -110,7 +120,10 @@ private:
 	const Unit *getClosestEnemyBase(const Unit *ourUnit);
 	const Unit *getClosestEnemyBaseWithoutDetection(const Unit *unit);
 	const Unit *getClosestEnemyFlyer(Point2D point);
+	Point2D getDefensiveForcefieldTarget(const Unit *sentry);
+	std::set<const Unit *> getEnemiesInRange(const Unit *unit, AbilityID spell);
 	Point2D getRetreatPoint(const Unit *unit);
+	bool hasAttribute(UnitTypeID unitType, Attribute attribute);
 	bool includes(UnitTypeID unitType);
 	bool inRange(const Unit *attacker, const Unit *target);
 	bool inRange(const Unit *attacker, Point2D target);

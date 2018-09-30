@@ -730,7 +730,8 @@ const Unit *WorkerManager::getClosestEnemy(const Unit *ourUnit)
 	for (auto unit : blinkerBot.Observation()->GetUnits())
 	{
 		if (!UnitData::isOurs(unit) && UnitData::canTarget(ourUnit, unit) && UnitData::isVisible(unit) 
-			&& !UnitData::isMinerals(unit) && !UnitData::isVespeneGeyser(unit) && !UnitData::isNeutralRock(unit))
+			&& !UnitData::isMinerals(unit) && !UnitData::isVespeneGeyser(unit) && !UnitData::isNeutralRock(unit) 
+			&& unit->unit_type != UNIT_TYPEID::ZERG_CREEPTUMORBURROWED)
 		{
 			if (!closestEnemy)
 			{
@@ -848,4 +849,22 @@ const Unit *WorkerManager::getClosestBase(const Unit *unit)
 		}
 	}
 	return closestBase;
+}
+
+/*
+searches through all of our workers current orders and issues STOP commands to any workers that are performing the given action
+*/
+void WorkerManager::checkForDuplicateBuildCommands(AbilityID ability)
+{
+	for (auto worker : workers)
+	{
+		for (auto order : worker->orders)
+		{
+			if (order.ability_id == ability)
+			{
+				std::cout << "removing duplicate " << AbilityTypeToName(ability) << std::endl;
+				blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::STOP);
+			}
+		}
+	}
 }

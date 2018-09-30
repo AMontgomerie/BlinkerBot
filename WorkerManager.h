@@ -49,6 +49,7 @@ public:
 	void update();
 	bool miningOut();
 	size_t getWorkerCount();
+	void checkForDuplicateBuildCommands(AbilityID ability);
 	void checkGas(const Unit *gas);
 	const Unit *getBuilder();
 	void addWorker(const Unit *unit);

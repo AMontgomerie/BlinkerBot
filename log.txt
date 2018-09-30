@@ -1,15 +1,20 @@
 high priority:
-- repower unpowered buildings
+- switch PvZ build back to fast expand (second pylon in main, sentries afraid of lings, remove/update proxy pylon)
+- implement warp prism
+-ff
+	- make a distinction between protect vs melee and cut vs ranged
+- PvZ reactive unit compositions (colossus/storm vs hydra and voidray vs broodlord)
+- change supply block detection to be a +% of our current supply
+- rush defense being incorrectly triggered
 - change aggressive blink so it can be triggered by any stalker when attacking, also make stalkers actually target the unit they blunk
 - more advanced dt: only run when visible and threats are in range
 - still a 3 robo bug vs cloaked units
 - blink into main vs fast expanders
-- do a ffe
 - pull workers vs drops
 - make cannons vs banshee/oracle/voidray/muta
-- defensive units need to have a shorter leash (defend ramp tops)
-- prioritise chronoboosts on units in defensive situations (perhaps switch priority to trainUnits() over produce() too)
 later:
+- perhaps separate forge upgrades from key techs so that they arent delayed for so long
+- improve build order execution by finding a worker close to the build location
 - forcefield placement could work like storm?
 - unfinished static defence counts as finished when we cant see it (causing retreats)
 - remove destructible rocks from pylon placement
@@ -22,10 +27,18 @@ later:
 - reorganise methods to be consistent in each manager
 - army splitting (dont pull everything back every time a scout comes in your base)
 - implement more sophisticated DT control (avoid detectors and prioritise targets)
-- deal with surrounds
+- deal with surrounds (do a distance checker like ling speed; if they haven't moved then blink them)
 - train only works for units that are trained from their own tech structure
 - deactivate expensive methods based on framerate performance
 - somehow deal with level2+ upgrades that require extra tech (perhaps a vector to show they require multiple?)
 - some weird behaviour around tanks and ramps
 
 DONE FOR NEXT UPLOAD:
+- FFE
+- disabled forward pylon
+- go zealot heavy vs lings
+- emergency updates to production queue should no longer cause multiple buildings to be constructed
+- forcefield implemented (defensive only)
+- fixed a crash bug when we could only see enemy creep tumors
+- implemented some double order detection but doesnt fully work
+- temporarily switch PvZ to 4gate

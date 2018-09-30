@@ -36,9 +36,10 @@ class BaseManager
 	Point2D mainRampTop;
 	Point2D mainRampBottom;
 	Point2D wallInOpening;
-	Point2D firstWallinPosition;
-	Point2D secondWallinPosition;
-	Point2D firstPylonPosition;
+	Point2D mainFirstWallinPosition;
+	Point2D mainSecondWallinPosition;
+	Point2D mainFirstPylonPosition;
+	Point2D naturalFirstPylonPosition;
 	std::vector<Point2D> wallInPoints;
 	std::vector<Base> bases;
 	std::vector<Base> availableBases;
@@ -53,6 +54,7 @@ class BaseManager
 	Color getDebugColor(int num);
 	void printBuildGrid(std::vector<Point2D> buildGrid);
 	std::vector<Point2D> getBuildGrid(Point2D centre);
+	std::vector<Point2D> getBuildGrid(Point2D centre, int radius, AbilityID structure);
 	Point2D calculateBuildLocation(Base base);
 	Point2D calculateAveragePoint(std::set<const Unit *> nodes);
 	Point2D calculateAveragePoint(std::vector<const Unit *> nodes);
@@ -63,8 +65,10 @@ class BaseManager
 	std::vector<Point2D> calculateGrid(Point2D centre, int size);
 	bool isNextToRamp(Point2D point);
 	//void calculateWallInOpening();
-	void calculateWallInPositions();
-	void calculateFirstPylonPosition();
+	void calculateMainWallInPositions();
+	void calculateMainFirstPylonPosition();
+	void calculateNaturalFirstPylonPosition();
+	void calculateNaturalWallInPositions();
 public:
 	BaseManager(BlinkerBot & bot);
 	~BaseManager();
@@ -81,10 +85,11 @@ public:
 	void removeGas(const Unit *unit);
 	std::vector<Base> getOurBases();
 	Point2D getMainRampTop();
-	Point2D getFirstPylonPosition();
-	Point2D getFirstWallInPosition();
-	Point2D getSecondWallInPosition();
-	bool firstWallInPositionExists();
-	bool secondWallInPositionExists();
+	Point2D getMainFirstPylonPosition();
+	Point2D getMainFirstWallInPosition();
+	Point2D getMainSecondWallInPosition();
+	Point2D getNaturalFirstPylonPosition();
+	bool mainFirstWallInPositionExists();
+	bool mainSecondWallInPositionExists();
 };
 

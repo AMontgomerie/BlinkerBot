@@ -26,6 +26,7 @@ void BuildOrderManager::updateStructureCounts()
 	int productionFacilities = 0;
 	int gases = 0;
 	int cannons = 0;
+	int workers = 0;
 
 	for (auto structure : blinkerBot.Observation()->GetUnits())
 	{
@@ -49,6 +50,10 @@ void BuildOrderManager::updateStructureCounts()
 			{
 				cannons++;
 			}
+			else if (structure->unit_type == UNIT_TYPEID::PROTOSS_PROBE)
+			{
+				workers++;
+			}
 		}
 	}
 
@@ -56,6 +61,7 @@ void BuildOrderManager::updateStructureCounts()
 	currentGases = gases;
 	currentProductionFacilities = productionFacilities;
 	currentCannons = cannons;
+	currentWorkers = workers;
 }
 
 /*
@@ -67,12 +73,27 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 
 	//first let's count the number of things we currently have
 	updateStructureCounts();
+	float currentSupply = blinkerBot.Observation()->GetFoodUsed();
+	
 
 	//next let's calculate how many extra things we want
+	int extraPylons = std::round((currentSupply * 0.15) / 8);
 	int extraCannons = currentBases - currentCannons;
-	int extraProductionFacilities = (currentBases * 2) - currentProductionFacilities + 1;
+	int extraProductionFacilities = (currentBases * 3) - currentProductionFacilities + 1;
 	int extraGases = (currentBases * 2) - currentGases;
 	int techTotal = completedTechs.size() + getTechsCurrentlyInProduction().size();
+
+	if (currentSupply < 200)
+	{
+		if (extraPylons > 0)
+		{
+			buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_PYLON, extraPylons));
+		}
+		else
+		{
+			buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_PYLON, 1));
+		}
+	}
 
 	//if there are any necessary techs, let's add the next one to the queue
 	//we don't want to keep adding techs without expanding though
@@ -86,6 +107,13 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 			extraGases--;
 		}
 		buildOrderGoal.push_back(ProductionGoal(tech, 1));
+	}
+
+	//calculate any additional gases we want to take
+	if (extraGases > 0)
+	{
+		buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_ASSIMILATOR, extraGases));
+		//buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_ASSIMILATOR, 1));
 	}
 
 	//if the enemy has cloaked units, we want to make sure we have cannons at each base
@@ -111,15 +139,8 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 		}
 	}
 
-	//calculate any additional gases we want to take
-	if (extraGases > 0)
-	{
-		//buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_ASSIMILATOR, extraGases));
-		buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_ASSIMILATOR, 1));
-	}
-
 	//if we've already got plenty of production facilities then we want to think about expanding
-	if ((extraProductionFacilities < 1 && extraGases < 1) || miningOut)
+	if ((extraProductionFacilities < 2 && extraGases < 1) || miningOut)
 	{
 		buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_NEXUS, 1));
 	}
@@ -142,8 +163,9 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 	}
 	}
 	*/
-
-	return buildOrderGoal;
+	
+	//prioritise then send to production queue
+	return prioritiseGoal(buildOrderGoal);
 }
 
 /*
@@ -311,6 +333,12 @@ void BuildOrderManager::initialiseKeyTechs()
 	switch (enemyRace)
 	{
 	case Race::Terran:
+		keyTechs.push_back(ABILITY_ID::RESEARCH_PSISTORM);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL1);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_CHARGE);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL2);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE);
+		break;
 	case Race::Zerg:
 		keyTechs.push_back(ABILITY_ID::RESEARCH_PSISTORM);
 		keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL1);
@@ -406,6 +434,11 @@ std::vector<ProductionGoal> BuildOrderManager::generateRushDefenceGoal()
 		buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_GATEWAY, extraProductionFacilities));
 	}
 
+	if (enemyRace == Race::Zerg && currentBases < 2)
+	{
+		buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_NEXUS, 1));
+	}
+
 	return buildOrderGoal;
 }
 
@@ -432,4 +465,78 @@ std::set<AbilityID> BuildOrderManager::getTechsCurrentlyInProduction()
 		}
 	}
 	return inProduction;
+}
+
+/*
+switches the order of ProductionGoals so that more urgent ones are made first
+*/
+std::vector<ProductionGoal> BuildOrderManager::prioritiseGoal(std::vector<ProductionGoal> goal)
+{
+	std::vector<ProductionGoal> prioritisedGoal;
+
+	int minerals = blinkerBot.Observation()->GetMinerals();
+	int gas = blinkerBot.Observation()->GetVespene();
+
+	//if we're floating minerals then let's prioritise gas
+	if (minerals > gas * 3)
+	{
+		for (auto item : goal)
+		{
+			if (item.type == ABILITY_ID::BUILD_ASSIMILATOR)
+			{
+				prioritisedGoal.push_back(item);
+			}
+		}
+	}
+
+	//if we don't have blink yet, we want to get it ASAP
+	for (auto item : goal)
+	{
+		if (item.type == ABILITY_ID::RESEARCH_BLINK)
+		{
+			prioritisedGoal.push_back(item);
+		}
+	}
+
+	//if we already have a bunch of production facilities, prioritise the nexus
+	if (currentProductionFacilities >= (currentBases * 2) + 1)
+	{
+		for (auto item : goal)
+		{
+			if (item.type == ABILITY_ID::BUILD_NEXUS)
+			{
+				prioritisedGoal.push_back(item);
+			}
+		}
+	}
+	//if we're floating minerals, priortise some gateways to spend the money
+	if (minerals > 800)
+	{
+		for (auto item : goal)
+		{
+			if (item.type == ABILITY_ID::BUILD_GATEWAY)
+			{
+				prioritisedGoal.push_back(item);
+			}
+		}
+	}
+
+	//otherwise just read the rest into the new goal as-is
+	for (auto item : goal)
+	{
+		bool alreadyAdded = false;
+		for (auto prioritisedItem : prioritisedGoal)
+		{
+			if (item.type == prioritisedItem.type)
+			{
+				alreadyAdded = true;
+			}
+		}
+		if (!alreadyAdded)
+		{
+			prioritisedGoal.push_back(item);
+		}
+	}
+
+	return prioritisedGoal;
 }
