@@ -83,7 +83,9 @@ public:
 	void receiveMassLingSignal(bool signal);
 	void receiveRushSignal(bool signal);
 	void removeEnemyBase(const Unit *unit);
+	void removeEnemyProxy(const Unit *unit);
 	void setRallyPoint(Point2D point);
+	const Unit *accidentalWallIn();
 
 private:
 	void breakDeadlock();

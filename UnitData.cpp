@@ -1144,3 +1144,18 @@ bool UnitData::isNeutralRock(const Unit *unit)
 		return false;
 	}
 }
+
+/*
+returns true if point a and point b are at the same location
+*/
+bool UnitData::isSamePoint2D(Point2D a, Point2D b)
+{
+	if ((a.x == b.x) && (a.y == b.y))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}

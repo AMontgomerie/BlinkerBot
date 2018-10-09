@@ -77,7 +77,7 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 	
 
 	//next let's calculate how many extra things we want
-	int extraPylons = std::round((currentSupply * 0.15) / 8);
+	int extraPylons = std::round((currentSupply * 0.2) / 8);
 	int extraCannons = currentBases - currentCannons;
 	int extraProductionFacilities = (currentBases * 3) - currentProductionFacilities + 1;
 	int extraGases = (currentBases * 2) - currentGases;
@@ -101,11 +101,13 @@ std::vector<ProductionGoal> BuildOrderManager::generateGoal()
 	if (tech != ABILITY_ID::INVALID && 
 		!(techTotal >= 2 && currentBases < 2) && !(techTotal >= 3 && currentBases < 3))
 	{
+		/*
 		if (extraGases > 0)
 		{
 			buildOrderGoal.push_back(ProductionGoal(ABILITY_ID::BUILD_ASSIMILATOR, 1));
 			extraGases--;
 		}
+		*/
 		buildOrderGoal.push_back(ProductionGoal(tech, 1));
 	}
 
@@ -405,7 +407,7 @@ std::vector<ProductionGoal> BuildOrderManager::generateRushDefenceGoal()
 	//first count what we have
 	updateStructureCounts();
 
-	int extraProductionFacilities = 4 - currentProductionFacilities;
+	int extraProductionFacilities = 3 - currentProductionFacilities;
 	int extraGases = 1 - currentGases;
 
 	//if we don't have any gas yet, then we want to add one
@@ -477,8 +479,8 @@ std::vector<ProductionGoal> BuildOrderManager::prioritiseGoal(std::vector<Produc
 	int minerals = blinkerBot.Observation()->GetMinerals();
 	int gas = blinkerBot.Observation()->GetVespene();
 
-	//if we're floating minerals then let's prioritise gas
-	if (minerals > gas * 3)
+	//if we're floating minerals (or gas income is very low) then let's prioritise gas
+	if (minerals > gas * 3 || currentGases < 2)
 	{
 		for (auto item : goal)
 		{

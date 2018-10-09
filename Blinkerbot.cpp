@@ -31,6 +31,7 @@ void BlinkerBot::OnStep()
 	productionManager.receiveRushSignal(armyManager.rushDetected());
 	productionManager.receiveMassLingSignal(armyManager.massLings());
 	productionManager.receiveLingSpeedSignal(armyManager.lingSpeed());
+	armyManager.breakWall(productionManager.accidentalWallIn());
 	armyManager.onStep();
 
 	//determine the location of our rally point
@@ -86,12 +87,17 @@ void BlinkerBot::OnUnitDestroyed(const sc2::Unit *unit)
 	{
 		productionManager.onUnitDestroyed(unit);
 		armyManager.removeUnit(unit);
+		if (UnitData::isStructure(unit))
+		{
+			armyManager.removeStructure(unit);
+		}
 	}
 	else
 	{
 		if (UnitData::isStructure(unit))
 		{
 			armyManager.removeEnemyStructure(unit);
+			productionManager.removeEnemyProxy(unit);
 			if (UnitData::isTownHall(unit))
 			{
 				productionManager.removeEnemyBase(unit);
@@ -108,10 +114,7 @@ void BlinkerBot::OnUnitEnterVision(const sc2::Unit *unit)
 	if (UnitData::isStructure(unit))
 	{
 		armyManager.addEnemyStructure(unit);
-		if (UnitData::isTownHall(unit))
-		{
-			productionManager.addEnemyBase(unit);
-		}
+		productionManager.addEnemyBase(unit);
 	}
 	else
 	{
@@ -128,6 +131,10 @@ void BlinkerBot::OnUnitCreated(const sc2::Unit *unit)
 {
 	productionManager.addNewUnit(unit);
 	armyManager.addUnit(unit);
+	if (UnitData::isStructure(unit))
+	{
+		armyManager.addStructure(unit);
+	}
 }
 
 void BlinkerBot::OnUnitIdle(const sc2::Unit *unit)

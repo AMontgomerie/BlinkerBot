@@ -40,6 +40,7 @@ class ArmyManager
 
 	Race enemyRace;
 	bool beingRushed;
+	bool demolitionDuty;
 	bool proxy;
 	int regroupStarted;
 	bool regroupComplete;
@@ -64,14 +65,17 @@ class ArmyManager
 	std::set<const Unit *> observers;
 	std::set<const Unit *> photonCannons;
 	std::set<const Unit *> sentries;
+	std::set<const Unit *> structures;
 
 
 public:
 	ArmyManager(BlinkerBot & bot);
 	void addEnemyStructure(const Unit *structure);
 	void addEnemyUnit(const Unit *unit);
+	void addStructure(const Unit *structure);
 	void addUnit(const Unit *unit);
 	bool behind();
+	void breakWall(const Unit *blocker);
 	bool detectionRequired();
 	ArmyStatus getArmyStatus();
 	void initialise();
@@ -81,6 +85,7 @@ public:
 	void onUpgradeComplete(UpgradeID upgrade);
 	void removeEnemyUnit(const Unit *unit);
 	void removeEnemyStructure(const Unit *structure);
+	void removeStructure(const Unit *structure);
 	void removeUnit(const Unit *unit);
 	bool rushDetected();
 	void setRallyPoint(Point2D point);

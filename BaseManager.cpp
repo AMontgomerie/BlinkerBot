@@ -117,6 +117,7 @@ void BaseManager::printDebug()
 		blinkerBot.Debug()->DebugTextOut(ourBase.str());
 	}
 	*/
+	
 	/*
 	int n = 0;
 	for (auto base : bases)
@@ -134,7 +135,27 @@ void BaseManager::printDebug()
 				Point3D(gas->pos.x + 2, gas->pos.y + 2, blinkerBot.Observation()->GetStartLocation().z - 3), getDebugColor(n));
 		}
 		n++;
-	}*/
+	}
+	*/
+	/*
+	int n = 0;
+	for (auto base : availableBases)
+	{
+		blinkerBot.Debug()->DebugBoxOut(Point3D(base.getBuildLocation().x - 3, base.getBuildLocation().y - 3, blinkerBot.Observation()->GetStartLocation().z),
+			Point3D(base.getBuildLocation().x + 3, base.getBuildLocation().y + 3, blinkerBot.Observation()->GetStartLocation().z - 3), getDebugColor(n));
+		for (auto mineral : base.getMinerals())
+		{
+			blinkerBot.Debug()->DebugBoxOut(Point3D(mineral->pos.x, mineral->pos.y, blinkerBot.Observation()->GetStartLocation().z + 1),
+				Point3D(mineral->pos.x + 1, mineral->pos.y + 1, blinkerBot.Observation()->GetStartLocation().z - 3), getDebugColor(n));
+		}
+		for (auto gas : base.getGeysers())
+		{
+			blinkerBot.Debug()->DebugBoxOut(Point3D(gas->pos.x, gas->pos.y, blinkerBot.Observation()->GetStartLocation().z + 1),
+				Point3D(gas->pos.x + 2, gas->pos.y + 2, blinkerBot.Observation()->GetStartLocation().z - 3), getDebugColor(n));
+		}
+		n++;
+	}
+	*/
 	/*
 	blinkerBot.Debug()->DebugBoxOut(Point3D(mainRampTop.x, mainRampTop.y, blinkerBot.Observation()->GetStartLocation().z + 1),
 		Point3D(mainRampTop.x + 2, mainRampTop.y + 2, blinkerBot.Observation()->GetStartLocation().z - 3), Colors::Blue);
@@ -155,8 +176,8 @@ void BaseManager::printDebug()
 	blinkerBot.Debug()->DebugBoxOut(Point3D(secondWallinPosition.x, secondWallinPosition.y, blinkerBot.Observation()->GetStartLocation().z + 1),
 		Point3D(secondWallinPosition.x + 2, secondWallinPosition.y + 2, blinkerBot.Observation()->GetStartLocation().z - 1), Colors::Yellow);
 	*/
-	//blinkerBot.Debug()->DebugShowMap();
-	//blinkerBot.Debug()->SendDebug();
+
+	blinkerBot.Debug()->SendDebug();
 }
 
 /*
@@ -415,6 +436,17 @@ std::vector<Base> BaseManager::sortBaseLocations(std::vector<Base> baseLocations
 	std::vector<Base> sorted;
 	size_t size = baseLocations.size();
 	//std::cerr << size << " base locations found" << std::endl;
+
+	//get a worker to be our distance tester
+	const Unit *worker = *blinkerBot.Observation()->GetUnits().begin();
+	for (auto unit : blinkerBot.Observation()->GetUnits())
+	{
+		if (UnitData::isOurs(unit) && UnitData::isWorker(unit))
+		{
+			worker = unit;
+		}
+	}
+
 	//for each base location
 	for (int i = 0; i != size; i++)
 	{
@@ -424,15 +456,6 @@ std::vector<Base> BaseManager::sortBaseLocations(std::vector<Base> baseLocations
 		int count = 0;
 		for (auto base : baseLocations)
 		{
-			//get a worker to be our distance tester
-			const Unit *worker = *blinkerBot.Observation()->GetUnits().begin();
-			for (auto unit : blinkerBot.Observation()->GetUnits())
-			{
-				if (UnitData::isOurs(unit) && UnitData::isWorker(unit))
-				{
-					worker = unit;
-				}
-			}
 			//std::cerr << "query: " << blinkerBot.Query()->PathingDistance(worker, base.getBuildLocation()) << std::endl;
 			//std::cerr << "dist: " << Distance2D(blinkerBot.Observation()->GetStartLocation(), base.getBuildLocation()) << std::endl;
 
@@ -447,8 +470,11 @@ std::vector<Base> BaseManager::sortBaseLocations(std::vector<Base> baseLocations
 		//remove the closest base from the vector
 		baseLocations.erase(baseLocations.begin() + closestIndex);
 
-		//add our closest base to the new vector, then loop and find the next closest
-		sorted.push_back(closestBase);		
+		//add our closest base to the new vector (filter out distance zero results), then loop and find the next closest
+		if (blinkerBot.Query()->PathingDistance(worker, closestBase.getBuildLocation()) > 0)
+		{
+			sorted.push_back(closestBase);
+		}
 	}
 
 	/*
@@ -524,6 +550,7 @@ Point2D BaseManager::getNextBaseLocation()
 
 	std::vector<Base>::iterator nextBase = availableBases.begin();
 
+	/*
 	//find a worker to test with
 	const Unit *worker = nullptr;
 	for (auto unit : blinkerBot.Observation()->GetUnits())
@@ -541,7 +568,7 @@ Point2D BaseManager::getNextBaseLocation()
 		{
 			if (blinkerBot.Query()->PathingDistance(worker, (*nextBase).getBuildLocation()) == 0)
 			{
-				//std::cerr << "unreachable base at " << (*nextBase).getBuildLocation().x << ":" << (*nextBase).getBuildLocation().y << std::endl;
+				std::cerr << "unreachable base at " << (*nextBase).getBuildLocation().x << ":" << (*nextBase).getBuildLocation().y << std::endl;
 				nextBase = availableBases.erase(nextBase);
 			}
 			else
@@ -556,9 +583,9 @@ Point2D BaseManager::getNextBaseLocation()
 			return blinkerBot.Observation()->GetStartLocation();
 		}
 	}
+	*/
 
 	//if we haven't calculated the base location yet, we need to do it before we pass it to production manager
-	//if (nextBase.getBuildLocation() == (*nextBase.getMinerals().begin())->pos)
 	if ((*nextBase).getBuildLocation() == calculateAveragePoint((*nextBase).getGeysers()))
 	{
 		//make a new base with the same minerals and gas and an accurate location
@@ -1587,4 +1614,19 @@ returns the position of our first pylon in the natural for wall-in purposes
 Point2D BaseManager::getNaturalFirstPylonPosition()
 {
 	return naturalFirstPylonPosition;
+}
+
+/*
+returns a set containing all the base locations we've found (including bases not accurately calculated yet)
+*/
+std::vector<Point2D> BaseManager::getAllBaseLocations()
+{
+	std::vector<Point2D> baseLocations;
+
+	for (auto base : bases)
+	{
+		baseLocations.push_back(base.getBuildLocation());
+	}
+
+	return baseLocations;
 }

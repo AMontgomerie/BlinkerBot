@@ -89,6 +89,7 @@ public:
 	Point2D getMainFirstWallInPosition();
 	Point2D getMainSecondWallInPosition();
 	Point2D getNaturalFirstPylonPosition();
+	std::vector<Point2D> getAllBaseLocations();
 	bool mainFirstWallInPositionExists();
 	bool mainSecondWallInPositionExists();
 };

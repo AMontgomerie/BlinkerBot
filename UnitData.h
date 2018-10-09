@@ -38,6 +38,7 @@ public:
 	static bool isCaster(UnitTypeID unitType);
 	static bool isTargetable(UnitTypeID unitType);
 	static bool isVisible(const Unit *enemy);
+	static bool isSamePoint2D(Point2D a, Point2D b);
 	static bool canTarget(const Unit *attacker, const Unit *potentialTarget);
 	static bool canAttackAir(UnitTypeID unitType);
 	static bool canAttackGround(UnitTypeID unitType);

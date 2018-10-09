@@ -19,6 +19,7 @@ void ProductionManager::initialise()
 			enemyRace = player.race_requested;
 			productionQueue.setEnemyRace(enemyRace);
 			buildOrderManager.setEnemyRace(enemyRace);
+			workerManager.setEnemyRace(enemyRace);
 		}
 	}
 
@@ -36,6 +37,7 @@ void ProductionManager::initialise()
 	productionQueue.initialiseQueue();
 	baseManager.initialise();
 	workerManager.initialise();
+	workerManager.setBaseLocations(baseManager.getAllBaseLocations());
 	buildOrderManager.initialise();
 	rallyPoint = blinkerBot.Observation()->GetStartLocation();
 	locateForwardPylonPoint();
@@ -58,15 +60,6 @@ void ProductionManager::onStep()
 		{
 			//std::cerr << "attempting to break production deadlock" << std::endl;
 			breakDeadlock();
-		}
-		else if (!productionQueue.includes(ABILITY_ID::BUILD_GATEWAY))
-		{
-			/*
-			for (int i = 0; i < baseManager.getOurBases().size(); i++)
-			{
-				productionQueue.addItemHighPriority(ABILITY_ID::BUILD_GATEWAY);
-			}
-			*/
 		}
 	}
 
@@ -109,7 +102,6 @@ void ProductionManager::onStep()
 			{
 				trainVoidray();
 			}
-
 			upgrade();
 		}
 		else
@@ -252,7 +244,7 @@ void ProductionManager::trainUnits()
 					blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_STALKER);
 				}
 			}
-			else if (canAfford(UNIT_TYPEID::PROTOSS_ZEALOT))
+			else if (canAfford(UNIT_TYPEID::PROTOSS_ZEALOT) && !(enemyRace == Race::Protoss && !beingRushed))
 			{
 				blinkerBot.Actions()->UnitCommand(structure, ABILITY_ID::TRAIN_ZEALOT);
 			}
@@ -308,7 +300,7 @@ void ProductionManager::trainWarp()
 					return;
 				}
 			}
-			else if (canAfford(UNIT_TYPEID::PROTOSS_ZEALOT))
+			else if (canAfford(UNIT_TYPEID::PROTOSS_ZEALOT) && !(enemyRace == Race::Protoss && !beingRushed))
 			{
 				blinkerBot.Actions()->UnitCommand(gate.warpgate, ABILITY_ID::TRAINWARP_ZEALOT, location);
 				lastUsedWarpGate = gate.warpgate;
@@ -584,6 +576,12 @@ void ProductionManager::buildStructure(AbilityID structureToBuild)
 	{
 		if (structureToBuild == ABILITY_ID::BUILD_PYLON)
 		{
+			//if the point we're trying to build on has creep on it, get a new point
+			if (blinkerBot.Observation()->HasCreep(nextPylonLocation))
+			{
+				setNextPylonLocation();
+			}
+
 			if (pylons.empty())
 			{
 				blinkerBot.Actions()->UnitCommand(builder, structureToBuild, nextPylonLocation);
@@ -781,12 +779,14 @@ void ProductionManager::setNextPylonLocation()
 		nextPylonLocation = baseManager.getNaturalFirstPylonPosition();
 		return;
 	}
+	/*
 	//if we need a forward pylon then build the pylon there
 	if (enemyRace == Race::Zerg && !pylons.empty() && forwardPylon == nullptr && armyStatus == Attack)
 	{
 		//std::cerr << "making a forward pylon" << std::endl;
 		nextPylonLocation = forwardPylonPoint;
 	}
+	*/
 
 	//otherwise find an appropriate location
 	else
@@ -804,6 +804,7 @@ void ProductionManager::setNextPylonLocation()
 				buildLocation = structure->pos;
 			}
 		}
+		//if we have an unpowered building, try to build a pylon near it
 		if (unpowered)
 		{
 			std::vector<Point2D> buildGrid = getBuildGrid(buildLocation);
@@ -871,21 +872,12 @@ void ProductionManager::setNextPylonLocation()
 			buildGrid = getBuildGrid(baseManager.getNextBaseLocation());
 		}
 
-		//select a random location from the available ones
-		buildLocation = GetRandomEntry(buildGrid);
-		/*
-		if (Distance2D(buildLocation, baseManager.getNextBaseLocation()) < 6)
+		if (!buildGrid.empty())
 		{
-			int count = 0;
-			while (Distance2D(buildLocation, baseManager.getNextBaseLocation()) < 6 && count < 20)
-			{
-				buildLocation = GetRandomEntry(buildGrid);
-				count++;
-			}
+			//select a random location from the available ones
+			buildLocation = GetRandomEntry(buildGrid);
+			nextPylonLocation = buildLocation;
 		}
-		*/
-
-		nextPylonLocation = buildLocation;
 	}
 }
 
@@ -1295,16 +1287,22 @@ called when we find a new enemy base
 */
 void ProductionManager::addEnemyBase(const Unit *unit)
 {
-	enemyBases.insert(unit);
-	workerManager.addEnemyMain(unit);
-
-	//if our opponent chose random, we can update its race once we've scouted its base
-	if (enemyRace == Race::Random && !enemyBases.empty())
+	if (UnitData::isTownHall(unit))
 	{
-		enemyRace = blinkerBot.Observation()->GetUnitTypeData()[(*enemyBases.begin())->unit_type].race;
-		productionQueue.setEnemyRace(enemyRace);
-		buildOrderManager.setEnemyRace(enemyRace);
+		enemyBases.insert(unit);
+		workerManager.addEnemyMain(unit);
+
+		//if our opponent chose random, we can update its race once we've scouted its base
+		if (enemyRace == Race::Random && !enemyBases.empty())
+		{
+			enemyRace = blinkerBot.Observation()->GetUnitTypeData()[(*enemyBases.begin())->unit_type].race;
+			productionQueue.setEnemyRace(enemyRace);
+			buildOrderManager.setEnemyRace(enemyRace);
+			workerManager.setEnemyRace(enemyRace);
+		}
 	}
+
+	workerManager.addEnemyStructure(unit);
 }
 
 /*
@@ -1471,18 +1469,20 @@ void ProductionManager::receiveCloakSignal(bool signal)
 {
 	buildOrderManager.receiveCloakSignal(signal);
 
-	//check if we have the ability to produce detectors
-	bool detectionProducable = false;
-	for (auto structure : structures)
+	//(signal is passed via Army Manager)
+	if (signal)
 	{
-		if (structure->unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY && structure->build_progress == 1.0)
+		enemyHasCloak = true;
+
+		//if we don't already have a robo facility on the way, let's start one
+		if (!structureExists(UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY) && 
+			!productionQueue.includes(ABILITY_ID::BUILD_ROBOTICSFACILITY))
 		{
-			detectionProducable = true;
+			productionQueue.addItemHighPriority(ABILITY_ID::BUILD_ROBOTICSFACILITY);
 		}
 	}
 
-	//check if we already started producing
-	bool alreadyConstructing = false;
+	//check if we are already training an observer
 	bool alreadyTraining = false;
 	for (auto item : getCurrentlyInProduction())
 	{
@@ -1490,34 +1490,15 @@ void ProductionManager::receiveCloakSignal(bool signal)
 		{
 			alreadyTraining = true;
 		}
-		else if (item.first == ABILITY_ID::BUILD_ROBOTICSFACILITY)
-		{
-			alreadyConstructing = true;
-		}
-	}
-
-	//(signal is passed via Army Manager)
-	if (signal)
-	{
-		enemyHasCloak = true;
-
-		//if we don't already have a robo facility on the way, let's start one
-		if (!detectionProducable && !alreadyConstructing)
-		{
-			if (!productionQueue.includes(ABILITY_ID::BUILD_ROBOTICSFACILITY))
-			{
-				productionQueue.addItemHighPriority(ABILITY_ID::BUILD_ROBOTICSFACILITY);
-			}
-		}
 	}
 
 	//if we can make observers but we don't have one, make one
-	if (detectionProducable && !alreadyTraining && observers.empty())
+	if (completedStructureExists(UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY) && 
+		!productionQueue.includes(ABILITY_ID::TRAIN_OBSERVER) && 
+		observers.empty() &&
+		!alreadyTraining)
 	{
-		if (!productionQueue.includes(ABILITY_ID::TRAIN_OBSERVER))
-		{
-			productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_OBSERVER);
-		}
+		productionQueue.addItemHighPriority(ABILITY_ID::TRAIN_OBSERVER);
 	}
 }
 
@@ -1715,7 +1696,7 @@ std::vector<Point2D> ProductionManager::getBuildGrid(Point2D centre)
 				tooClose = true;
 			}
 		}
-		if (tooClose)
+		if (tooClose || blinkerBot.Observation()->HasCreep(*point))
 		{
 			point = buildGrid.erase(point);
 		}
@@ -2250,7 +2231,7 @@ void ProductionManager::trainSentries()
 		return;
 	}
 	else if (armyStatus != Defend && 
-		enemyRace != Terran &&
+		enemyRace == Zerg &&
 		!(beingRushed && shieldBatteries.size() < 2) &&
 		!(!warpGates.empty() && warpGates.size() < 2) &&
 		sentries.size() < assimilators.size() - 1 &&
@@ -2269,7 +2250,60 @@ void ProductionManager::trainSentries()
 	}
 }
 
+/*
+tells production manager if the enemy has zergling speed
+*/
 void ProductionManager::receiveLingSpeedSignal(bool signal)
 {
 	lingSpeed = signal;
+}
+
+/*
+used to update worker manager when an enemy structure is destroyed so it can check if the structure was part of a proxy base
+*/
+void ProductionManager::removeEnemyProxy(const Unit *unit)
+{
+	workerManager.removeEnemyProxy(unit);
+}
+
+/*
+checks for accidental wall-ins and returns a pointer to one of our buildings to destroy if necessary
+(only works for the main)
+*/
+const Unit *ProductionManager::accidentalWallIn()
+{
+	const Unit *tester = workerManager.getBuilder();
+
+	//this only works for the main ramp so return false after we expand
+	if (baseManager.getOurBases().size() == 1 && tester && armyStatus == Attack)
+	{
+		//the pathing query will return 0 if there is no path to the destination; in that case we're walled in
+		if (blinkerBot.Query()->PathingDistance(tester, baseManager.getNextBaseLocation()) == 0)
+		{
+			//find the rocks at the bottom of the ramp
+			const Unit *rock = nullptr;
+			for (auto unit : blinkerBot.Observation()->GetUnits())
+			{
+				if (UnitData::isNeutralRock(unit) && Distance2D(baseManager.getMainRampTop(), unit->pos) < 8)
+				{
+					rock = unit;
+				}
+			}
+			if (rock)
+			{
+				for (auto structure : structures)
+				{
+					//find a building near the ramp top that isnt one of our intended wall-in buildings
+					if (!UnitData::isSamePoint2D(structure->pos, baseManager.getMainFirstPylonPosition()) &&
+						!UnitData::isSamePoint2D(structure->pos, baseManager.getMainFirstWallInPosition()) &&
+						!UnitData::isSamePoint2D(structure->pos, baseManager.getMainSecondWallInPosition()) &&
+						Distance2D(structure->pos, rock->pos) < 10)
+					{
+						return structure;
+					}
+				}
+			}
+		}
+	}
+	return nullptr;
 }

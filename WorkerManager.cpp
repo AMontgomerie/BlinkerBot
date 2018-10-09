@@ -3,7 +3,10 @@
 
 
 WorkerManager::WorkerManager(BlinkerBot & bot) : 
-	blinkerBot(bot), scout(nullptr), enemyMain(nullptr), threatenedStructure(nullptr), scouting(false), threat(0), armyStatus(Retreat){}
+	blinkerBot(bot), enemyRace(Race::Random), armyStatus(Retreat),
+	scout(nullptr), enemyMain(nullptr), threatenedStructure(nullptr), 
+	scouting(false), beingProxied(false), proxyScouted(false), 
+	threat(0){}
 
 /*
 perform one-time only actions at the start of the game
@@ -30,19 +33,6 @@ remove a worker from our set of workers
 */
 void WorkerManager::removeWorker(const Unit *unit)
 {
-	/*
-	for (std::set<const Unit *>::iterator worker = workers.begin(); worker != workers.end();)
-	{
-		if (*worker == unit)
-		{
-			workers.erase(worker++);
-		}
-		else
-		{
-			++worker;
-		}
-	}
-	*/
 	workers.erase(unit);
 	pulledWorkers.erase(unit);
 }
@@ -256,15 +246,20 @@ call regularly to trigger various worker management-related methods
 */
 void WorkerManager::update()
 {
-	if (enemyMain && scout->is_alive)
+	//handle scouting the enemy base
+	if (scout->is_alive)
 	{
-		harassWorkers();
-	}
-	else if (!enemyMain && !scouting && scout->is_alive)
-	{
-		scoutEnemyBases();
+		if (enemyMain)
+		{
+			harassWorkers();
+		}
+		else if (!enemyMain && !scouting)
+		{
+			scoutEnemyBases();
+		}
 	}
 
+	//defending worker rushes and pulling workers
 	if (armyStatus == Defend)
 	{
 		if (!threatenedStructure)
@@ -294,6 +289,34 @@ void WorkerManager::update()
 		if (armyStatus != Defend)
 		{
 			checkGases();
+		}
+		
+		//check for cannon rushes and proxy gates
+		if (enemyRace != Race::Zerg && blinkerBot.Observation()->GetGameLoop() < 3000 && !beingProxied)
+		{
+			beingProxied = checkForProxy();
+		}
+		//if we're being proxied then let's try to find out where
+		if (beingProxied && !proxyScouted)
+		{
+			if (!proxyScout)
+			{
+				assignProxyScout();
+			}
+			scoutForProxies();
+		}
+		//when we find the proxy
+		if (proxyScouted && proxyScout && proxyScout->is_alive)
+		{
+			proxyHarass();
+		}
+		//in the event that we checked and couldn't find anything, go back to work
+		if (proxyScout && proxyScouting && !proxyScouted && proxyScout->orders.empty())
+		{
+			returnToMining(proxyScout);
+			beingProxied = false;
+			workers.insert(proxyScout);
+			proxyScout = nullptr;
 		}
 	}
 }
@@ -431,6 +454,23 @@ void WorkerManager::assignScout()
 }
 
 /*
+finds a worker to use for scouting proxies
+*/
+void WorkerManager::assignProxyScout()
+{
+	if (workers.empty())
+	{
+		return;
+	}
+	else
+	{
+		std::set<const Unit *>::iterator worker = workers.begin();
+		proxyScout = *worker;
+		removeWorker(*worker);
+	}
+}
+
+/*
 returns our assigned scouting worker
 */
 const Unit *WorkerManager::getScout()
@@ -448,7 +488,7 @@ void WorkerManager::scoutEnemyBases()
 	{
 		blinkerBot.Actions()->UnitCommand(scout, ABILITY_ID::MOVE, location, true);
 	}
-	//queue a command to return to mining after scouting
+
 	scouting = true;
 }
 
@@ -472,6 +512,12 @@ commands the assigned scout to harras enemy workers
 void WorkerManager::harassWorkers()
 {
 	const Unit *target = getClosestEnemyWorker(scout);
+
+	//ignore targets that go too far from the enemy base
+	if (enemyMain && target && Distance2D(enemyMain->pos, target->pos) > LOCALRADIUS)
+	{
+		target = nullptr;
+	}
 
 	if (!enemyMain)
 	{
@@ -541,8 +587,7 @@ const Unit *WorkerManager::getClosestEnemyWorker(const Unit *ourUnit)
 	for (auto enemy : blinkerBot.Observation()->GetUnits())
 	{
 		//if the unit is an enemy worker, we can see it now, and it's not going too far from the enemy base (we don't wanna chase a scout)
-		if (UnitData::isWorker(enemy) && !UnitData::isOurs(enemy) && enemy->last_seen_game_loop == blinkerBot.Observation()->GetGameLoop()
-			&& enemyMain && Distance2D(enemyMain->pos, enemy->pos) < 30)
+		if (UnitData::isWorker(enemy) && !UnitData::isOurs(enemy) && enemy->last_seen_game_loop == blinkerBot.Observation()->GetGameLoop())
 		{
 			//make this enemy worker the closest if we don't have a closest or if it's closer than our previously recorded one
 			if (!closestEnemy || (Distance2D(enemy->pos, ourUnit->pos) < Distance2D(closestEnemy->pos, ourUnit->pos)))
@@ -862,9 +907,153 @@ void WorkerManager::checkForDuplicateBuildCommands(AbilityID ability)
 		{
 			if (order.ability_id == ability)
 			{
-				std::cout << "removing duplicate " << AbilityTypeToName(ability) << std::endl;
 				blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::STOP);
 			}
 		}
+	}
+}
+
+/*
+sends a worker to scout in the event that we suspect a proxy
+*/
+void WorkerManager::scoutForProxies()
+{
+	if (!proxyScout)
+	{
+		return;
+	}
+
+	//if our scout isn't scouting yet, let's get started
+	if (!proxyScouting && (scout->orders.empty() || scout->orders.front().ability_id != ABILITY_ID::MOVE))
+	{
+		//queue up a move command to all the nearby bases
+		for (auto base : baseLocations)
+		{
+			if (Distance2D(proxyScout->pos, base) < PROXYDIST && Distance2D(base, blinkerBot.Observation()->GetStartLocation()) > 10)
+			{
+				blinkerBot.Actions()->UnitCommand(proxyScout, ABILITY_ID::MOVE, base, true);
+			}
+			proxyScouting = true;
+		}
+		//return home after scouting the bases
+		if (!bases.empty())
+		{
+			const Unit *home = *bases.begin();
+			blinkerBot.Actions()->UnitCommand(proxyScout, ABILITY_ID::MOVE, home->pos, true);
+		}
+	}
+
+	//check the enemy bases we know about, if they're close to our base, we've found the proxy
+	for (auto structure : enemyStructures)
+	{
+		if (Distance2D(blinkerBot.Observation()->GetStartLocation(), structure->pos) < PROXYDIST)
+		{
+			proxiedEnemyStructures.insert(structure);
+			proxyScouted = true;
+		}
+	}
+}
+
+/*
+receives a set of base locations for scouting purposes
+*/
+void WorkerManager::setBaseLocations(std::vector<Point2D> bases)
+{
+	baseLocations = bases;
+}
+
+/*
+adds new enemy bases
+*/
+void WorkerManager::addEnemyStructure(const Unit *unit)
+{
+	enemyStructures.insert(unit);
+}
+
+/*
+sets our opponent's race when we discover it
+*/
+void WorkerManager::setEnemyRace(Race race)
+{
+	enemyRace = race;
+}
+
+/*
+returns true vs opponents that open with a forge
+*/
+bool WorkerManager::checkForProxy()
+{
+	if (enemyStructures.empty())
+	{
+		return false;
+	}
+
+	//count enemy structures
+	int enemyBases = 0;
+	int productionFacilities = 0;
+	bool forge = false;
+	for (auto structure : enemyStructures)
+	{
+		if (structure->unit_type == UNIT_TYPEID::PROTOSS_FORGE)
+		{
+			forge = true;
+		}
+		else if (UnitData::isTownHall(structure))
+		{
+			enemyBases++;
+		}
+		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY)
+		{
+			productionFacilities++;
+		}
+	}
+
+	//we count it as a proxy when we can see a nexus and either nothing or just a forge
+	if ((enemyBases < 2 && forge) ||
+		(blinkerBot.Observation()->GetGameLoop() > 1500 && enemyBases < 2 && productionFacilities < 1))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*
+if an enemy structure is destroyed, remove it from the set if its a proxy we're keeping track of
+*/
+void WorkerManager::removeEnemyProxy(const Unit *unit)
+{
+	proxiedEnemyStructures.erase(unit);
+}
+
+/*
+if we find an enemy proxy with our scout, try to harass the worker and the structures
+*/
+void WorkerManager::proxyHarass()
+{
+	//try to find the enemy worker building the proxy
+	const Unit *enemy = getClosestEnemyWorker(proxyScout);
+
+	//ignore any workers that are too far from the proxy
+	if (!proxiedEnemyStructures.empty() && enemy)
+	{
+		const Unit *proxy = *proxiedEnemyStructures.begin();
+		if (Distance2D(proxy->pos, enemy->pos) > LOCALRADIUS)
+		{
+			enemy = nullptr;
+		}
+	}
+	//if we've found an enemy, attack them
+	if (enemy && (proxyScout->orders.empty() || proxyScout->orders.front().target_unit_tag != enemy->tag))
+	{
+		blinkerBot.Actions()->UnitCommand(proxyScout, ABILITY_ID::ATTACK, enemy);
+	}
+	//if we can't find any enemies, attack towards the enemy proxy
+	else if (!proxiedEnemyStructures.empty() &&
+		(proxyScout->orders.empty() || proxyScout->orders.front().ability_id != ABILITY_ID::ATTACK))
+	{
+		blinkerBot.Actions()->UnitCommand(proxyScout, ABILITY_ID::ATTACK, (*proxiedEnemyStructures.begin())->pos);
 	}
 }

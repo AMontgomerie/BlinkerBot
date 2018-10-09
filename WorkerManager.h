@@ -9,41 +9,35 @@
 using namespace sc2;
 
 class BlinkerBot;
+class Base;
 enum ArmyStatus;
 
 class WorkerManager
 {
 	const int LOCALRADIUS = 30;
+	const int PROXYDIST = 65;
 	BlinkerBot & blinkerBot;
+
+	std::vector<Point2D> baseLocations;
 	std::set<const Unit *> workers;
 	std::set<const Unit *> pulledWorkers;
 	std::set<const Unit *> bases;
 	std::set<const Unit *> gases;
+	std::set<const Unit *> enemyStructures;
+	std::set<const Unit *> proxiedEnemyStructures;
+
 	const Unit *enemyMain;
 	const Unit *scout;
+	const Unit *proxyScout;
+	bool beingProxied;
+	bool proxyScouted;
 	bool scouting;
+	bool proxyScouting;
 	ArmyStatus armyStatus;
 	const Unit *threatenedStructure;
 	float threat;
+	Race enemyRace;
 
-	void returnToMining(const Unit *unit);
-	void transferWorkers(int numOfWorkers, const Unit *overSaturatedBase);
-	void checkSaturation();
-	void checkForIdleWorkers();
-	void checkGases();
-	bool isAvailableWorker(const Unit *unit);
-	void assignScout();
-	void scoutEnemyBases();
-	void harassWorkers();
-	const Unit *getClosestEnemyWorker(const Unit *ourUnit);
-	float calculateThreatSupplyDifference();
-	const Unit *findThreatenedStructure();
-	void updatePulledWorkers();
-	const Unit *getClosestEnemy(const Unit *ourUnit);
-	const Unit *getFurthestVisibleMineral(const Unit *ourUnit);
-	const Unit *getClosestVisibleMineral(const Unit *ourUnit);
-	void checkForThreatenedWorkers();
-	const Unit *getClosestBase(const Unit *unit);
 public:
 	void initialise();
 	void update();
@@ -62,5 +56,32 @@ public:
 	void addEnemyMain(const Unit *unit);
 	void setArmyStatus(ArmyStatus status);
 	WorkerManager(BlinkerBot & bot);
+	void setBaseLocations(std::vector<Point2D> bases);
+	void addEnemyStructure(const Unit *unit);
+	void setEnemyRace(Race race);
+	void removeEnemyProxy(const Unit *unit);
+private:
+	void returnToMining(const Unit *unit);
+	void transferWorkers(int numOfWorkers, const Unit *overSaturatedBase);
+	void checkSaturation();
+	void checkForIdleWorkers();
+	void checkGases();
+	bool isAvailableWorker(const Unit *unit);
+	void assignScout();
+	void assignProxyScout();
+	void scoutEnemyBases();
+	void scoutForProxies();
+	void harassWorkers();
+	void proxyHarass();
+	const Unit *getClosestEnemyWorker(const Unit *ourUnit);
+	float calculateThreatSupplyDifference();
+	const Unit *findThreatenedStructure();
+	void updatePulledWorkers();
+	const Unit *getClosestEnemy(const Unit *ourUnit);
+	const Unit *getFurthestVisibleMineral(const Unit *ourUnit);
+	const Unit *getClosestVisibleMineral(const Unit *ourUnit);
+	void checkForThreatenedWorkers();
+	const Unit *getClosestBase(const Unit *unit);
+	bool checkForProxy();
 };
 

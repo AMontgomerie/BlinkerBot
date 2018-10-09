@@ -3,7 +3,7 @@
 
 ArmyManager::ArmyManager(BlinkerBot & bot) : blinkerBot(bot), currentStatus(Retreat), 
 regroupComplete(true), warpgateTech(false), beingRushed(false), zerglingSpeed(false), blinkTech(false), 
-proxy(false), extendedThermalLanceTech(false),
+proxy(false), extendedThermalLanceTech(false), demolitionDuty(false),
 regroupStarted(0), currentArmyValue(0), currentEnemyArmyValue(0), totalZerglingSupply(0), 
 zerglingTimer(nullptr, 0, 0, Point2D(0, 0), false) {}
 
@@ -47,32 +47,29 @@ void ArmyManager::onStep()
 		psistorm();
 	}
 
-	//if (blinkerBot.Observation()->GetGameLoop() % 8 == 0)
-	//{
-		const Unit *threatened = underAttack();
-		if (threatened)
+	const Unit *threatened = underAttack();
+	if (threatened)
+	{
+		//attack(threatened->pos);
+		defend(threatened->pos);
+		currentStatus = Defend;
+		regroupStarted = 0;
+	}
+	else if (canAttack() && regroupComplete)
+	{
+		attack();
+		currentStatus = Attack;
+		regroupStarted = 0;
+	}
+	else
+	{
+		if (regroupStarted == 0)
 		{
-			//attack(threatened->pos);
-			defend(threatened->pos);
-			currentStatus = Defend;
-			regroupStarted = 0;
+			regroupStarted = blinkerBot.Observation()->GetGameLoop();
 		}
-		else if (canAttack() && regroupComplete)
-		{
-			attack();
-			currentStatus = Attack;
-			regroupStarted = 0;
-		}
-		else
-		{
-			if (regroupStarted == 0)
-			{
-				regroupStarted = blinkerBot.Observation()->GetGameLoop();
-			}
-			regroupComplete = regroup();
-			currentStatus = Regroup;
-		}
-	//}
+		regroupComplete = regroup();
+		currentStatus = Regroup;
+	}
 
 	/*
 	//timer stuff
@@ -92,21 +89,24 @@ const Unit *ArmyManager::underAttack()
 {
 	for (auto enemy : enemyArmy)
 	{
-		for (auto unit : blinkerBot.Observation()->GetUnits())
+		if (enemy->unit_type != UNIT_TYPEID::ZERG_OVERLORD)
 		{
-			//if there is an enemy in range of one of our structures
-			if (UnitData::isOurs(unit) && UnitData::isStructure(unit) && 
-				(enemy->last_seen_game_loop == blinkerBot.Observation()->GetGameLoop() && 
-				(inRange(enemy, unit) || Distance2D(enemy->pos, unit->pos) < LOCALRADIUS)))
+			for (auto unit : blinkerBot.Observation()->GetUnits())
 			{
-				//filter out proxy pylons
-				const Unit *base = getClosestBase(unit);
-				if (base && Distance2D(base->pos, unit->pos) < 20)
+				//if there is an enemy in range of one of our structures
+				if (UnitData::isOurs(unit) && UnitData::isStructure(unit) &&
+					(enemy->last_seen_game_loop == blinkerBot.Observation()->GetGameLoop() &&
+					(inRange(enemy, unit) || Distance2D(enemy->pos, unit->pos) < LOCALRADIUS)))
 				{
-					if (!(enemy->is_flying && !includes(UNIT_TYPEID::PROTOSS_STALKER)))
+					//filter out proxy pylons
+					const Unit *base = getClosestBase(unit);
+					if (base && Distance2D(base->pos, unit->pos) < 20)
 					{
-						//std::cerr << UnitTypeToName(unit->unit_type) << " is under attack from " << UnitTypeToName(enemy->unit_type) << std::endl;
-						return unit;
+						if (!(enemy->is_flying && !includes(UNIT_TYPEID::PROTOSS_STALKER)))
+						{
+							//std::cerr << UnitTypeToName(unit->unit_type) << " is under attack from " << UnitTypeToName(enemy->unit_type) << std::endl;
+							return unit;
+						}
 					}
 				}
 			}
@@ -133,15 +133,19 @@ bool ArmyManager::regroup()
 		bool unitsCloseEnough = true;
 		for (auto armyUnit : army)
 		{
-			//if zealots get caught by speedlings then they might as well just fight
+
 			const Unit *enemy = getClosestEnemy(armyUnit.unit->pos);
+			/*
+			//if zealots get caught by speedlings then they might as well just fight
 			if (zerglingSpeed && enemy && enemy->unit_type == UNIT_TYPEID::ZERG_ZERGLING &&
 				armyUnit.unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT && Distance2D(enemy->pos, armyUnit.unit->pos) < 2 
 				&& (armyUnit.unit->orders.empty() || armyUnit.unit->orders.front().ability_id != ABILITY_ID::ATTACK))
 			{
 				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, enemy);
 			}
-			else if (armyUnit.unit->orders.empty() || armyUnit.unit->orders.front().ability_id != ABILITY_ID::MOVE ||
+			*/
+			//else 
+				if (armyUnit.unit->orders.empty() || armyUnit.unit->orders.front().ability_id != ABILITY_ID::MOVE ||
 				(armyUnit.unit->orders.front().target_pos.x != rallyPoint.x && armyUnit.unit->orders.front().target_pos.y != rallyPoint.y))
 			{
 				if (proxy)
@@ -224,6 +228,11 @@ When units come into contact with enemies, blink() and kite() will be called.
 */
 void ArmyManager::attack()
 {
+	//if we are walled in, break it before issuing attack commands
+	if (demolitionDuty)
+	{
+		return;
+	}
 	//check if we can blink on top of our enemy
 	if (!army.empty())
 	{
@@ -735,12 +744,18 @@ bool ArmyManager::canAttack()
 {
 	//attack can be delayed by zergling speed (until blink), rushes (until early game timer runs out), or army size
 	if (!(proxy && army.size() < 8) &&
-		//!(zerglingSpeed && !blinkTech) && 
+		blinkTech &&
 		!beingRushed && currentArmyValue > 1 && 
 		((currentArmyValue >= currentEnemyArmyValue)  || blinkerBot.Observation()->GetFoodUsed() > 180))
 	{
 		return true;
 	}
+	/*
+	else if (currentStatus == Attack && currentArmyValue * 1.3 > currentEnemyArmyValue)
+	{
+		return true;
+	}
+	*/
 	else
 	{
 		return false;
@@ -1407,61 +1422,80 @@ bool ArmyManager::rushDetected()
 				if (!enemyStructures.empty())
 				{
 					enemyRace = blinkerBot.Observation()->GetUnitTypeData()[(*enemyStructures.begin())->unit_type].race;
-					return false; //in case it's zerg
+					return false;
 				}
 				else if (!enemyArmy.empty())
 				{
 					enemyRace = blinkerBot.Observation()->GetUnitTypeData()[(*enemyArmy.begin())->unit_type].race;
-					return false; //in case it's zerg
+					return false;
 				}
 			}
 
-			//let's count what we can see
-			int productionFacilities = 0;
-			int bases = 0;
-			int gases = 0;
-
-			for (auto structure : enemyStructures)
+			//this check should only be started after the time that we expect them to have built something
+			if (blinkerBot.Observation()->GetGameLoop() > 1200)
 			{
-				if (structure->unit_type == UNIT_TYPEID::TERRAN_BARRACKS || 
-					structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY)
+				//let's count what we have
+				int ourProductionFacilities = 0;
+				for (auto structure : structures)
 				{
-					productionFacilities++;
+					if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY)
+					{
+						ourProductionFacilities++;
+					}
 				}
-				else if (structure->unit_type == UNIT_TYPEID::TERRAN_COMMANDCENTER || 
-					structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
-				{
-					bases++;
-				}
-				else if (structure->unit_type == UNIT_TYPEID::TERRAN_REFINERY ||
-					structure->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
-				{
-					gases++;
-				}
-				//if they have structures close to our base, then they're proxying us
-				if (Distance2D(structure->pos, blinkerBot.Observation()->GetStartLocation()) < 35)
-				{
-					//std::cerr << "proxy scouted" << std::endl;
-					beingRushed = true;
-					proxy = true;
-					return true;
-				}
-				//if they still don't have anything in their main, they must be proxying us
-				else if (blinkerBot.Observation()->GetGameLoop() > 1500 && productionFacilities == 0)
-				{
-					//std::cerr << "can't see anything in the main, reacting to proxy" << std::endl;
-					beingRushed = true;
-					proxy = true;
-					return true;
-				}
-			}
 
-			//if our enemy is going mass barracks or mass gateway, let's play defensive
-			if (bases < 2 && productionFacilities > 2 && gases == 0)
-			{
-				//std::cerr << "possible 1 base aggression scouted" << std::endl;
-				beingRushed = true;
-				return true;
+				//let's count what we can see
+				int productionFacilities = 0;
+				int bases = 0;
+				int gases = 0;
+
+				for (auto structure : enemyStructures)
+				{
+					if (structure->unit_type == UNIT_TYPEID::TERRAN_BARRACKS ||
+						structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY)
+					{
+						productionFacilities++;
+					}
+					else if (structure->unit_type == UNIT_TYPEID::TERRAN_COMMANDCENTER ||
+						structure->unit_type == UNIT_TYPEID::PROTOSS_NEXUS)
+					{
+						bases++;
+					}
+					else if (structure->unit_type == UNIT_TYPEID::TERRAN_REFINERY ||
+						structure->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)
+					{
+						gases++;
+					}
+					//if they have structures close to our base, then they're proxying us
+					if (Distance2D(structure->pos, blinkerBot.Observation()->GetStartLocation()) < 35)
+					{
+						//std::cerr << "proxy scouted" << std::endl;
+						beingRushed = true;
+						proxy = true;
+						return true;
+					}
+				}
+
+				if (ourProductionFacilities > 1)
+				{
+					//if our enemy is going mass barracks or mass gateway, let's play defensive
+					if (bases < 2 && gases == 0 &&
+						((enemyRace == Race::Protoss && productionFacilities > 3) ||
+						(enemyRace == Race::Terran && productionFacilities > 2)))
+					{
+						//std::cerr << "possible 1 base aggression scouted" << std::endl;
+						beingRushed = true;
+						return true;
+					}
+					//if they still don't have anything in their main, they must be proxying us
+					else if (productionFacilities == 0)
+					{
+						//std::cerr << "can't see anything in the main, reacting to proxy" << std::endl;
+						beingRushed = true;
+						proxy = true;
+						return true;
+					}
+				}
 			}
 			return false;
 		}
@@ -2218,4 +2252,46 @@ std::vector<Point2D> ArmyManager::calculateGrid(Point2D centre, int size)
 bool ArmyManager::lingSpeed()
 {
 	return zerglingSpeed;
+}
+
+/*
+adds a structure to the set of our structures
+*/
+void ArmyManager::addStructure(const Unit *structure)
+{
+	if (UnitData::isOurs(structure) && UnitData::isStructure(structure))
+	{
+		structures.insert(structure);
+	}
+}
+
+/*
+removes a structure from the set of our structures
+*/
+void ArmyManager::removeStructure(const Unit *structure)
+{
+	structures.erase(structure);
+}
+
+/*
+destroys the target building (used to break accidental wall-ins)
+*/
+void ArmyManager::breakWall(const Unit *blocker)
+{
+	if (blocker)
+	{
+		demolitionDuty = true;
+		std::cerr << "attacking the blocker" << std::endl;
+		for (auto armyUnit : army)
+		{
+			if (armyUnit.unit->orders.empty() || armyUnit.unit->orders.front().ability_id != ABILITY_ID::ATTACK)
+			{
+				blinkerBot.Actions()->UnitCommand(armyUnit.unit, ABILITY_ID::ATTACK, blocker);
+			}
+		}
+	}
+	else
+	{
+		demolitionDuty = false;
+	}
 }

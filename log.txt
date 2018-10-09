@@ -1,18 +1,24 @@
 high priority:
+- weird freeze bug possibly our fault?
+- fix that weird zealot behaviour when caught by lings (just fight and die)
+- forcefield logic: if no nearby blockers or ramp, only cast if we have 3 or more saved up
 - switch PvZ build back to fast expand (second pylon in main, sentries afraid of lings, remove/update proxy pylon)
+- keep army together better and save energy for recalls
 - implement warp prism
 -ff
 	- make a distinction between protect vs melee and cut vs ranged
+	- ramp ffs go on top of each other (make them line up instead)
 - PvZ reactive unit compositions (colossus/storm vs hydra and voidray vs broodlord)
 - change supply block detection to be a +% of our current supply
-- rush defense being incorrectly triggered
 - change aggressive blink so it can be triggered by any stalker when attacking, also make stalkers actually target the unit they blunk
 - more advanced dt: only run when visible and threats are in range
 - still a 3 robo bug vs cloaked units
 - blink into main vs fast expanders
 - pull workers vs drops
 - make cannons vs banshee/oracle/voidray/muta
+- building placement should avoid creep
 later:
+- better solution for multiple buildings/units: issue command once, put a clock on it, and only reissue if it hasn't happened yet
 - perhaps separate forge upgrades from key techs so that they arent delayed for so long
 - improve build order execution by finding a worker close to the build location
 - forcefield placement could work like storm?
@@ -34,11 +40,8 @@ later:
 - some weird behaviour around tanks and ramps
 
 DONE FOR NEXT UPLOAD:
-- FFE
-- disabled forward pylon
-- go zealot heavy vs lings
-- emergency updates to production queue should no longer cause multiple buildings to be constructed
-- forcefield implemented (defensive only)
-- fixed a crash bug when we could only see enemy creep tumors
-- implemented some double order detection but doesnt fully work
-- temporarily switch PvZ to 4gate
+- scout for proxies and harass the builders
+- fixed a bug causing reaction to rushes that dont exist
+- probes should no longer try to build pylons on creep
+- units will now detect and destroy an accidental wall in
+- fixed a bug causing multiple robo facilities to be built vs cloak
