@@ -750,20 +750,7 @@ bool ArmyManager::canAttack()
 	{
 		return true;
 	}
-	/*
-	else if (currentStatus == Attack && currentArmyValue * 1.3 > currentEnemyArmyValue)
-	{
-		return true;
-	}
-	*/
-	else
-	{
-		return false;
-	}
-	/*
-	if (calculateSupply(army) > 1
-		&& (calculateSupply(army) >= calculateSupply(enemyArmy) + calculateEnemyStaticDefence() || 
-			blinkerBot.Observation()->GetFoodUsed() + 30 >= 200))
+	else if (checkForProxies())
 	{
 		return true;
 	}
@@ -771,7 +758,6 @@ bool ArmyManager::canAttack()
 	{
 		return false;
 	}
-	*/
 }
 
 /*
@@ -2294,4 +2280,38 @@ void ArmyManager::breakWall(const Unit *blocker)
 	{
 		demolitionDuty = false;
 	}
+}
+
+/*
+if we have any enemy structures in our main, attack them
+*/
+bool ArmyManager::checkForProxies()
+{
+	//find our main nexus
+	const Unit *main = nullptr;
+	for (auto base : bases)
+	{
+		if (Distance2D(base->pos, blinkerBot.Observation()->GetStartLocation()) < 5)
+		{
+			main = base;
+		}
+	}
+	if (main)
+	{
+		for (auto structure : enemyStructures)
+		{
+			//check enemy structures in range
+			if (Distance2D(blinkerBot.Observation()->GetStartLocation(), structure->pos) <= LOCALRADIUS * 2)
+			{
+				//compare their z value to make sure they're in the main and not proxied in the natural
+				if (structure->pos.z == main->pos.z || 
+				   (structure->pos.z > main->pos.z && structure->pos.z - main->pos.z < 0.5) ||
+				   (structure->pos.z < main->pos.z && main->pos.z - structure->pos.z < 0.5))
+				{
+					return true;
+				}
+			}
+		}
+	}
+	return false;
 }

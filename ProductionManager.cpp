@@ -52,7 +52,6 @@ void ProductionManager::onStep()
 	start = std::clock();
 	//timer stuff
 	*/
-
 	//printDebug();
 	if (uint32_t(blinkerBot.Observation()->GetMinerals()) > DEADLOCK)
 	{
@@ -75,13 +74,11 @@ void ProductionManager::onStep()
 	//update workers (called frequently because of scouting worker micro)
 	workerManager.update();
 
-
 	//the following don't need to be called so frequently
 	if (blinkerBot.Observation()->GetGameLoop() % 30 == 0)
 	{
 		checkSupply();
 		chronoBoost();
-
 		//let's stop regular production briefly to make sure the next base gets started or a key unit gets trained
 		if (!isBlocking(productionQueue.getNextItem().item) || armyStatus == Defend || blinkerBot.Observation()->GetMinerals() > 400)
 		{
@@ -112,7 +109,6 @@ void ProductionManager::onStep()
 		//if worker manager sends a warning that a base is mining out, build order manager needs to be informed
 		buildOrderManager.receiveMiningOutSignal(workerManager.miningOut());
 	}
-
 	/*
 	//timer stuff
 	duration = (std::clock() - start) / (double)CLOCKS_PER_SEC * 1000;
@@ -787,7 +783,6 @@ void ProductionManager::setNextPylonLocation()
 		nextPylonLocation = forwardPylonPoint;
 	}
 	*/
-
 	//otherwise find an appropriate location
 	else
 	{
@@ -825,6 +820,9 @@ void ProductionManager::setNextPylonLocation()
 		}
 		else
 		{
+			/*
+			//HERE BE WEIRD CRASHING BUGS BEWARE
+
 			//if we have started a new base which doesn't have any pylons near it yet
 			const Unit *newBase = baseNeedsNearbyPylon();
 			if (newBase)
@@ -846,6 +844,7 @@ void ProductionManager::setNextPylonLocation()
 					return;
 				}
 			}
+			*/
 
 			//find the location of our most recent base
 			bool townHallInProduction = false;
@@ -879,6 +878,7 @@ void ProductionManager::setNextPylonLocation()
 			nextPylonLocation = buildLocation;
 		}
 	}
+
 }
 
 /*
@@ -1883,7 +1883,8 @@ returns true if the ability is a high priority ability (so that we know to block
 bool ProductionManager::isBlocking(AbilityID ability)
 {
 	//some important buildings and units are blocking
-	if (ability == ABILITY_ID::BUILD_NEXUS || ability == ABILITY_ID::BUILD_ROBOTICSFACILITY || 
+	if ((ability == ABILITY_ID::BUILD_NEXUS && !(baseManager.getOurBases().size() < 2 && blinkerBot.Observation()->GetGameLoop() < 9000)) || 
+		ability == ABILITY_ID::BUILD_ROBOTICSFACILITY || 
 		(completedStructureExists(UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL) && ability == ABILITY_ID::BUILD_TEMPLARARCHIVE) ||
 		(completedStructureExists(UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY) && 
 			completedStructureExists(UNIT_TYPEID::PROTOSS_ROBOTICSBAY) && ability == ABILITY_ID::TRAIN_COLOSSUS) ||
@@ -2020,20 +2021,27 @@ void ProductionManager::receiveRushSignal(bool signal)
 	{
 		beingRushed = true;
 
-		//protoss or terran response
-		//if (enemyRace != Race::Zerg)
-		//{
-			//if this is the first we've heard about it, cancel the current build order and get a defensive one
-			if (!reactedToRush)
-			{
-				productionQueue.clearQueue();
-				productionQueue.generateMoreItems(buildOrderManager.generateRushDefenceGoal());
-				reactedToRush = true;
-			}
-		//}
+		//if this is the first we've heard about it, cancel the current build order and get a defensive one
+		if (!reactedToRush)
+		{
+			productionQueue.clearQueue();
+			productionQueue.generateMoreItems(buildOrderManager.generateRushDefenceGoal());
+			reactedToRush = true;
+		}
 		//if we can make shield batteries, let's do it
 		if (completedStructureExists(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE))
 		{
+			if (shieldBatteries.empty() && !productionQueue.includes(ABILITY_ID::BUILD_SHIELDBATTERY))
+			{
+				productionQueue.addItemHighPriority(ABILITY_ID::BUILD_SHIELDBATTERY);
+			}
+			else if (shieldBatteries.size() == 1 && completedStructureExists(UNIT_TYPEID::PROTOSS_SHIELDBATTERY) &&
+				!productionQueue.includes(ABILITY_ID::BUILD_SHIELDBATTERY))
+			{
+				productionQueue.addItemHighPriority(ABILITY_ID::BUILD_SHIELDBATTERY);
+			}
+
+			/*
 			int extraShieldBatteries = 2 - shieldBatteries.size();
 			bool shieldBatteryInProduction = false;
 
@@ -2044,6 +2052,7 @@ void ProductionManager::receiveRushSignal(bool signal)
 					productionQueue.addItemHighPriority(ABILITY_ID::BUILD_SHIELDBATTERY);
 				}
 			}
+			*/
 		}
 		//if we can make cannons, do that
 		if (completedStructureExists(UNIT_TYPEID::PROTOSS_FORGE))
@@ -2158,7 +2167,6 @@ returns a base which doesn't have any pylons nearby, otherwise returns a nullptr
 const Unit *ProductionManager::baseNeedsNearbyPylon()
 {
 	const Unit *newBase = nullptr;
-
 	//check each base to see if it has a nearby pylon
 	for (auto base : baseManager.getOurBases())
 	{

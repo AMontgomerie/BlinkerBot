@@ -108,6 +108,7 @@ private:
 	float calculateSupplyInRadius(Point2D centre, std::set<const Unit *> army);
 	float calculateSupplyInRadius(Point2D centre, std::vector<ArmyUnit> army);
 	bool canAttack();
+	bool checkForProxies();
 	void checkForZerglingSpeed();
 	void darkTemplarHarass();
 	void defend(Point2D threatened);

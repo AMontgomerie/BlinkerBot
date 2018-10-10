@@ -335,8 +335,8 @@ void BuildOrderManager::initialiseKeyTechs()
 	switch (enemyRace)
 	{
 	case Race::Terran:
-		keyTechs.push_back(ABILITY_ID::RESEARCH_PSISTORM);
 		keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL1);
+		keyTechs.push_back(ABILITY_ID::RESEARCH_PSISTORM);
 		keyTechs.push_back(ABILITY_ID::RESEARCH_CHARGE);
 		keyTechs.push_back(ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONSLEVEL2);
 		keyTechs.push_back(ABILITY_ID::RESEARCH_EXTENDEDTHERMALLANCE);

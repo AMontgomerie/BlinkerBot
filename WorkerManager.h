@@ -15,12 +15,15 @@ enum ArmyStatus;
 class WorkerManager
 {
 	const int LOCALRADIUS = 30;
+	const int PROXYCANNONDIST = 20;
 	const int PROXYDIST = 65;
+	const int PROXYTIMER = 6000;
 	BlinkerBot & blinkerBot;
 
 	std::vector<Point2D> baseLocations;
 	std::set<const Unit *> workers;
 	std::set<const Unit *> pulledWorkers;
+	std::set<const Unit *> pulledCannonDefenders;
 	std::set<const Unit *> bases;
 	std::set<const Unit *> gases;
 	std::set<const Unit *> enemyStructures;
@@ -33,6 +36,7 @@ class WorkerManager
 	bool proxyScouted;
 	bool scouting;
 	bool proxyScouting;
+	bool cannonCompleted;
 	ArmyStatus armyStatus;
 	const Unit *threatenedStructure;
 	float threat;
@@ -83,5 +87,6 @@ private:
 	void checkForThreatenedWorkers();
 	const Unit *getClosestBase(const Unit *unit);
 	bool checkForProxy();
+	void defenceAgainstCannons();
 };
 

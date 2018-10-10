@@ -5,7 +5,7 @@
 WorkerManager::WorkerManager(BlinkerBot & bot) : 
 	blinkerBot(bot), enemyRace(Race::Random), armyStatus(Retreat),
 	scout(nullptr), enemyMain(nullptr), threatenedStructure(nullptr), 
-	scouting(false), beingProxied(false), proxyScouted(false), 
+	scouting(false), beingProxied(false), proxyScouted(false), cannonCompleted(false),
 	threat(0){}
 
 /*
@@ -291,8 +291,14 @@ void WorkerManager::update()
 			checkGases();
 		}
 		
+		if (proxyScout && proxyScout->orders.empty())
+		{
+			returnToMining(proxyScout);
+		}
+
+
 		//check for cannon rushes and proxy gates
-		if (enemyRace != Race::Zerg && blinkerBot.Observation()->GetGameLoop() < 3000 && !beingProxied)
+		if (enemyRace != Race::Zerg && blinkerBot.Observation()->GetGameLoop() < PROXYTIMER && !beingProxied)
 		{
 			beingProxied = checkForProxy();
 		}
@@ -303,12 +309,25 @@ void WorkerManager::update()
 			{
 				assignProxyScout();
 			}
-			scoutForProxies();
+			const Unit *enemy = getClosestEnemyWorker(proxyScout);
+			if (enemy && Distance2D(enemy->pos, blinkerBot.Observation()->GetStartLocation()) <= PROXYDIST)
+			{
+				if (proxyScout->orders.empty() || proxyScout->orders.front().ability_id != ABILITY_ID::ATTACK)
+				{
+					blinkerBot.Actions()->UnitCommand(proxyScout, ABILITY_ID::ATTACK, enemy);
+					proxyScouting = false;
+				}
+			}
+			else
+			{
+				scoutForProxies();
+			}
 		}
 		//when we find the proxy
 		if (proxyScouted && proxyScout && proxyScout->is_alive)
 		{
 			proxyHarass();
+			defenceAgainstCannons();
 		}
 		//in the event that we checked and couldn't find anything, go back to work
 		if (proxyScout && proxyScouting && !proxyScouted && proxyScout->orders.empty())
@@ -1002,7 +1021,8 @@ bool WorkerManager::checkForProxy()
 		{
 			enemyBases++;
 		}
-		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY)
+		else if (structure->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY ||
+				 structure->unit_type == UNIT_TYPEID::TERRAN_BARRACKS)
 		{
 			productionFacilities++;
 		}
@@ -1025,6 +1045,7 @@ if an enemy structure is destroyed, remove it from the set if its a proxy we're 
 */
 void WorkerManager::removeEnemyProxy(const Unit *unit)
 {
+	enemyStructures.erase(unit);
 	proxiedEnemyStructures.erase(unit);
 }
 
@@ -1056,4 +1077,74 @@ void WorkerManager::proxyHarass()
 	{
 		blinkerBot.Actions()->UnitCommand(proxyScout, ABILITY_ID::ATTACK, (*proxiedEnemyStructures.begin())->pos);
 	}
+}
+
+/*
+pulls workers vs proxied enemy cannons
+*/
+void WorkerManager::defenceAgainstCannons()
+{
+	int threat = 0;
+	for (auto structure : enemyStructures)
+	{
+		//check for local structures
+		if (Distance2D(blinkerBot.Observation()->GetStartLocation(), structure->pos) <= PROXYCANNONDIST)
+		{
+			//pylons and cannons are threats
+			if (structure->unit_type == UNIT_TYPEID::PROTOSS_PYLON)
+			{
+				threat++;
+			}
+			else if (structure->unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)
+			{
+				//we need to know if a cannon finishes
+				if (structure->build_progress == 1.0 && structure->last_seen_game_loop == blinkerBot.Observation()->GetGameLoop())
+				{
+					cannonCompleted = true;
+				}
+				threat++;
+			}
+		}
+	}
+	if (threat > 0 && !cannonCompleted && !enemyStructures.empty())
+	{
+		//pull workers equal to the size of the threat
+		std::set<const Unit *>::iterator worker = workers.begin();
+		while (pulledCannonDefenders.size() <= (threat * 3) && worker != workers.end())
+		{
+			pulledCannonDefenders.insert(*worker);
+			workers.erase(worker++);
+		}
+		//find a target
+		const Unit *target = nullptr;
+		for (auto structure : enemyStructures)
+		{
+			if (Distance2D(blinkerBot.Observation()->GetStartLocation(), structure->pos) <= PROXYCANNONDIST)
+			{
+				target = structure;
+			}
+		}
+		if (target)
+		{
+			//issue attack commands
+			for (auto worker : pulledCannonDefenders)
+			{
+				if (worker->orders.empty() || worker->orders.front().ability_id != ABILITY_ID::ATTACK)
+				{
+					blinkerBot.Actions()->UnitCommand(worker, ABILITY_ID::ATTACK, target->pos);
+				}
+			}
+		}
+	}
+	//if a cannon completes then just go back to mining
+	else
+	{
+		for (auto worker : pulledCannonDefenders)
+		{
+			returnToMining(worker);
+			workers.insert(worker);
+		}
+		pulledCannonDefenders.clear();
+	}
+
 }

@@ -1,5 +1,5 @@
 high priority:
-- weird freeze bug possibly our fault?
+- weird freeze fix (in the baseneedspylon or whatever method)
 - fix that weird zealot behaviour when caught by lings (just fight and die)
 - forcefield logic: if no nearby blockers or ramp, only cast if we have 3 or more saved up
 - switch PvZ build back to fast expand (second pylon in main, sentries afraid of lings, remove/update proxy pylon)
@@ -17,7 +17,9 @@ high priority:
 - pull workers vs drops
 - make cannons vs banshee/oracle/voidray/muta
 - building placement should avoid creep
+- built ridiculous amount of pylons after losing some structures (trying to repower?)
 later:
+- can only attack one base enemy if we have observer or colossus (high ground boiz)
 - better solution for multiple buildings/units: issue command once, put a clock on it, and only reissue if it hasn't happened yet
 - perhaps separate forge upgrades from key techs so that they arent delayed for so long
 - improve build order execution by finding a worker close to the build location
@@ -40,8 +42,3 @@ later:
 - some weird behaviour around tanks and ramps
 
 DONE FOR NEXT UPLOAD:
-- scout for proxies and harass the builders
-- fixed a bug causing reaction to rushes that dont exist
-- probes should no longer try to build pylons on creep
-- units will now detect and destroy an accidental wall in
-- fixed a bug causing multiple robo facilities to be built vs cloak
